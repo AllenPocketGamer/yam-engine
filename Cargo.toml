@@ -4,8 +4,10 @@ version = "0.1.0"
 authors = ["AllenPocekt <AllenPocketGamer@Gmail.com>"]
 edition = "2018"
 
-[workspace]
-members = ["modules/*"]
 
-[dev-dependencies]
+[dependencies]
 legion = "0.*"
+
+[[example]]
+name ="app_example01"
+path = "examples/app/example01.rs"
