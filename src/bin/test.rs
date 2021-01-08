@@ -1,17 +1,14 @@
-use std::{borrow::Borrow, path::Path};
+use std::{borrow::Borrow, fmt::Display, hash::Hash, path::Path};
 
 
 fn main() {
-    let foo = WithoutCopy(0);
-    let mut bar = foo;
-    bar.0 = 12;
+    let foo: &'static WithoutCopy = &WithoutCopy(12);
+
+    let bar = WithoutCopy(11);
 }
 
-#[derive(Debug)]
+fn take<T>(t: &'static T) -> &'static T {
+    t
+}
+
 struct WithoutCopy(i32);
-
-#[derive(Debug)]
-struct Container {
-    foo: WithoutCopy,
-    bar: WithoutCopy
-}
