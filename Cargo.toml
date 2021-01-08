@@ -7,6 +7,11 @@ edition = "2018"
 
 [dependencies]
 legion = "0.*"
+winit = "0.*"
+
+[[example]]
+name = "legion_system"
+path = "examples/legion/legion_system.rs"
 
 [[example]]
 name ="app_example01"
