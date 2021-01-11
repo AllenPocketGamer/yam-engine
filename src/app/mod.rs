@@ -1,6 +1,9 @@
 mod misc;
 
 pub use misc::*;
+use crate::window::Input;
+
+use super::window::Window;
 
 use std::{borrow::Borrow, panic};
 use std::{fmt::Display};
@@ -63,7 +66,7 @@ impl AppBuilder {
         self
     }
 
-    pub fn set_render_framerate(mut self, framerate: RenderFramerate) -> Self {
+    pub fn set_render_framerate(self, framerate: RenderFramerate) -> Self {
         self
     }
 
@@ -99,14 +102,17 @@ impl App {
     }
 
     pub fn run(mut self) {
-        let settings = AppSettings::new(&self);
-        let mut settings_update_timer = Timer::new(5);
-
+        let mut temp_timer = Timer::new(60);
+        
         let mut world = World::default();
         let mut resources = Resources::default();
+        let mut window = Window::new().expect("unexpected error");
+
+        let settings = AppSettings::new(&self);
 
         // insert resource to resources
         resources.insert::<AppSettings>(settings);
+        resources.insert::<Input>(Input::default());
 
         self.startup_scheduler.execute(&mut world, &mut resources);
 
@@ -121,10 +127,17 @@ impl App {
                     }
                 }
 
-                settings_update_timer.update();
-                if settings_update_timer.tick() {
-                    let settings = &mut *resources.get_mut::<AppSettings>().expect("not find AppSettings in Resources");
-                    self.parse_settings(settings);
+                temp_timer.update();
+                if temp_timer.tick() {
+                    {
+                        let settings = &mut *resources.get_mut::<AppSettings>().expect("not find AppSettings in Resources");
+                        self.parse_settings(settings);
+                    }
+
+                    {
+                        let mut input = window.run_returned();
+                        resources.insert::<Input>(input);
+                    }
                 }
             }
         }

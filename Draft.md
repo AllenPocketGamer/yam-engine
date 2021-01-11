@@ -11,7 +11,7 @@
 在配置完毕运行时如何检索UpdateLayer
 
 ```rust
-#[system]
+#|[system]
 fn iter_update_layers(#[resources] app: &App) {
     for update_layer in app.get_update_layers() {
         let layer_name = update_layer.get_name();

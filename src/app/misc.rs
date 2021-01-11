@@ -1,7 +1,7 @@
 use super::App;
 use std::{
     borrow::Borrow,
-    fmt::Display,
+    fmt::{Display, Formatter, *},
     time::{Duration, Instant},
 };
 
@@ -65,7 +65,7 @@ impl Timer {
             1 => (1, 0),
             _ => (0, ((1.0 / ticks_per_second as f64) * 1e9) as u32),
         };
-        
+
         self.target_ticks = ticks_per_second;
         self.target_delta = Duration::new(target_seconds, target_nanos);
     }
@@ -74,6 +74,18 @@ impl Timer {
         let delta = self.accumulated_delta;
 
         self.target_ticks as f32 * (delta.as_secs() as f32 + (delta.subsec_micros() as f32 / 1_000_000.0))
+    }
+}
+
+impl Display for Timer {
+    fn fmt(&self, f: &mut Formatter<'_>) -> Result {
+        write!(
+            f,
+            "[interval]: {}ms, [delta]: {}ms [ticked?]: {}",
+            self.target_delta.as_millis(),
+            self.accumulated_delta.as_millis(),
+            self.has_ticked
+        )
     }
 }
 
@@ -101,9 +113,9 @@ impl AppSettings {
             true => {
                 let mut commands: Vec<AppCommand> = Vec::new();
                 std::mem::swap(&mut self.commands, &mut commands);
-    
+
                 Some(commands)
-            },
+            }
             false => None,
         }
     }
@@ -120,6 +132,10 @@ impl AppSettings {
         self.get_l2f(layer_name)
             .expect(format!("not find update layer named: {}", layer_name).as_str())
             .1
+    }
+
+    pub fn iter_update_layer_to_frequency(&self) -> impl Iterator<Item = (&str, u32)> {
+        self.layer_to_frequency_current.iter().map(|(name, frequency)| (name.as_ref(), *frequency))
     }
 
     pub fn set_render_framerate(&mut self, target_framerate: RenderFramerate) {

@@ -141,3 +141,17 @@ fn change_render_framerate(#[resource] app_settings: &AppSettings) {
     app_settings.set_render_framerate(RenderFrameRate::HIGH);
 }
 ```
+
+## 窗口模块
+
+```rust
+fn run() {
+    ...
+    
+    let mut window = Window::new();
+    let input = window.run_returned();
+    ...
+    // TODO: Update Window To App Settings
+    ...
+}
+```

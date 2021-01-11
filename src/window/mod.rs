@@ -1,55 +1,57 @@
+use legion::storage::ComponentWriter;
+use winit::{
+    event::{Event, WindowEvent},
+    event_loop::{ControlFlow, EventLoop},
+    platform::run_return::EventLoopExtRunReturn,
+    window::WindowBuilder,
+};
 
-pub(crate) struct EventLoop {
+pub(super) struct Window {
+    window: winit::window::Window,
     event_loop: winit::event_loop::EventLoop<()>,
 }
 
-impl EventLoop {
-    pub(crate) fn new() -> Self {
-        EventLoop {
-            event_loop: winit::event_loop::EventLoop::new(),
-        }
-    }
-
-    pub(crate) fn refresh(&mut self) -> Input {
-        println!("refresh");
-        Input {}
-    }
-}
-
-pub struct Window {
-    window: winit::window::Window,
-    pub is_quit: bool,
-}
-
 impl Window {
-    pub(crate) fn new(event_loop: &EventLoop) -> Result<Window, WindowCreateError> {
-        let window = winit::window::Window::new(&event_loop.event_loop);
+    pub(crate) fn new() -> Result<Self, WindowCreateError> {
+        let event_loop = EventLoop::new();
+        let window = WindowBuilder::new().with_title("experiment window").build(&event_loop)?;
 
-        match window {
-            Ok(window) => Ok(Window {window, is_quit: false}),
-            Err(e) => Err(e)
-        }
+        Ok(Window { window, event_loop })
     }
 
-    pub fn set_position(&self) {
-        println!("call set position");
-    }
-    
-    pub fn quit(&mut self) {
-        self.is_quit = true;
+    pub(crate) fn run_returned(&mut self) -> Input {
+        self.event_loop.run_return(|event, _, control_flow| {
+            *control_flow = ControlFlow::Wait;
+
+            if let Event::WindowEvent {event, ..} = &event {
+                println!("{:?}", event);
+            }
+
+            match event {
+                Event::MainEventsCleared => {
+                    *control_flow = ControlFlow::Exit;
+                },
+                _ => {},
+            }
+        });
+
+        Input::default()
     }
 }
 
-pub struct WindowSettings {
-
-}
-
-pub struct Input {
-
-}
+#[derive(Clone, Copy)]
+pub struct Input {}
 
 impl Input {
-    
+    pub fn welcum() -> bool {
+        true
+    }
+}
+
+impl Default for Input {
+    fn default() -> Self {
+        Self {}
+    }
 }
 
 pub type WindowCreateError = winit::error::OsError;
