@@ -1,9 +1,8 @@
 mod misc;
 
 pub use misc::*;
-use crate::window::Input;
 
-use super::window::Window;
+use super::window::*;
 
 use std::{borrow::Borrow, panic};
 use std::{fmt::Display};
@@ -107,12 +106,13 @@ impl App {
         let mut world = World::default();
         let mut resources = Resources::default();
         let mut window = Window::new().expect("unexpected error");
+        let mut input = Input::new();
 
         let settings = AppSettings::new(&self);
 
         // insert resource to resources
         resources.insert::<AppSettings>(settings);
-        resources.insert::<Input>(Input::default());
+        resources.insert::<Input>(input);
 
         self.startup_scheduler.execute(&mut world, &mut resources);
 
@@ -135,8 +135,8 @@ impl App {
                     }
 
                     {
-                        let mut input = window.run_returned();
-                        resources.insert::<Input>(input);
+                        let input = &mut *resources.get_mut::<Input>().expect("not find Input in Resources");
+                        window.run_return(input);
                     }
                 }
             }

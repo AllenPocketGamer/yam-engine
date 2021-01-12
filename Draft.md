@@ -32,4 +32,8 @@ fn change_update_layers(#[resource] app: &App) {
 
 显然`UpadteLayer`的所有权不应该交给Resources, 所有权应依然保存在`run()`函数中;
 
-下面讨论
+## 实现Input
+
+Input应该近似于在OOP中的单例, 它被App的Resources所拥有, 但需要传入window进行更新!!
+
+Input自身是一个非常简单的状态机, 对输入设备进行维护!
