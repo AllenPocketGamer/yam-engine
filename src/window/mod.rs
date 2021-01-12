@@ -1,7 +1,7 @@
 use std::collections::HashMap;
 
 use winit::{
-    event::{DeviceEvent, Event, MouseScrollDelta, WindowEvent},
+    event::{DeviceEvent, Event, KeyboardInput, MouseScrollDelta, WindowEvent},
     event_loop::{ControlFlow, EventLoop},
     platform::run_return::EventLoopExtRunReturn,
     window::WindowBuilder,
@@ -45,12 +45,26 @@ impl Window {
                         if let MouseScrollDelta::LineDelta(x, y) = delta {
                             input.mouse.wheel_delta = (x, y);
                         }
-                    },
+                    }
                     _ => {}
                 },
                 Event::DeviceEvent { event, .. } => match event {
                     DeviceEvent::MouseMotion { delta } => {
                         input.mouse.motion_delta = (delta.0 as f32, delta.1 as f32);
+                    }
+                    DeviceEvent::Key(KeyboardInput {
+                        virtual_keycode: Some(vkc),
+                        state,
+                        ..
+                    }) => {
+                        input.keyboard.set_keycode_state(
+                            vkc,
+                            if state == winit::event::ElementState::Pressed {
+                                true
+                            } else {
+                                false
+                            },
+                        );
                     }
                     _ => {}
                 },
@@ -78,6 +92,7 @@ impl Input {
 
     pub(crate) fn prepare(&mut self) {
         self.mouse.prepare();
+        self.keyboard.prepare();
     }
 }
 
@@ -103,7 +118,7 @@ impl Mouse {
     fn prepare(&mut self) {
         self.motion_delta = Default::default();
         self.wheel_delta = Default::default();
-        self.button_to_state.iter_mut().map(|(k, v)| v).for_each(|v| match *v {
+        self.button_to_state.iter_mut().map(|(_k, v)| v).for_each(|v| match *v {
             ElementState::JustPressed => *v = ElementState::Pressed,
             ElementState::JustReleased => *v = ElementState::Released,
             _ => {}
@@ -111,60 +126,45 @@ impl Mouse {
     }
 
     fn set_button_state(&mut self, button: MouseButton, is_pressed: bool) {
-        let v = self.button_to_state.get_mut(&button);
+        let target_state = if is_pressed {
+            ElementState::JustPressed
+        } else {
+            ElementState::JustReleased
+        };
 
-        match v {
+        match self.button_to_state.get_mut(&button) {
             Some(state) => {
-                *state = if is_pressed {
-                    ElementState::JustPressed
-                } else {
-                    ElementState::JustReleased
-                }
+                *state = target_state;
             }
             None => {
-                self.button_to_state.insert(
-                    button,
-                    if is_pressed {
-                        ElementState::JustPressed
-                    } else {
-                        ElementState::JustReleased
-                    },
-                );
+                self.button_to_state.insert(button, target_state);
             }
         }
     }
 
     pub fn just_pressed(&self, button: MouseButton) -> bool {
-        let state = self.button_to_state.get(&button);
-
-        match state {
+        match self.button_to_state.get(&button) {
             Some(state) => *state == ElementState::JustPressed,
             None => false,
         }
     }
 
     pub fn just_released(&self, button: MouseButton) -> bool {
-        let state = self.button_to_state.get(&button);
-
-        match state {
+        match self.button_to_state.get(&button) {
             Some(state) => *state == ElementState::JustReleased,
             None => false,
         }
     }
 
     pub fn pressed(&self, button: MouseButton) -> bool {
-        let state = self.button_to_state.get(&button);
-
-        match state {
+        match self.button_to_state.get(&button) {
             Some(state) => *state == ElementState::Pressed,
             None => false,
         }
     }
 
     pub fn released(&self, button: MouseButton) -> bool {
-        let state = self.button_to_state.get(&button);
-
-        match state {
+        match self.button_to_state.get(&button) {
             Some(state) => *state == ElementState::Released,
             None => true,
         }
@@ -187,27 +187,73 @@ impl Mouse {
     }
 }
 
-pub struct Keyboard {}
+pub struct Keyboard {
+    keycode_to_state: HashMap<KeyCode, ElementState>,
+}
 
 impl Keyboard {
     fn new() -> Self {
-        Self {}
+        Self {
+            keycode_to_state: HashMap::with_capacity(16),
+        }
+    }
+
+    fn prepare(&mut self) {
+        self.keycode_to_state.iter_mut().map(|(_k, e)| e).for_each(|e| match *e {
+            ElementState::JustPressed => *e = ElementState::Pressed,
+            ElementState::JustReleased => *e = ElementState::Released,
+            _ => {}
+        });
+    }
+
+    fn set_keycode_state(&mut self, keycode: KeyCode, is_pressed: bool) {
+        match self.keycode_to_state.get_mut(&keycode) {
+            Some(state) => {
+                match *state {
+                    ElementState::Pressed if !is_pressed => *state = ElementState::JustReleased, 
+                    ElementState::Released if is_pressed => *state = ElementState::JustPressed,
+                    _ => {},
+                }
+            }
+            None => {
+                self.keycode_to_state.insert(
+                    keycode,
+                    if is_pressed {
+                        ElementState::JustPressed
+                    } else {
+                        ElementState::JustReleased
+                    },
+                );
+            }
+        }
     }
 
     pub fn just_pressed(&self, keycode: KeyCode) -> bool {
-        todo!()
+        match self.keycode_to_state.get(&keycode) {
+            Some(state) => *state == ElementState::JustPressed,
+            None => false,
+        }
     }
 
     pub fn just_released(&self, keycode: KeyCode) -> bool {
-        todo!()
+        match self.keycode_to_state.get(&keycode) {
+            Some(state) => *state == ElementState::JustReleased,
+            None => false,
+        }
     }
 
     pub fn pressed(&self, keycode: KeyCode) -> bool {
-        todo!()
+        match self.keycode_to_state.get(&keycode) {
+            Some(state) => *state == ElementState::Pressed,
+            None => false,
+        }
     }
 
     pub fn released(&self, keycode: KeyCode) -> bool {
-        todo!()
+        match self.keycode_to_state.get(&keycode) {
+            Some(state) => *state == ElementState::Released,
+            None => true,
+        }
     }
 }
 

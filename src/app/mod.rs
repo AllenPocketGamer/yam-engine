@@ -65,7 +65,7 @@ impl AppBuilder {
         self
     }
 
-    pub fn set_render_framerate(self, framerate: RenderFramerate) -> Self {
+    pub fn set_render_framerate(self, _framerate: RenderFramerate) -> Self {
         self
     }
 
@@ -106,9 +106,9 @@ impl App {
         let mut world = World::default();
         let mut resources = Resources::default();
         let mut window = Window::new().expect("unexpected error");
-        let mut input = Input::new();
 
         let settings = AppSettings::new(&self);
+        let input = Input::new();
 
         // insert resource to resources
         resources.insert::<AppSettings>(settings);
@@ -147,7 +147,7 @@ impl App {
         if let Some(commands) = settings.take_commands() {
             commands.iter().for_each(|cmd| {
                 match cmd {
-                    AppCommand::SetRenderFramerate(fr) => todo!(),
+                    AppCommand::SetRenderFramerate(_fr) => todo!(),
                     AppCommand::SetUpdateLayerFrequency(name, freq) => self.set_update_layer_frequency(name, *freq),
                 };
             });

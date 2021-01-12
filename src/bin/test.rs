@@ -1,5 +1,5 @@
 use winit::{
-    event::{Event, WindowEvent},
+    event::{Event},
     event_loop::{ControlFlow, EventLoop},
     platform::run_return::EventLoopExtRunReturn,
     window::WindowBuilder,
@@ -26,7 +26,5 @@ fn main() {
         });
         
         println!("count: {}", count);
-        
-        count = 0;
     }
 }
