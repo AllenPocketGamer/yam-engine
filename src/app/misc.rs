@@ -1,16 +1,24 @@
 use super::App;
 use std::{
     borrow::Borrow,
+    collections::HashMap,
     fmt::{Display, Formatter, *},
+    mem::{discriminant, Discriminant},
     time::{Duration, Instant},
 };
 
-#[derive(Debug, Clone, Copy)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
 pub enum RenderFramerate {
     Low,    // 30fps
     Normal, // 60fps
     High,   // 144fps
     Custom(u32),
+}
+
+impl Default for RenderFramerate {
+    fn default() -> Self {
+        RenderFramerate::Normal
+    }
 }
 
 #[derive(Debug, Clone, Copy)]
@@ -92,31 +100,46 @@ impl Display for Timer {
 pub struct AppSettings {
     render_framerate_current: RenderFramerate,
     layer_to_frequency_current: Vec<(String, u32)>,
-    commands: Vec<AppCommand>,
+    
+    is_fullscreen: bool,
+    inner_position: (i32, i32),
+    inner_size: (u32, u32),
+    outer_position: (i32, i32),
+    outer_size: (u32, u32),
+    scale_factor: f64,
+    
+    commands: HashMap<Discriminant<AppCommand>, AppCommand>,
 }
 
 impl AppSettings {
     pub(super) fn new(app: &App) -> Self {
         AppSettings {
-            render_framerate_current: RenderFramerate::Normal, // TODO fix it after implement render
+            render_framerate_current: Default::default(),
             layer_to_frequency_current: app
                 .update_layers
                 .iter()
                 .map(|update_layer| (update_layer.name.clone(), update_layer.timer.target_ticks))
                 .collect(),
-            commands: Vec::new(),
+
+            is_fullscreen: Default::default(),
+            inner_position: Default::default(),
+            inner_size: Default::default(),
+            outer_position: Default::default(),
+            outer_size: Default::default(),
+            scale_factor: Default::default(),
+
+            commands: HashMap::new(),
         }
     }
 
     pub(super) fn take_commands(&mut self) -> Option<Vec<AppCommand>> {
-        match self.commands.len() > 0 {
-            true => {
-                let mut commands: Vec<AppCommand> = Vec::new();
-                std::mem::swap(&mut self.commands, &mut commands);
+        if self.commands.len() > 0 {
+            let result: Option<Vec<AppCommand>> = Some(self.commands.iter().map(|(_, v)| (*v).clone()).collect());
+            self.commands.clear();
 
-                Some(commands)
-            }
-            false => None,
+            result
+        } else {
+            None
         }
     }
 
@@ -133,27 +156,101 @@ impl AppSettings {
             .expect(format!("not find update layer named: {}", layer_name).as_str())
             .1
     }
+    
+    pub fn is_fullscreen(&self) -> bool {
+        self.is_fullscreen
+    }
 
+    pub fn get_inner_position(&self) -> (i32, i32) {
+        self.inner_position
+    }
+
+    pub fn get_inner_size(&self) -> (u32, u32) {
+        self.inner_size
+    }
+
+    pub fn get_outer_position(&self) -> (i32, i32) {
+        self.outer_position
+    }
+
+    pub fn get_outer_size(&self) -> (u32, u32) {
+        self.outer_size
+    }
+
+    pub fn get_scale_factor(&self) -> f64 {
+        self.scale_factor
+    }
+    
     pub fn iter_update_layer_to_frequency(&self) -> impl Iterator<Item = (&str, u32)> {
-        self.layer_to_frequency_current.iter().map(|(name, frequency)| (name.as_ref(), *frequency))
+        self.layer_to_frequency_current
+            .iter()
+            .map(|(name, frequency)| (name.as_ref(), *frequency))
     }
 
     pub fn set_render_framerate(&mut self, target_framerate: RenderFramerate) {
-        self.render_framerate_current = target_framerate;
-        self.commands.push(AppCommand::SetRenderFramerate(target_framerate));
+        self.insert_cmd(AppCommand::SetRenderFramerate(target_framerate));
     }
 
+    // FIXME: change layer_name type to &str
     pub fn set_update_layer_frequency(&mut self, layer_name: impl Into<String>, target_frequency: u32) {
         let layer_name = layer_name.into();
-
-        let l2f = self
-            .get_l2f_mut(&layer_name)
-            .expect(format!("not find update layer named: {}", layer_name).as_str());
-        l2f.1 = target_frequency;
-
-        self.commands.push(AppCommand::SetUpdateLayerFrequency(layer_name, target_frequency))
+        self.insert_cmd(AppCommand::SetUpdateLayerFrequency(layer_name, target_frequency));
     }
 
+
+    pub fn set_always_on_top(&mut self, always_on_top: bool) {
+        self.insert_cmd(AppCommand::SetWindowAlwaysOnTop(always_on_top));
+    }
+
+    pub fn set_cursor_grab(&mut self, grab: bool) {
+        self.insert_cmd(AppCommand::SetWindowCursorGrab(grab));
+    }
+
+    pub fn set_fullscreen(&mut self, fullscreen: bool) {
+        self.insert_cmd(AppCommand::SetWindowFullScreen(fullscreen));
+    }
+
+    pub fn set_inner_size(&mut self, size: (u32, u32)) {
+        self.insert_cmd(AppCommand::SetWindowInnerSize(size));
+    }
+
+    pub fn set_max_inner_sie(&mut self, max_size: (u32, u32)) {
+        self.insert_cmd(AppCommand::SetWindowMaxInnerSize(max_size));
+    }
+
+    pub fn set_maximized(&mut self, maximized: bool) {
+        self.insert_cmd(AppCommand::SetWindowMaximized(maximized));
+    }
+
+    pub fn set_min_inner_size(&mut self, min_size: (u32, u32)) {
+        self.insert_cmd(AppCommand::SetWindowMinInnerSize(min_size));
+    }
+
+    pub fn set_minimized(&mut self, minimized: bool) {
+        self.insert_cmd(AppCommand::SetWindowMinimized(minimized));
+    }
+
+    pub fn set_outer_position(&mut self, position: (i32, i32)) {
+        self.insert_cmd(AppCommand::SetWindowOuterPosition(position));
+    }
+
+    pub fn set_resizable(&mut self, resizable: bool) {
+        self.insert_cmd(AppCommand::SetWindowResizable(resizable));
+    }
+
+    pub fn set_title(&mut self, title: String) {
+        self.insert_cmd(AppCommand::SetWindowTitle(title));
+    }
+
+    pub fn set_visible(&mut self, visible: bool) {
+        self.insert_cmd(AppCommand::SetWindowVisible(visible));
+    }
+
+    // TODO: to understand #[inline] macro
+    fn insert_cmd(&mut self, cmd: AppCommand) {
+        self.commands.insert(discriminant(&cmd), cmd);
+    }
+    
     fn get_l2f<T>(&self, layer_name: &T) -> Option<&(String, u32)>
     where
         T: Eq + ?Sized,
@@ -161,17 +258,25 @@ impl AppSettings {
     {
         self.layer_to_frequency_current.iter().find(|l2f| l2f.0.borrow() == layer_name)
     }
-
-    fn get_l2f_mut<T>(&mut self, layer_name: &T) -> Option<&mut (String, u32)>
-    where
-        T: Eq + ?Sized,
-        String: Borrow<T>,
-    {
-        self.layer_to_frequency_current.iter_mut().find(|l2f| l2f.0.borrow() == layer_name)
-    }
 }
 
+// TODO: change argument to appropriate form
+// FIXME: change String to &str
+#[derive(Debug, PartialEq, Eq, Hash, Clone)]
 pub(super) enum AppCommand {
     SetUpdateLayerFrequency(String, u32),
     SetRenderFramerate(RenderFramerate),
+
+    SetWindowAlwaysOnTop(bool),
+    SetWindowCursorGrab(bool),
+    SetWindowFullScreen(bool),
+    SetWindowInnerSize((u32, u32)),
+    SetWindowMaxInnerSize((u32, u32)),
+    SetWindowMaximized(bool),
+    SetWindowMinInnerSize((u32, u32)),
+    SetWindowMinimized(bool),
+    SetWindowOuterPosition((i32, i32)),
+    SetWindowResizable(bool),
+    SetWindowTitle(String),
+    SetWindowVisible(bool),
 }

@@ -1,17 +1,13 @@
 use std::collections::HashMap;
 
-use winit::{
-    event::{DeviceEvent, Event, KeyboardInput, MouseScrollDelta, WindowEvent},
-    event_loop::{ControlFlow, EventLoop},
-    platform::run_return::EventLoopExtRunReturn,
-    window::WindowBuilder,
-};
+use winit::{dpi::{PhysicalPosition, PhysicalSize}, event::{DeviceEvent, Event, KeyboardInput, MouseScrollDelta, WindowEvent}, event_loop::{ControlFlow, EventLoop}, platform::run_return::EventLoopExtRunReturn, window::WindowBuilder};
 
 pub(super) struct Window {
     window: winit::window::Window,
     event_loop: winit::event_loop::EventLoop<()>,
 }
 
+// TODO: Fix and improve the function
 impl Window {
     pub(crate) fn new() -> Result<Self, WindowCreateError> {
         let event_loop = EventLoop::new();
@@ -74,6 +70,83 @@ impl Window {
                 _ => {}
             }
         });
+    }
+
+    pub fn is_fullscreen(&self) -> bool {
+        todo!()
+    }
+
+    pub fn get_inner_position(&self) -> (i32, i32) {
+        todo!()
+    }
+
+    pub fn get_inner_size(&self) -> (u32, u32) {
+        todo!()
+    }
+
+    pub fn get_outer_position(&self) -> (i32, i32) {
+        todo!()
+    }
+
+    pub fn get_outer_size(&self) -> (u32, u32) {
+        todo!()
+    }
+
+    pub fn get_scale_factor(&self) -> f64 {
+        todo!()
+    }
+    
+    pub fn set_always_on_top(&mut self, always_on_top: bool) {
+        self.window.set_always_on_top(always_on_top);
+    }
+
+    pub fn set_cursor_grab(&mut self, grab: bool) {
+        self.window.set_cursor_grab(grab);
+    }
+
+    pub fn set_fullscreen(&mut self, fullscreen: bool) {
+        todo!()
+    }
+
+    // FIXME: dirty impl
+    pub fn set_inner_size(&mut self, size: (u32, u32)) {
+        self.window.set_inner_size(PhysicalSize::<u32>::from(size));
+    }
+
+    // FIXME: dirty impl
+    pub fn set_max_inner_sie(&mut self, max_size: (u32, u32)) {
+        todo!()
+    }
+
+    pub fn set_maximized(&mut self, maximized: bool) {
+        self.window.set_maximized(maximized);
+    }
+
+    // FIXME: dirty impl
+    pub fn set_min_inner_size(&mut self, min_size: (u32, u32)) {
+        todo!()
+    }
+
+    pub fn set_minimized(&mut self, minimized: bool) {
+        self.window.set_minimized(minimized);
+    }
+
+    // FIXME: dirty impl
+    pub fn set_outer_position(&mut self, position: (i32, i32)) {
+        self.window.set_outer_position(PhysicalPosition::<i32>::from(position));
+    }
+
+    pub fn set_resizable(&mut self, resizable: bool) {
+        self.window.set_resizable(resizable);
+    }
+
+    // FIXME: dirty impl
+    pub fn set_title(&mut self, title: String) {
+        self.window.set_title(&title);
+    }
+
+    pub fn set_visible(&mut self, visible: bool) {
+        self.window.set_visible(visible);
     }
 }
 

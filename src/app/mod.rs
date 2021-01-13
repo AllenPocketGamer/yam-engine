@@ -86,7 +86,9 @@ impl AppBuilder {
         T: Eq + ?Sized,
         String: Borrow<T>,
     {
-        self.update_layer_builders.iter_mut().find(|builder| builder.0.borrow() == layer_name)
+        self.update_layer_builders
+            .iter_mut()
+            .find(|builder| builder.0.borrow() == layer_name)
     }
 }
 
@@ -101,8 +103,31 @@ impl App {
     }
 
     pub fn run(mut self) {
+        let parse_settings = |app: &mut App, window: &mut Window, settings: &mut AppSettings| {
+            if let Some(commands) = settings.take_commands() {
+                for cmd in commands {
+                    match cmd {
+                        AppCommand::SetRenderFramerate(fr) => todo!(),
+                        AppCommand::SetUpdateLayerFrequency(name, freq) => app.set_update_layer_frequency(name.as_str(), freq),
+                        AppCommand::SetWindowAlwaysOnTop(always_on_top) => window.set_always_on_top(always_on_top),
+                        AppCommand::SetWindowCursorGrab(grab) => window.set_cursor_grab(grab),
+                        AppCommand::SetWindowFullScreen(fullscreen) => window.set_fullscreen(fullscreen),
+                        AppCommand::SetWindowInnerSize(size) => window.set_inner_size(size),
+                        AppCommand::SetWindowMaxInnerSize(max_size) => window.set_max_inner_sie(max_size),
+                        AppCommand::SetWindowMaximized(maximized) => window.set_maximized(maximized),
+                        AppCommand::SetWindowMinInnerSize(min_size) => window.set_min_inner_size(min_size),
+                        AppCommand::SetWindowMinimized(minimized) => window.set_minimized(minimized),
+                        AppCommand::SetWindowOuterPosition(position) => window.set_outer_position(position),
+                        AppCommand::SetWindowResizable(resizable) => window.set_resizable(resizable),
+                        AppCommand::SetWindowTitle(title) => window.set_title(title),
+                        AppCommand::SetWindowVisible(visible) => window.set_visible(visible),
+                    }
+                }
+            }
+        };
+
         let mut temp_timer = Timer::new(60);
-        
+
         let mut world = World::default();
         let mut resources = Resources::default();
         let mut window = Window::new().expect("unexpected error");
@@ -131,7 +156,7 @@ impl App {
                 if temp_timer.tick() {
                     {
                         let settings = &mut *resources.get_mut::<AppSettings>().expect("not find AppSettings in Resources");
-                        self.parse_settings(settings);
+                        parse_settings(&mut self, &mut window, settings);
                     }
 
                     {
@@ -143,23 +168,16 @@ impl App {
         }
     }
 
-    fn parse_settings(&mut self, settings: &mut AppSettings) {
-        if let Some(commands) = settings.take_commands() {
-            commands.iter().for_each(|cmd| {
-                match cmd {
-                    AppCommand::SetRenderFramerate(_fr) => todo!(),
-                    AppCommand::SetUpdateLayerFrequency(name, freq) => self.set_update_layer_frequency(name, *freq),
-                };
-            });
-        }
-    }
-
     fn set_update_layer_frequency<T>(&mut self, layer_name: &T, target_frequency: u32)
     where
         T: Eq + ?Sized,
         String: Borrow<T>,
     {
-        let update_layer = self.update_layers.iter_mut().find(|ul| ul.name.borrow() == layer_name).expect("inner error");
+        let update_layer = self
+            .update_layers
+            .iter_mut()
+            .find(|ul| ul.name.borrow() == layer_name)
+            .expect("inner error");
         update_layer.timer.set_ticks_per_second(target_frequency);
     }
 }
