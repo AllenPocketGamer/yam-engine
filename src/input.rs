@@ -1,154 +1,7 @@
 use std::collections::HashMap;
 
-use winit::{dpi::{PhysicalPosition, PhysicalSize}, event::{DeviceEvent, Event, KeyboardInput, MouseScrollDelta, WindowEvent}, event_loop::{ControlFlow, EventLoop}, platform::run_return::EventLoopExtRunReturn, window::WindowBuilder};
-
-pub(super) struct Window {
-    window: winit::window::Window,
-    event_loop: winit::event_loop::EventLoop<()>,
-}
-
-// TODO: Fix and improve the function
-impl Window {
-    pub(crate) fn new() -> Result<Self, WindowCreateError> {
-        let event_loop = EventLoop::new();
-        let window = WindowBuilder::new().with_title("experiment window").build(&event_loop)?;
-
-        Ok(Self { window, event_loop })
-    }
-
-    pub(crate) fn run_return(&mut self, input: &mut Input) {
-        input.prepare();
-
-        self.event_loop.run_return(|event, _, control_flow| {
-            *control_flow = ControlFlow::Wait;
-
-            match event {
-                Event::WindowEvent { event, .. } => match event {
-                    WindowEvent::MouseInput { button, state, .. } => {
-                        input.mouse.set_button_state(
-                            button,
-                            if state == winit::event::ElementState::Pressed {
-                                true
-                            } else {
-                                false
-                            },
-                        );
-                    }
-                    WindowEvent::CursorMoved { position, .. } => {
-                        input.mouse.position = (position.x as u32, position.y as u32);
-                    }
-                    WindowEvent::MouseWheel { delta, .. } => {
-                        if let MouseScrollDelta::LineDelta(x, y) = delta {
-                            input.mouse.wheel_delta = (x, y);
-                        }
-                    }
-                    _ => {}
-                },
-                Event::DeviceEvent { event, .. } => match event {
-                    DeviceEvent::MouseMotion { delta } => {
-                        input.mouse.motion_delta = (delta.0 as f32, delta.1 as f32);
-                    }
-                    DeviceEvent::Key(KeyboardInput {
-                        virtual_keycode: Some(vkc),
-                        state,
-                        ..
-                    }) => {
-                        input.keyboard.set_keycode_state(
-                            vkc,
-                            if state == winit::event::ElementState::Pressed {
-                                true
-                            } else {
-                                false
-                            },
-                        );
-                    }
-                    _ => {}
-                },
-                Event::MainEventsCleared => {
-                    *control_flow = ControlFlow::Exit;
-                }
-                _ => {}
-            }
-        });
-    }
-
-    pub fn is_fullscreen(&self) -> bool {
-        todo!()
-    }
-
-    pub fn get_inner_position(&self) -> (i32, i32) {
-        todo!()
-    }
-
-    pub fn get_inner_size(&self) -> (u32, u32) {
-        todo!()
-    }
-
-    pub fn get_outer_position(&self) -> (i32, i32) {
-        todo!()
-    }
-
-    pub fn get_outer_size(&self) -> (u32, u32) {
-        todo!()
-    }
-
-    pub fn get_scale_factor(&self) -> f64 {
-        todo!()
-    }
-    
-    pub fn set_always_on_top(&mut self, always_on_top: bool) {
-        self.window.set_always_on_top(always_on_top);
-    }
-
-    pub fn set_cursor_grab(&mut self, grab: bool) {
-        self.window.set_cursor_grab(grab);
-    }
-
-    pub fn set_fullscreen(&mut self, fullscreen: bool) {
-        todo!()
-    }
-
-    // FIXME: dirty impl
-    pub fn set_inner_size(&mut self, size: (u32, u32)) {
-        self.window.set_inner_size(PhysicalSize::<u32>::from(size));
-    }
-
-    // FIXME: dirty impl
-    pub fn set_max_inner_sie(&mut self, max_size: (u32, u32)) {
-        todo!()
-    }
-
-    pub fn set_maximized(&mut self, maximized: bool) {
-        self.window.set_maximized(maximized);
-    }
-
-    // FIXME: dirty impl
-    pub fn set_min_inner_size(&mut self, min_size: (u32, u32)) {
-        todo!()
-    }
-
-    pub fn set_minimized(&mut self, minimized: bool) {
-        self.window.set_minimized(minimized);
-    }
-
-    // FIXME: dirty impl
-    pub fn set_outer_position(&mut self, position: (i32, i32)) {
-        self.window.set_outer_position(PhysicalPosition::<i32>::from(position));
-    }
-
-    pub fn set_resizable(&mut self, resizable: bool) {
-        self.window.set_resizable(resizable);
-    }
-
-    // FIXME: dirty impl
-    pub fn set_title(&mut self, title: String) {
-        self.window.set_title(&title);
-    }
-
-    pub fn set_visible(&mut self, visible: bool) {
-        self.window.set_visible(visible);
-    }
-}
+pub type MouseButton = winit::event::MouseButton;
+pub type KeyCode = winit::event::VirtualKeyCode;
 
 pub struct Input {
     pub mouse: Mouse,
@@ -198,7 +51,7 @@ impl Mouse {
         });
     }
 
-    fn set_button_state(&mut self, button: MouseButton, is_pressed: bool) {
+    pub(crate) fn set_button_state(&mut self, button: MouseButton, is_pressed: bool) {
         let target_state = if is_pressed {
             ElementState::JustPressed
         } else {
@@ -279,7 +132,7 @@ impl Keyboard {
         });
     }
 
-    fn set_keycode_state(&mut self, keycode: KeyCode, is_pressed: bool) {
+    pub(crate) fn set_keycode_state(&mut self, keycode: KeyCode, is_pressed: bool) {
         match self.keycode_to_state.get_mut(&keycode) {
             Some(state) => {
                 match *state {
@@ -329,11 +182,6 @@ impl Keyboard {
         }
     }
 }
-
-pub type WindowCreateError = winit::error::OsError;
-
-pub type MouseButton = winit::event::MouseButton;
-pub type KeyCode = winit::event::VirtualKeyCode;
 
 #[derive(Clone, Copy, PartialEq)]
 enum ElementState {

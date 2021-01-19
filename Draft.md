@@ -1,39 +1,99 @@
-# 如何完善YamEngine的基本循环系统
+# yam-engine的重构设计
 
-## 实现UpdateLayer
+## yam-engine当前的大模块
 
-在构建时, 共有最多8层UpdateLayer, 每层Layer有`{name, frequency, systems}`的基本属性;
+---
 
-在运行时, 每层Layer有`{name, frequency, timer, scheduler}`的基本属性; scheduler不该暴露给用户, timer不能让用户写, frequency可由用户读写, 但要通过函数, name可由用户读取
+* AppBuilder: 负责创建App
+* App: 负责执行游戏循环, 管理用户提供的资源, 调度用户提供的行为, 向用户提供内置的资源
+* Window: 负责维护窗口和其事件循环, 在另一个线程中执行
+* Input: App向外提供的资源, 描述了使用者对输入设备的操作
+* Settings: App向外提供的资源, 用于对App进行配置, 如window的属性, 设置循环定时器
 
-如何设计数据结构来CRUD Update Layer是一项要完成的工作;
+## app重构, stage
 
-在配置完毕运行时如何检索UpdateLayer
+---
+
+App提供新的功能: Stage; Stage有自己的名字和更新频率, 在Build的时候可以创建Stage
 
 ```rust
-#|[system]
-fn iter_update_layers(#[resources] app: &App) {
-    for update_layer in app.get_update_layers() {
-        let layer_name = update_layer.get_name();
-        let frequency = update_layer.get_frequency();
-        let timer = update_layer.get_timer();
-
-        println!("update layer [name : {}, frequency: {}, timer: {}]", layer_name, frequency, timer);
-    }
-}
-
-#[system]
-fn change_update_layers(#[resource] app: &App) {
-    for update_layer in app.get_update_layers() {
-        update_layer.set_frequency("layer_name", 90);
-    }
+fn main() {
+  App::build()
+    .add_stage(unique_name, frequency)
+    .add_startup_system_to_stage(system, stage_name)
+    .add_update_system_to_stage(system, stage_name)
+    .add_startup_system(system) // add to default stage
+    .add_update_system(system)  // add to default stage
+    .finish()
+    .run();
 }
 ```
 
-显然`UpadteLayer`的所有权不应该交给Resources, 所有权应依然保存在`run()`函数中;
+在运行时增删改查Stage
 
-## 实现Input
+```rust
+#[system]
+fn add_stage(#[resource] settings: &mut Settings) {
+    let stage = AppStage::new(unique_name, frequency);
+    stage.add_startup_system(...);
+    stage.add_update_system(...);
+    settings.app.add_stage(stage);
+}
 
-Input应该近似于在OOP中的单例, 它被App的Resources所拥有, 但需要传入window进行更新!!
+#[system]
+fn remove_stage(#[resource] settings: &mut Settings) {
+    settings.app.remove_stage(stage_name);
+}
 
-Input自身是一个非常简单的状态机, 对输入设备进行维护!
+#[system]
+fn change_stage(#[resource] settings: &mut Settings) {
+    let stage = settings.app.stage_mut(stage_name);
+    stage.frequency = 10;
+    stage.name = String::from("Nothing");
+}
+
+#[system]
+fn iter_stage(#[resource] settings: &mut Settings) {
+    let stages = settings.app.stages();
+    let stages_mut = settings.app.stages_mut();
+
+    // do something query...
+}
+```
+
+Stage特性描述
+
+1. Stage之间是串行执行
+2. Stage有start, update, destroy
+    * start只在程序开始或Stage插入时执行一次
+    * update被循环调用
+    * destroy在程序结束或Stage被移除时执行一次
+
+```rust
+fn main() {
+    // create stage by stagebuilder
+    let stage = AppStageBuilder::new(stage_name, stage_frequency)
+        .add_system_startup(...)
+        .add_system_update(...)
+        .add_system_destroy(...)
+        .add_thread_local_fn_startup(...)
+        .add_thread_local_fn_update(...)
+        .add_thread_local_fn_destroy(...)
+        .add_thread_local_system_startup(...)
+        .add_thread_local_system_update(...)
+        .add_thread_local_system_destroy(...)
+        .finish();
+
+    // create empty stage by AppStage
+    let stage = AppStage::new(stage_name, stage_frequency);
+
+    // create default stage(name: "default", frequency: 60)
+    let stage = AppStage::default();
+
+    // or...
+    let stage = AppStageBuilder::default().finish();
+
+    // or by builder
+    let stage = AppStage::build(stage_name, stage_frequency).finish();
+}
+```
