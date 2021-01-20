@@ -1,13 +1,15 @@
-fn main() {
+use app::{App, AppBuildError, AppBuilder, AppRunError, AppStage, AppStageBuilder};
+use yamengine::*;
+
+fn main() -> Result<(), AppBuildError> {
+    let stage_builder = AppStage::builder();
     
-}
-
-struct Foo {
-    vec: Vec<i32>,
-}
-
-impl Foo {
-    fn bar(&self) {
-        self.vec.push(16);
-    }
+    App::builder()
+        .add_stage_builder(stage_builder)?
+        .create_stage_builder(String::from("first"), 60)?
+        .into_app_builder()
+        .build()
+        .run();
+    
+    Ok(())
 }

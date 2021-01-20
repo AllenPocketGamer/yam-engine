@@ -97,3 +97,31 @@ fn main() {
     let stage = AppStage::build(stage_name, stage_frequency).finish();
 }
 ```
+
+通过AppSettings来读写App的状态
+
+```rust
+#[system]
+fn setttings(#[resource] settings: &mut AppSettings) {
+    // Getter
+    let busy_stage: &AppStage = settings.busy_stage(stage_name);
+    let busy_stages: Iter<AppStage> = settings.busy_stage_iter();
+
+    let spare_stage: &AppStage = settings.spare_stage(stage_name);
+    let spare_stages: Iter<AppStage> = settings.spare_stages();
+
+    let spare_stage: AppStage = settings.take_spare_stage(stage_name);
+    let spare_stages: Vec<AppStage> = settings.take_spare_stages();
+
+    // Push stage to work
+    settings.make_stage_work(stage);
+    settings.make_spare_stage_work(spare_stage_name);
+
+    // Push stage to rest
+    settings.make_stage_rest(stage);
+    settings.make_busy_stage_rest(busy_stage_name);
+
+    // Change stage frequency
+    settings.set_stage_frequency(frequency);
+}
+```

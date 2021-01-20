@@ -1,62 +1,12 @@
 use std::{
     collections::HashMap,
-    mem::{Discriminant, discriminant},
+    mem::{discriminant, Discriminant},
+    slice::Iter,
 };
 
 use super::app::AppStage;
 
-pub struct Settings {
-    app: AppSettings,
-    window: WindowSettings,
-}
-
-impl Settings {
-    pub(crate) fn new() -> Self {
-        Settings {
-            app: AppSettings::new(),
-            window: WindowSettings::new(),
-        }
-    }
-}
-
-pub struct AppSettings {
-    layer_to_frequency_current: Vec<(String, u32)>,
-    commands: HashMap<Discriminant<AppCommand>, AppCommand>,
-}
-
-impl AppSettings {
-    pub(crate) fn new() -> Self {
-        todo!()
-    }
-
-    pub fn add_stage(&mut self, stage: AppStage) {
-        todo!()
-    }
-
-    pub fn remove_stage(&mut self, stage: AppStage) {
-        todo!()
-    }
-
-    pub fn stage(&self, stage_name: &str) -> &AppStage {
-        todo!()
-    }
-
-    pub fn stage_mut(&mut self, stage_name: &str) -> &mut AppStage {
-        todo!()
-    }
-
-    // pub fn stages(&self) -> impl Iterator<Item = &AppStage> {
-    //     todo!()
-    // }
-
-    // pub fn stages_mut(&mut self) -> impl Iterator<Item = &AppStage> {
-    //     todo!()
-    // }
-}
-
-pub struct WindowSettings {
-
-}
+pub struct WindowSettings {}
 
 impl WindowSettings {
     pub(crate) fn new() -> Self {
