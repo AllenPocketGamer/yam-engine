@@ -10,65 +10,46 @@ use std::{
 
 pub struct App {
     stages: Vec<AppStage>,
-
-    world: World,
-    resources: Resources,
 }
 
-// TODO: 插入stage时运行初始化
-// TODO: 删除stage时释放资源
 impl App {
     pub fn builder() -> AppBuilder {
         Default::default()
     }
 
+    // TODO: 因为暴露了Resources给用户, 使得用户有了删除重要Resource的权限, 这很危险, 需要解决方案!
     pub fn run(mut self) {
-        for stage in self.stages.iter_mut() {
-            stage.init(&mut self.world, &mut self.resources);
-        }
+        let mut world = World::default();
+        let mut resources = Resources::default();
 
-        // TODO: 增加退出机制
-        // loop {
-        //     for stage in self.stages.iter_mut() {
-        //         stage.play(&mut self.world, &mut self.resources);
-        //     }
-        // }
+        // NOTE legion::Resources lifetime requirement is too strict to satisfy it
+        resources.insert::<AppSettings>(unsafe { std::mem::transmute(AppSettings::new(&self)) });
 
         for stage in self.stages.iter_mut() {
-            stage.free(&mut self.world, &mut self.resources);
+            stage.init(&mut world, &mut resources);
+        }
+
+        let mut commands: Vec<AppCommand> = Default::default();
+        
+        std::mem::swap(&mut commands, &mut resources.get_mut::<AppSettings>().expect("Err: AppSettings not exist").commands);
+        let mut request_quit = Self::apply(&mut self, &mut commands);
+
+        while !request_quit {
+            for stage in self.stages.iter_mut() {
+                stage.play(&mut world, &mut resources);
+            }
+
+            std::mem::swap(&mut commands, &mut resources.get_mut::<AppSettings>().expect("Err: AppSettings not exist").commands);
+            request_quit = Self::apply(&mut self, &mut commands);
+        }
+
+        for stage in self.stages.iter_mut() {
+            stage.free(&mut world, &mut resources);
         }
     }
 
-    pub(crate) fn push_stage(&mut self, stage: AppStage) {
+    fn apply(&mut self, commands: &mut Vec<AppCommand>) -> bool {
         todo!()
-    }
-
-    pub(crate) fn insert_stage_after(&mut self, stage: AppStage, stage_name_before: &str) {
-        todo!()
-    }
-
-    pub(crate) fn insert_stage_before(&mut self, stage: AppStage, stage_name_after: &str) {
-        todo!()
-    }
-
-    pub(crate) fn remove_stage(&mut self, stage_name: &str) -> AppStage {
-        todo!()
-    }
-
-    pub(crate) fn stage(&self, stage_name: &str) -> &AppStage {
-        todo!()
-    }
-
-    pub(crate) fn stage_mut(&mut self, stage_name: &str) -> &mut AppStage {
-        todo!()
-    }
-
-    pub(crate) fn stages(&self) -> std::slice::Iter<AppStage> {
-        self.stages.iter()
-    }
-
-    pub(crate) fn stages_mut(&mut self) -> std::slice::IterMut<AppStage> {
-        self.stages.iter_mut()
     }
 }
 
@@ -112,9 +93,6 @@ impl AppBuilder {
     pub fn build(self) -> App {
         App {
             stages: self.stage_builders.into_iter().map(|stage_builder| stage_builder.build()).collect(),
-
-            world: World::default(),
-            resources: Resources::default(),
         }
     }
 
@@ -163,6 +141,8 @@ impl AppStage {
         self.timer.update();
 
         if self.timer.tick() {
+            resources.insert::<Timer>(self.timer);
+
             self.schedule_process.execute(world, resources);
         }
     }
@@ -282,8 +262,13 @@ pub struct AppSettings<'a> {
 }
 
 impl<'a> AppSettings<'a> {
-    pub(crate) fn new(app: &App) -> Self {
-        todo!()
+    pub(crate) fn new(app: &'a App) -> Self {
+        Self {
+            busy_stages: &app.stages,
+            spare_stages: Default::default(),
+
+            commands: Default::default(),
+        }
     }
 
     pub fn busy_stage(&self, stage_name: &str) -> Option<&AppStage> {
@@ -303,7 +288,17 @@ impl<'a> AppSettings<'a> {
     }
 
     pub fn take_spare_stage(&mut self, stage_name: &str) -> Option<AppStage> {
-        todo!()
+        if let Some(index) = self
+            .spare_stages
+            .iter()
+            .enumerate()
+            .find(|(_, stage)| stage.name() == stage_name)
+            .map(|(index, _)| index)
+        {
+            Some(self.spare_stages.remove(index))
+        } else {
+            None
+        }
     }
 
     pub fn spare_stage_iter(&self) -> Iter<AppStage> {
@@ -312,6 +307,14 @@ impl<'a> AppSettings<'a> {
 
     pub fn spare_stage_iter_mut(&mut self) -> IterMut<AppStage> {
         self.spare_stages.iter_mut()
+    }
+
+    pub fn is_stage_busy(&self, stage_name: &str) -> bool {
+        self.busy_stage(stage_name).is_some()
+    }
+
+    pub fn is_stage_spare(&self, stage_name: &str) -> bool {
+        self.spare_stage(stage_name).is_some()
     }
 
     pub fn push_stage_to_work_before(&mut self, stage: AppStage, after_stage_name: &'a str) -> Result<(), AppRunError> {
@@ -405,7 +408,7 @@ impl<'a> AppSettings<'a> {
         if self.is_stage_busy(stage_name) {
             self.commands.push(AppCommand::MakeBusyStageToRest { stage_name });
             Ok(())
-        } else if self.is_stage_spare(stage_name){
+        } else if self.is_stage_spare(stage_name) {
             Err(AppRunError::StageNotExistInBusy(stage_name))
         } else {
             Err(AppRunError::StageNotExist(stage_name))
@@ -414,7 +417,7 @@ impl<'a> AppSettings<'a> {
 
     pub fn set_stage_frequency(&mut self, stage_name: &'a str, frequency: u32) -> Result<(), AppRunError> {
         if self.is_stage_busy(stage_name) {
-            self.commands.push(AppCommand::SetBusyStageFrequency {stage_name, frequency});
+            self.commands.push(AppCommand::SetBusyStageFrequency { stage_name, frequency });
             Ok(())
         } else if let Some(stage) = self.spare_stage_mut(stage_name) {
             stage.set_frequency(frequency);
@@ -424,12 +427,8 @@ impl<'a> AppSettings<'a> {
         }
     }
 
-    pub fn is_stage_busy(&self, stage_name: &str) -> bool {
-        self.busy_stage(stage_name).is_some()
-    }
-
-    pub fn is_stage_spare(&self, stage_name: &str) -> bool {
-        self.spare_stage(stage_name).is_some()
+    pub fn quit(&mut self) {
+        self.commands.push(AppCommand::AppQuit);
     }
 }
 
@@ -439,6 +438,7 @@ pub enum AppCommand<'a> {
     PushStageToWorkAfter { stage: AppStage, before_stage_name: &'a str },
     MakeBusyStageToRest { stage_name: &'a str },
     SetBusyStageFrequency { stage_name: &'a str, frequency: u32 },
+    AppQuit,
 }
 
 pub enum AppRunError<'a> {
@@ -449,6 +449,7 @@ pub enum AppRunError<'a> {
     StageNotExistInSpare(&'a str),
 }
 
+// TODO:
 impl<'a> fmt::Debug for AppRunError<'a> {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         f.debug_tuple("").finish()
