@@ -1,10 +1,8 @@
-use std::ops::DerefMut;
+use std::{cell::{Ref, RefCell}, collections::hash_map::DefaultHasher};
 
 fn main() {
+    let vec: Vec<NoDefault> = Default::default();
 
 }
 
-
-
-#[derive(Debug)]
-struct WithoutCopy(i32);
+struct NoDefault;
