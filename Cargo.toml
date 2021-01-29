@@ -7,12 +7,9 @@ edition = "2018"
 
 [dependencies]
 legion = "0.*"
+legion_codegen = "0.*"
 winit = "0.*"
 
 [[example]]
 name = "legion_system"
 path = "examples/legion/legion_system.rs"
-
-[[example]]
-name ="app_example01"
-path = "examples/app/example01.rs"

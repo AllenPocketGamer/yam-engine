@@ -1,4 +1,4 @@
-use super::misc::Timer;
+use super::misc::PulseTimer;
 use legion::{
     systems::{Builder, ParallelRunnable, Runnable},
     Resources, Schedule, World,
@@ -6,7 +6,6 @@ use legion::{
 use std::{
     cell::RefCell,
     fmt,
-    ops::Deref,
     panic,
     rc::Rc,
     slice::{Iter, IterMut},
@@ -35,7 +34,7 @@ impl App {
         // take busy_stages out of the app and drop the app
         let busy_stages = Rc::new(RefCell::new(self.busy_stages));
 
-        fn apply_settings(resources: &mut Resources) -> bool {
+        fn apply_and_ask_quit(resources: &mut Resources) -> bool {
             if resources.contains::<AppSettings>() {
                 resources.get_mut::<AppSettings>().unwrap().apply()
             } else {
@@ -52,7 +51,7 @@ impl App {
             stage.init(&mut world, &mut resources);
         }
 
-        while !apply_settings(&mut resources) {
+        while !apply_and_ask_quit(&mut resources) {
             for stage in RefCell::borrow(&busy_stages).iter() {
                 stage.play(&mut world, &mut resources);
             }
@@ -112,7 +111,7 @@ pub enum AppBuildError {
 
 pub struct AppStage {
     name: String,
-    timer: RefCell<Timer>,
+    timer: RefCell<PulseTimer>,
 
     startup: RefCell<Schedule>,
     process: RefCell<Schedule>,
@@ -120,7 +119,7 @@ pub struct AppStage {
 }
 
 impl AppStage {
-    fn new(name: String, timer: Timer, startup: Schedule, process: Schedule, destroy: Schedule) -> Self {
+    fn new(name: String, timer: PulseTimer, startup: Schedule, process: Schedule, destroy: Schedule) -> Self {
         Self {
             name,
             timer: RefCell::new(timer),
@@ -136,11 +135,11 @@ impl AppStage {
     }
 
     pub fn frequency(&self) -> u32 {
-        self.timer.borrow().target_ticks
+        self.timer.borrow().ticks_per_second()
     }
 
     pub fn set_frequency(&mut self, frequency: u32) {
-        self.timer.borrow_mut().target_ticks = frequency;
+        self.timer.borrow_mut().set_ticks_per_second(frequency);
     }
 
     pub(crate) fn init(&self, world: &mut World, resources: &mut Resources) {
@@ -148,10 +147,8 @@ impl AppStage {
     }
 
     pub(crate) fn play(&self, world: &mut World, resources: &mut Resources) {
-        self.timer.borrow_mut().update();
-
-        if self.timer.borrow_mut().tick() {
-            resources.insert::<Timer>(*self.timer.borrow());
+        if self.timer.borrow_mut().update() {
+            resources.insert::<PulseTimer>(*self.timer.borrow());
 
             self.process.borrow_mut().execute(world, resources);
         }
@@ -213,46 +210,64 @@ impl AppStageBuilder {
         self.frequency
     }
 
-    pub fn add_system_startup<T: ParallelRunnable + 'static>(&mut self, system: T) {
+    pub fn add_system_startup<T: ParallelRunnable + 'static>(mut self, system: T) -> Self {
         self.builder_startup.add_system(system);
+
+        self
     }
 
-    pub fn add_system_process<T: ParallelRunnable + 'static>(&mut self, system: T) {
+    pub fn add_system_process<T: ParallelRunnable + 'static>(mut self, system: T) -> Self {
         self.builder_process.add_system(system);
+
+        self
     }
 
-    pub fn add_system_destroy<T: ParallelRunnable + 'static>(&mut self, system: T) {
+    pub fn add_system_destroy<T: ParallelRunnable + 'static>(mut self, system: T) -> Self {
         self.builder_destroy.add_system(system);
+
+        self
     }
 
-    pub fn add_thread_local_system_startup<T: Runnable + 'static>(&mut self, system: T) {
+    pub fn add_thread_local_system_startup<T: Runnable + 'static>(mut self, system: T) -> Self {
         self.builder_startup.add_thread_local(system);
+
+        self
     }
 
-    pub fn add_thread_local_system_process<T: Runnable + 'static>(&mut self, system: T) {
+    pub fn add_thread_local_system_process<T: Runnable + 'static>(mut self, system: T) -> Self {
         self.builder_process.add_thread_local(system);
+
+        self
     }
 
-    pub fn add_thread_local_system_destroy<T: Runnable + 'static>(&mut self, system: T) {
+    pub fn add_thread_local_system_destroy<T: Runnable + 'static>(mut self, system: T) -> Self {
         self.builder_destroy.add_thread_local(system);
+
+        self
     }
 
-    pub fn add_thread_local_fn_startup<F: FnMut(&mut World, &mut Resources) + 'static>(&mut self, f: F) {
+    pub fn add_thread_local_fn_startup<F: FnMut(&mut World, &mut Resources) + 'static>(mut self, f: F) -> Self {
         self.builder_startup.add_thread_local_fn(f);
+
+        self
     }
 
-    pub fn add_thread_local_fn_process<F: FnMut(&mut World, &mut Resources) + 'static>(&mut self, f: F) {
+    pub fn add_thread_local_fn_process<F: FnMut(&mut World, &mut Resources) + 'static>(mut self, f: F) -> Self {
         self.builder_process.add_thread_local_fn(f);
+
+        self
     }
 
-    pub fn add_thread_local_fn_destroy<F: FnMut(&mut World, &mut Resources) + 'static>(&mut self, f: F) {
+    pub fn add_thread_local_fn_destroy<F: FnMut(&mut World, &mut Resources) + 'static>(mut self, f: F) -> Self {
         self.builder_destroy.add_thread_local_fn(f);
+
+        self
     }
 
     pub fn build(mut self) -> AppStage {
         AppStage::new(
             self.name,
-            Timer::new(self.frequency),
+            PulseTimer::new(self.frequency),
             self.builder_startup.build(),
             self.builder_process.build(),
             self.builder_destroy.build(),
@@ -287,6 +302,7 @@ impl AppSettings {
         }
     }
 
+    /// apply settings for app and return a flag indicating whether user request to quit
     fn apply(&mut self) -> bool {
         fn fuck_borrow_checker(busy_stages: &Vec<AppStage>, stage_name: &str) -> usize {
             busy_stages
@@ -324,12 +340,12 @@ impl AppSettings {
                         .set_frequency(frequency);
                 }
                 AppCommand::AppQuit => {
-                    return false;
+                    return true;
                 }
             }
         }
 
-        true
+        false
     }
 
     pub fn busy_stage<'a>(&'a self, stage_name: &str) -> Option<&'a AppStage> {

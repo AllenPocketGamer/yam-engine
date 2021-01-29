@@ -1,47 +1,55 @@
 use std::{
-    fmt::{Display, Formatter, *},
+    fmt,
     time::{Duration, Instant},
 };
 
-#[derive(Debug, Clone, Copy)]
-pub struct Timer {
-    pub target_ticks: u32,
-    pub target_delta: Duration,
-    pub last_tick: Instant,
-    pub accumulated_delta: Duration,
-    pub has_ticked: bool,
+#[derive(Clone, Copy)]
+pub struct PulseTimer {
+    target_ticks: u32,
+    target_delta: Duration,
+
+    last_update: Instant,
+
+    prev_tick: Instant,
+    last_tick: Instant,
+    total_time: Duration,
+    accumulated_time: Duration,
 }
 
-impl Timer {
-    pub(crate) fn new(ticks_per_second: u32) -> Timer {
+impl PulseTimer {
+    pub fn new(ticks_per_second: u32) -> PulseTimer {
         let (target_seconds, target_nanos) = match ticks_per_second {
             0 => (std::u64::MAX, 0),
             1 => (1, 0),
             _ => (0, ((1.0 / ticks_per_second as f64) * 1e9) as u32),
         };
 
-        Timer {
+        PulseTimer {
             target_ticks: ticks_per_second,
             target_delta: Duration::new(target_seconds, target_nanos),
+
+            last_update: Instant::now(),
+
+            prev_tick: Instant::now(),
             last_tick: Instant::now(),
-            accumulated_delta: Duration::from_secs(0),
-            has_ticked: false,
+            total_time: Duration::new(0, 0),
+            accumulated_time: Duration::from_secs(0),
         }
     }
 
-    pub(crate) fn update(&mut self) {
+    pub fn update(&mut self) -> bool {
         let now = Instant::now();
-        let diff = now - self.last_tick;
+        let diff = now - self.last_update;
 
-        self.last_tick = now;
-        self.accumulated_delta += diff;
-        self.has_ticked = false;
-    }
+        self.last_update = now;
+        self.total_time += diff;
+        self.accumulated_time += diff;
 
-    pub(crate) fn tick(&mut self) -> bool {
-        if self.accumulated_delta >= self.target_delta {
-            self.accumulated_delta -= self.target_delta;
-            self.has_ticked = true;
+        if self.accumulated_time >= self.target_delta {
+            self.prev_tick = self.last_tick;
+            self.last_tick = self.last_update;
+
+            self.accumulated_time -= self.target_delta;
 
             true
         } else {
@@ -49,7 +57,29 @@ impl Timer {
         }
     }
 
-    pub(crate) fn set_ticks_per_second(&mut self, ticks_per_second: u32) {
+    pub fn delta(&self) -> Duration {
+        self.last_tick - self.prev_tick
+    }
+
+    pub fn total_time(&self) -> Duration {
+        self.total_time
+    }
+    
+    pub fn accumulated_time(&self) -> Duration {
+        self.accumulated_time
+    }
+
+    pub fn ticks_per_second(&self) -> u32 {
+        self.target_ticks
+    }
+
+    pub fn next_tick_proximity(&self) -> f32 {
+        let delta = self.accumulated_time;
+
+        self.target_ticks as f32 * (delta.as_secs() as f32 + (delta.subsec_micros() as f32 / 1_000_000.0))
+    }
+
+    pub fn set_ticks_per_second(&mut self, ticks_per_second: u32) {
         let (target_seconds, target_nanos) = match ticks_per_second {
             0 => (std::u64::MAX, 0),
             1 => (1, 0),
@@ -59,28 +89,22 @@ impl Timer {
         self.target_ticks = ticks_per_second;
         self.target_delta = Duration::new(target_seconds, target_nanos);
     }
-
-    pub fn next_tick_proximity(&self) -> f32 {
-        let delta = self.accumulated_delta;
-
-        self.target_ticks as f32 * (delta.as_secs() as f32 + (delta.subsec_micros() as f32 / 1_000_000.0))
-    }
 }
 
-impl Default for Timer {
+impl Default for PulseTimer {
     fn default() -> Self {
         Self::new(60)
     }
 }
 
-impl Display for Timer {
-    fn fmt(&self, f: &mut Formatter<'_>) -> Result {
-        write!(
-            f,
-            "[interval]: {}ms, [delta]: {}ms [ticked?]: {}",
-            self.target_delta.as_millis(),
-            self.accumulated_delta.as_millis(),
-            self.has_ticked
-        )
+impl fmt::Debug for PulseTimer {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        f.debug_struct("PulseTimer")
+        .field("frequency", &self.target_ticks)
+        .field("delta", &self.delta().as_secs_f32())
+        .field("total_time", &self.total_time.as_secs_f32())
+        .field("accumulated_time", &self.accumulated_time.as_secs_f32())
+        .field("next_tick_proximity", &self.next_tick_proximity())
+        .finish()
     }
 }

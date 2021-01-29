@@ -1275,5 +1275,6 @@ name = "yamengine"
 version = "0.1.0"
 dependencies = [
  "legion",
+ "legion_codegen",
  "winit",
 ]
