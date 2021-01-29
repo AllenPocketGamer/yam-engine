@@ -1,4 +1,4 @@
-use super::{misc::Timer};
+use super::misc::Timer;
 use legion::{
     systems::{Builder, ParallelRunnable, Runnable},
     Resources, Schedule, World,
@@ -6,12 +6,13 @@ use legion::{
 use std::{
     cell::RefCell,
     fmt,
+    ops::Deref,
     panic,
     rc::Rc,
     slice::{Iter, IterMut},
 };
 
-#[derive(Default)]
+#[derive(Default, Debug)]
 pub struct App {
     busy_stages: Vec<AppStage>,
 }
@@ -104,6 +105,11 @@ impl AppBuilder {
     }
 }
 
+#[derive(Debug)]
+pub enum AppBuildError {
+    DuplicateName(AppStageBuilder),
+}
+
 pub struct AppStage {
     name: String,
     timer: RefCell<Timer>,
@@ -156,6 +162,15 @@ impl AppStage {
     }
 }
 
+impl fmt::Debug for AppStage {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        f.debug_struct("AppStage")
+            .field("name", &self.name)
+            .field("frequency", &self.frequency())
+            .finish()
+    }
+}
+
 pub struct AppStageBuilder {
     name: String,
     frequency: u32,
@@ -165,6 +180,15 @@ pub struct AppStageBuilder {
     builder_destroy: Builder,
 
     app_builder: Option<AppBuilder>,
+}
+
+impl fmt::Debug for AppStageBuilder {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        f.debug_struct("AppStageBuilder")
+            .field("name", &self.name)
+            .field("frequency", &self.frequency)
+            .finish()
+    }
 }
 
 impl AppStageBuilder {
@@ -500,7 +524,18 @@ impl AppSettings {
     }
 }
 
-pub enum AppCommand {
+impl fmt::Debug for AppSettings {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        f.debug_struct("AppSettings")
+            .field("busy_stages", &RefCell::borrow(&self.busy_stages))
+            .field("spare_stages", &self.spare_stages)
+            .field("commands", &self.commands)
+            .finish()
+    }
+}
+
+#[derive(Debug)]
+enum AppCommand {
     PushStageToWorkBefore { stage: AppStage, after_stage_name: String },
     PushStageToWork { stage: AppStage },
     PushStageToWorkAfter { stage: AppStage, before_stage_name: String },
@@ -509,27 +544,11 @@ pub enum AppCommand {
     AppQuit,
 }
 
+#[derive(Debug)]
 pub enum AppSettingsError<'a> {
     DuplicateNameInBusy(AppStage),
     DuplicateNameInSpare(AppStage),
     StageNotExist(&'a str),
     StageNotExistInBusy(&'a str, Option<AppStage>),
     StageNotExistInSpare(&'a str, Option<AppStage>),
-}
-
-// TODO:
-impl<'a> fmt::Debug for AppSettingsError<'a> {
-    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        f.debug_tuple("").finish()
-    }
-}
-
-pub enum AppBuildError {
-    DuplicateName(AppStageBuilder),
-}
-
-impl fmt::Debug for AppBuildError {
-    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        f.debug_tuple("").finish()
-    }
 }
