@@ -108,3 +108,31 @@ impl fmt::Debug for PulseTimer {
         .finish()
     }
 }
+
+#[derive(Clone, Copy)]
+pub struct TickTimer {
+    last_tick: Instant,
+}
+
+impl TickTimer {
+    pub fn new() -> Self {
+        Self {
+            last_tick: Instant::now(),
+        }
+    }
+
+    pub fn tick(&mut self) -> Duration {
+        let now = Instant::now();
+        let diff = now - self.last_tick;
+        
+        self.last_tick = now;
+
+        diff
+    }
+}
+
+impl Default for TickTimer {
+    fn default() -> Self {
+        Self::new()
+    }
+}
