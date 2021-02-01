@@ -1276,5 +1276,6 @@ version = "0.1.0"
 dependencies = [
  "legion",
  "legion_codegen",
+ "num_cpus",
  "winit",
 ]

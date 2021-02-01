@@ -44,9 +44,9 @@ fn thread_local_process(#[resource] timer: &PulseTimer, #[resource] settings: &m
     if timer.total_time().as_secs_f32() > 2.0 {
         settings.quit();
 
-        println!("exceed one 2 seconds, exit");
+        println!("exceed 2 seconds, exit");
     } else {
-        println!("acculmulate time: {}", timer.total_time().as_secs_f32());
+        println!("total_time: {}; delta: {}", timer.total_time().as_secs_f32(), timer.delta().as_secs_f32());
     }
 }
 

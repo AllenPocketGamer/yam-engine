@@ -1,7 +1,5 @@
 use std::collections::HashMap;
-
-pub type MouseButton = winit::event::MouseButton;
-pub type KeyCode = winit::event::VirtualKeyCode;
+use winit::event::{DeviceEvent, ElementState, Event, MouseScrollDelta, WindowEvent};
 
 pub struct Input {
     pub mouse: Mouse,
@@ -16,105 +14,151 @@ impl Input {
         }
     }
 
-    pub(crate) fn prepare(&mut self) {
-        self.mouse.prepare();
-        self.keyboard.prepare();
+    pub(crate) fn apply(&mut self, evts: &mut Vec<Event<()>>) {
+        self.mouse.before_apply();
+
+        for evt in evts.drain(..) {
+            match evt {
+                Event::WindowEvent { event, .. } => match event {
+                    WindowEvent::MouseInput { button, state, .. } => {
+                        if let Some(bs) = self.mouse.mouse_button_state.get_mut(&button) {
+                            *bs = match state {
+                                ElementState::Pressed => ButtonState::JustPressed,
+                                ElementState::Released => ButtonState::JustReleased,
+                            };
+                        } else {
+                            self.mouse.mouse_button_state.insert(
+                                button,
+                                match state {
+                                    ElementState::Pressed => ButtonState::JustPressed,
+                                    ElementState::Released => ButtonState::JustReleased,
+                                },
+                            );
+                        }
+                    }
+                    WindowEvent::MouseWheel {
+                        delta: MouseScrollDelta::LineDelta(x, y),
+                        ..
+                    } => {
+                        self.mouse.mouse_wheel_motion = (x, y);
+                    }
+
+                    WindowEvent::CursorLeft { .. } => {
+                        self.mouse.cursor_state = CursorState::JustLeft;
+                    }
+                    WindowEvent::CursorEntered { .. } => {
+                        self.mouse.cursor_state = CursorState::JustEntered;
+                    }
+                    WindowEvent::CursorMoved { position, .. } => {
+                        self.mouse.cursor_position = (position.x as f32, position.y as f32);
+                    }
+                    _ => {}
+                },
+                Event::DeviceEvent { event, .. } => match event {
+                    DeviceEvent::MouseMotion { delta } => {
+                        self.mouse.mouse_motion = (delta.0 as f32, delta.0 as f32);
+                    }
+                    _ => {}
+                },
+                _ => {}
+            }
+        }
     }
 }
 
+// FIXME: change tuple to vec2 after finishing math module
 pub struct Mouse {
-    pub(crate) position: (u32, u32),
-    pub(crate) window_position: (u32, u32),
-    pub(crate) motion_delta: (f32, f32),
-    pub(crate) wheel_delta: (f32, f32),
-    button_to_state: HashMap<MouseButton, ElementState>,
+    mouse_motion: (f32, f32),
+    mouse_wheel_motion: (f32, f32),
+    mouse_button_state: HashMap<MouseButton, ButtonState>,
+
+    cursor_state: CursorState,
+    cursor_position: (f32, f32),
 }
 
 impl Mouse {
     fn new() -> Self {
         Self {
-            position: (0, 0),
-            motion_delta: (0f32, 0f32),
-            wheel_delta: (0f32, 0f32),
-            window_position: (0, 0),
-            button_to_state: HashMap::with_capacity(3),
-        }
-    }
+            mouse_motion: (0f32, 0f32),
+            mouse_wheel_motion: (0f32, 0f32),
+            mouse_button_state: HashMap::with_capacity(4),
 
-    fn prepare(&mut self) {
-        self.motion_delta = Default::default();
-        self.wheel_delta = Default::default();
-        self.button_to_state.iter_mut().map(|(_k, v)| v).for_each(|v| match *v {
-            ElementState::JustPressed => *v = ElementState::Pressed,
-            ElementState::JustReleased => *v = ElementState::Released,
-            _ => {}
-        });
-    }
-
-    pub(crate) fn set_button_state(&mut self, button: MouseButton, is_pressed: bool) {
-        let target_state = if is_pressed {
-            ElementState::JustPressed
-        } else {
-            ElementState::JustReleased
-        };
-
-        match self.button_to_state.get_mut(&button) {
-            Some(state) => {
-                *state = target_state;
-            }
-            None => {
-                self.button_to_state.insert(button, target_state);
-            }
-        }
-    }
-
-    pub fn just_pressed(&self, button: MouseButton) -> bool {
-        match self.button_to_state.get(&button) {
-            Some(state) => *state == ElementState::JustPressed,
-            None => false,
-        }
-    }
-
-    pub fn just_released(&self, button: MouseButton) -> bool {
-        match self.button_to_state.get(&button) {
-            Some(state) => *state == ElementState::JustReleased,
-            None => false,
+            cursor_state: CursorState::Left,
+            cursor_position: (0f32, 0f32),
         }
     }
 
     pub fn pressed(&self, button: MouseButton) -> bool {
-        match self.button_to_state.get(&button) {
-            Some(state) => *state == ElementState::Pressed,
+        match self.mouse_button_state.get(&button) {
+            Some(state) => *state == ButtonState::Pressed,
             None => false,
         }
     }
 
     pub fn released(&self, button: MouseButton) -> bool {
-        match self.button_to_state.get(&button) {
-            Some(state) => *state == ElementState::Released,
+        match self.mouse_button_state.get(&button) {
+            Some(state) => *state == ButtonState::Released,
             None => true,
         }
     }
 
-    pub fn get_position_at_window(&self) -> (u32, u32) {
-        self.position
+    pub fn just_pressed(&self, button: MouseButton) -> bool {
+        match self.mouse_button_state.get(&button) {
+            Some(state) => *state == ButtonState::JustPressed,
+            None => false,
+        }
     }
 
-    pub fn get_position_at_desktop(&self) -> (u32, u32) {
-        (self.position.0 + self.window_position.0, self.position.1 + self.window_position.1)
+    pub fn just_released(&self, button: MouseButton) -> bool {
+        match self.mouse_button_state.get(&button) {
+            Some(state) => *state == ButtonState::JustReleased,
+            None => false,
+        }
     }
 
-    pub fn get_motion_delta(&self) -> (f32, f32) {
-        self.motion_delta
+    pub fn cursor_left(&self) -> bool {
+        self.cursor_state == CursorState::Left
     }
 
-    pub fn get_wheel_delta(&self) -> (f32, f32) {
-        self.wheel_delta
+    pub fn cursor_entered(&self) -> bool {
+        self.cursor_state == CursorState::Entered
+    }
+
+    pub fn cursor_just_left(&self) -> bool {
+        self.cursor_state == CursorState::JustLeft
+    }
+
+    pub fn cursor_just_entered(&self) -> bool {
+        self.cursor_state == CursorState::JustEntered
+    }
+
+    // FIXME: change(u32, u32) to vec2 after finishing math module
+    pub fn cursor_position(&self) -> (f32, f32) {
+        self.cursor_position
+    }
+
+    fn before_apply(&mut self) {
+        self.mouse_motion = (0f32, 0f32);
+        self.mouse_wheel_motion = (0f32, 0f32);
+
+        self.cursor_state = match self.cursor_state {
+            CursorState::JustLeft => CursorState::Left,
+            CursorState::JustEntered => CursorState::Entered,
+            _ => self.cursor_state,
+        };
+
+        for bs in self.mouse_button_state.values_mut() {
+            *bs = match *bs {
+                ButtonState::JustPressed => ButtonState::Pressed,
+                ButtonState::JustReleased => ButtonState::Released,
+                _ => *bs,
+            };
+        }
     }
 }
 
 pub struct Keyboard {
-    keycode_to_state: HashMap<KeyCode, ElementState>,
+    keycode_to_state: HashMap<KeyCode, ButtonState>,
 }
 
 impl Keyboard {
@@ -126,28 +170,26 @@ impl Keyboard {
 
     fn prepare(&mut self) {
         self.keycode_to_state.iter_mut().map(|(_k, e)| e).for_each(|e| match *e {
-            ElementState::JustPressed => *e = ElementState::Pressed,
-            ElementState::JustReleased => *e = ElementState::Released,
+            ButtonState::JustPressed => *e = ButtonState::Pressed,
+            ButtonState::JustReleased => *e = ButtonState::Released,
             _ => {}
         });
     }
 
     pub(crate) fn set_keycode_state(&mut self, keycode: KeyCode, is_pressed: bool) {
         match self.keycode_to_state.get_mut(&keycode) {
-            Some(state) => {
-                match *state {
-                    ElementState::Pressed if !is_pressed => *state = ElementState::JustReleased, 
-                    ElementState::Released if is_pressed => *state = ElementState::JustPressed,
-                    _ => {},
-                }
-            }
+            Some(state) => match *state {
+                ButtonState::Pressed if !is_pressed => *state = ButtonState::JustReleased,
+                ButtonState::Released if is_pressed => *state = ButtonState::JustPressed,
+                _ => {}
+            },
             None => {
                 self.keycode_to_state.insert(
                     keycode,
                     if is_pressed {
-                        ElementState::JustPressed
+                        ButtonState::JustPressed
                     } else {
-                        ElementState::JustReleased
+                        ButtonState::JustReleased
                     },
                 );
             }
@@ -156,37 +198,48 @@ impl Keyboard {
 
     pub fn just_pressed(&self, keycode: KeyCode) -> bool {
         match self.keycode_to_state.get(&keycode) {
-            Some(state) => *state == ElementState::JustPressed,
+            Some(state) => *state == ButtonState::JustPressed,
             None => false,
         }
     }
 
     pub fn just_released(&self, keycode: KeyCode) -> bool {
         match self.keycode_to_state.get(&keycode) {
-            Some(state) => *state == ElementState::JustReleased,
+            Some(state) => *state == ButtonState::JustReleased,
             None => false,
         }
     }
 
     pub fn pressed(&self, keycode: KeyCode) -> bool {
         match self.keycode_to_state.get(&keycode) {
-            Some(state) => *state == ElementState::Pressed,
+            Some(state) => *state == ButtonState::Pressed,
             None => false,
         }
     }
 
     pub fn released(&self, keycode: KeyCode) -> bool {
         match self.keycode_to_state.get(&keycode) {
-            Some(state) => *state == ElementState::Released,
+            Some(state) => *state == ButtonState::Released,
             None => true,
         }
     }
 }
 
 #[derive(Clone, Copy, PartialEq)]
-enum ElementState {
-    JustPressed,
-    JustReleased,
+enum ButtonState {
     Pressed,
     Released,
+    JustPressed,
+    JustReleased,
 }
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+enum CursorState {
+    Left,
+    Entered,
+    JustLeft,
+    JustEntered,
+}
+
+pub type MouseButton = winit::event::MouseButton;
+pub type KeyCode = winit::event::VirtualKeyCode;

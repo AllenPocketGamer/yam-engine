@@ -6,9 +6,10 @@ edition = "2018"
 
 
 [dependencies]
+winit = "0.*"
+num_cpus = "1.*"
 legion = "0.*"
 legion_codegen = "0.*"
-winit = "0.*"
 
 [[example]]
 name = "legion_system"

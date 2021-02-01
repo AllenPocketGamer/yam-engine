@@ -1,14 +1,18 @@
-use super::misc::PulseTimer;
+use super::{input::Input, misc::PulseTimer};
 use legion::{
     systems::{Builder, ParallelRunnable, Runnable},
     Resources, Schedule, World,
 };
 use std::{
     cell::RefCell,
-    fmt,
-    panic,
+    fmt, panic,
     rc::Rc,
     slice::{Iter, IterMut},
+};
+use winit::{
+    event::{Event, StartCause, WindowEvent},
+    event_loop::{ControlFlow, EventLoop},
+    window::WindowBuilder,
 };
 
 #[derive(Default, Debug)]
@@ -45,21 +49,85 @@ impl App {
         let mut world = World::default();
         let mut resources = Resources::default();
 
+        resources.insert::<Input>(Input::new());
         resources.insert::<AppSettings>(AppSettings::new(&busy_stages));
 
-        for stage in RefCell::borrow(&busy_stages).iter() {
-            stage.init(&mut world, &mut resources);
-        }
+        let event_loop = EventLoop::new();
+        let _window = WindowBuilder::new().with_title("default").build(&event_loop).unwrap();
 
-        while !apply_and_ask_quit(&mut resources) {
-            for stage in RefCell::borrow(&busy_stages).iter() {
-                stage.play(&mut world, &mut resources);
+        let mut input_evts: Vec<Event<'static, ()>> = Default::default();
+
+        event_loop.run(move |event, _, control_flow| {
+            // *control_flow = ControlFlow::Poll;
+
+            match event {
+                Event::NewEvents(sc) => match sc {
+                    StartCause::Init => {
+                        // NOTE: init all AppStages
+                        for stage in RefCell::borrow(&busy_stages).iter() {
+                            stage.init(&mut world, &mut resources);
+                        }
+                    }
+                    StartCause::Poll => {
+                        // NOTE: loop all AppStages
+                        if !apply_and_ask_quit(&mut resources) {
+                            for stage in RefCell::borrow(&busy_stages).iter() {
+                                stage.play(&mut world, &mut resources);
+                            }
+                        } else {
+                            *control_flow = ControlFlow::Exit;
+                        }
+                    }
+                    _ => {}
+                },
+                Event::WindowEvent { event: ref wevt, .. } => match wevt {
+                    WindowEvent::CloseRequested => {
+                        *control_flow = ControlFlow::Exit;
+                    }
+                    WindowEvent::Resized(_) => {}
+                    WindowEvent::ModifiersChanged(_) => {}
+
+                    WindowEvent::MouseInput { .. }
+                    | WindowEvent::MouseWheel { .. }
+                    | WindowEvent::CursorMoved { .. }
+                    | WindowEvent::CursorEntered { .. }
+                    | WindowEvent::CursorLeft { .. }
+                    | WindowEvent::KeyboardInput { .. } => {
+                        input_evts.push(event.to_static().unwrap());
+                    }
+
+                    WindowEvent::ScaleFactorChanged { .. } => {
+                        todo!()
+                    }
+                    _ => {}
+                },
+                Event::DeviceEvent { device_id, event } => {}
+                Event::Suspended => {
+                    // TODO: for specific platform(like android, iphone)
+                    todo!()
+                }
+                Event::Resumed => {
+                    // TODO: for specific platform(like android, iphone)
+                    todo!()
+                }
+                Event::MainEventsCleared => {
+                    if resources.contains::<Input>() {
+                        resources.get_mut::<Input>().unwrap().apply(&mut input_evts)
+                    } else {
+                        panic!("dont move Input out from Resources");
+                    }
+                }
+                Event::RedrawRequested(_) => {}
+                Event::RedrawEventsCleared => {}
+                Event::LoopDestroyed => {
+                    // NOTE: destroy all AppStages
+                    for stage in RefCell::borrow(&busy_stages).iter() {
+                        stage.free(&mut world, &mut resources);
+                    }
+                }
+                _ => {}
             }
-        }
-
-        for stage in RefCell::borrow(&busy_stages).iter() {
-            stage.free(&mut world, &mut resources);
-        }
+        });
     }
 }
 
