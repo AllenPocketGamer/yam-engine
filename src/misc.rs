@@ -109,30 +109,92 @@ impl fmt::Debug for PulseTimer {
     }
 }
 
+// FIXME: maybe it will force threads running from parallel to serial when accessing it by mutability
+// try to fix it, prevent legion to reschedule parallel systems
 #[derive(Clone, Copy)]
 pub struct TickTimer {
     last_tick: Instant,
+    delta: Duration,
 }
 
 impl TickTimer {
     pub fn new() -> Self {
         Self {
             last_tick: Instant::now(),
+            delta: Default::default(),
         }
     }
 
-    pub fn tick(&mut self) -> Duration {
+    pub fn tick(&mut self) {
         let now = Instant::now();
-        let diff = now - self.last_tick;
-        
-        self.last_tick = now;
 
-        diff
+        self.delta = now - self.last_tick;
+        self.last_tick = now;
+    }
+
+    pub fn delta(&self) -> Duration {
+        self.delta
     }
 }
 
 impl Default for TickTimer {
     fn default() -> Self {
         Self::new()
+    }
+}
+
+#[derive(Clone, Copy)]
+pub struct Time {
+    start_tick: Instant,
+    last_tick: Instant,
+    delta: Duration,
+    tick_count: u32,
+}
+
+impl Time {
+    pub(crate) fn now() -> Self {
+        Self {
+            last_tick: Instant::now(),
+            start_tick: Instant::now(),
+            delta: Default::default(),
+            tick_count: 0,
+        }
+    }
+
+    pub(crate) fn tick(&mut self) {
+        let now = Instant::now();
+
+        self.delta = now - self.last_tick;
+        self.last_tick = now;
+        self.tick_count += 1;
+    }
+
+    pub(crate) fn reset(&mut self) {
+        self.start_tick = Instant::now();
+        self.last_tick = Instant::now();
+        self.delta = Default::default();
+        self.tick_count = 0;
+    }
+
+    pub fn time(&self) -> Duration {
+        self.last_tick - self.start_tick
+    }
+
+    pub fn delta(&self) -> Duration {
+        self.delta
+    }
+
+    pub fn tick_count(&self) -> u32 {
+        self.tick_count
+    }
+}
+
+impl fmt::Debug for Time {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        f.debug_struct("FrameTimer")
+        .field("time", &self.time().as_secs_f32())
+        .field("delta", &self.delta.as_secs_f32())
+        .field("tick count", &self.tick_count)
+        .finish()
     }
 }

@@ -6,7 +6,7 @@ use yamengine::*;
 
 fn main() -> Result<(), AppBuildError> {
     AppBuilder::new()
-        .create_stage_builder(String::from("default"), 60)?
+        .create_stage_builder(String::from("default"))?
         .add_system_startup(parallel_startup_system())
         .add_system_process(parallel_process_system())
         .add_system_destroy(parallel_destroy_system())

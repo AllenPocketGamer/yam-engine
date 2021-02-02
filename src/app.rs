@@ -1,4 +1,4 @@
-use super::{input::Input, misc::PulseTimer};
+use super::{input::Input, misc::Time};
 use legion::{
     systems::{Builder, ParallelRunnable, Runnable},
     Resources, Schedule, World,
@@ -39,11 +39,7 @@ impl App {
         let busy_stages = Rc::new(RefCell::new(self.busy_stages));
 
         fn apply_and_ask_quit(resources: &mut Resources) -> bool {
-            if resources.contains::<AppSettings>() {
-                resources.get_mut::<AppSettings>().unwrap().apply()
-            } else {
-                panic!("dont move AppSettings out from Resources");
-            }
+            resources.get_mut::<AppSettings>().unwrap().apply()
         }
 
         let mut world = World::default();
@@ -59,7 +55,6 @@ impl App {
 
         event_loop.run(move |event, _, control_flow| {
             // *control_flow = ControlFlow::Poll;
-
             match event {
                 Event::NewEvents(sc) => match sc {
                     StartCause::Init => {
@@ -110,13 +105,7 @@ impl App {
                     // TODO: for specific platform(like android, iphone)
                     todo!()
                 }
-                Event::MainEventsCleared => {
-                    if resources.contains::<Input>() {
-                        resources.get_mut::<Input>().unwrap().apply(&mut input_evts)
-                    } else {
-                        panic!("dont move Input out from Resources");
-                    }
-                }
+                Event::MainEventsCleared => resources.get_mut::<Input>().unwrap().apply(&mut input_evts),
                 Event::RedrawRequested(_) => {}
                 Event::RedrawEventsCleared => {}
                 Event::LoopDestroyed => {
@@ -152,8 +141,8 @@ impl AppBuilder {
         }
     }
 
-    pub fn create_stage_builder(self, stage_name: String, frequency: u32) -> Result<AppStageBuilder, AppBuildError> {
-        let mut stage_builder = AppStageBuilder::new(stage_name, frequency);
+    pub fn create_stage_builder(self, stage_name: String) -> Result<AppStageBuilder, AppBuildError> {
+        let mut stage_builder = AppStageBuilder::new(stage_name);
 
         if self.has_stage(stage_builder.name()) {
             Err(AppBuildError::DuplicateName(stage_builder))
@@ -179,7 +168,7 @@ pub enum AppBuildError {
 
 pub struct AppStage {
     name: String,
-    timer: RefCell<PulseTimer>,
+    time: RefCell<Time>,
 
     startup: RefCell<Schedule>,
     process: RefCell<Schedule>,
@@ -187,10 +176,10 @@ pub struct AppStage {
 }
 
 impl AppStage {
-    fn new(name: String, timer: PulseTimer, startup: Schedule, process: Schedule, destroy: Schedule) -> Self {
+    fn new(name: String, startup: Schedule, process: Schedule, destroy: Schedule) -> Self {
         Self {
             name,
-            timer: RefCell::new(timer),
+            time: RefCell::new(Time::now()),
 
             startup: RefCell::new(startup),
             process: RefCell::new(process),
@@ -202,43 +191,36 @@ impl AppStage {
         self.name.as_str()
     }
 
-    pub fn frequency(&self) -> u32 {
-        self.timer.borrow().ticks_per_second()
-    }
-
-    pub fn set_frequency(&mut self, frequency: u32) {
-        self.timer.borrow_mut().set_ticks_per_second(frequency);
-    }
-
     pub(crate) fn init(&self, world: &mut World, resources: &mut Resources) {
+        self.time.borrow_mut().reset();
+        resources.insert::<Time>(*self.time.borrow_mut());
+        
         self.startup.borrow_mut().execute(world, resources);
     }
 
     pub(crate) fn play(&self, world: &mut World, resources: &mut Resources) {
-        if self.timer.borrow_mut().update() {
-            resources.insert::<PulseTimer>(*self.timer.borrow());
-
-            self.process.borrow_mut().execute(world, resources);
-        }
+        self.time.borrow_mut().tick();
+        resources.insert::<Time>(*self.time.borrow_mut());
+        
+        self.process.borrow_mut().execute(world, resources);
     }
 
     pub(crate) fn free(&self, world: &mut World, resources: &mut Resources) {
+        self.time.borrow_mut().tick();
+        resources.insert::<Time>(*self.time.borrow_mut());
+        
         self.destroy.borrow_mut().execute(world, resources);
     }
 }
 
 impl fmt::Debug for AppStage {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        f.debug_struct("AppStage")
-            .field("name", &self.name)
-            .field("frequency", &self.frequency())
-            .finish()
+        f.debug_struct("AppStage").field("name", &self.name).finish()
     }
 }
 
 pub struct AppStageBuilder {
     name: String,
-    frequency: u32,
 
     builder_startup: Builder,
     builder_process: Builder,
@@ -249,18 +231,14 @@ pub struct AppStageBuilder {
 
 impl fmt::Debug for AppStageBuilder {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        f.debug_struct("AppStageBuilder")
-            .field("name", &self.name)
-            .field("frequency", &self.frequency)
-            .finish()
+        f.debug_struct("AppStageBuilder").field("name", &self.name).finish()
     }
 }
 
 impl AppStageBuilder {
-    pub fn new(name: String, frequency: u32) -> Self {
+    pub fn new(name: String) -> Self {
         Self {
             name,
-            frequency,
 
             builder_startup: Builder::default(),
             builder_process: Builder::default(),
@@ -272,10 +250,6 @@ impl AppStageBuilder {
 
     pub fn name(&self) -> &str {
         self.name.as_str()
-    }
-
-    pub fn frequency(&self) -> u32 {
-        self.frequency
     }
 
     pub fn add_system_startup<T: ParallelRunnable + 'static>(mut self, system: T) -> Self {
@@ -335,7 +309,6 @@ impl AppStageBuilder {
     pub fn build(mut self) -> AppStage {
         AppStage::new(
             self.name,
-            PulseTimer::new(self.frequency),
             self.builder_startup.build(),
             self.builder_process.build(),
             self.builder_destroy.build(),
@@ -398,14 +371,6 @@ impl AppSettings {
                     let index = fuck_borrow_checker(&self.busy_stages.borrow(), stage_name.as_str());
                     let stage = self.busy_stages.borrow_mut().remove(index);
                     self.spare_stages.push(stage);
-                }
-                AppCommand::SetBusyStageFrequency { stage_name, frequency } => {
-                    self.busy_stages
-                        .borrow_mut()
-                        .iter_mut()
-                        .find(|stage| stage.name() == stage_name)
-                        .unwrap()
-                        .set_frequency(frequency);
                 }
                 AppCommand::AppQuit => {
                     return true;
@@ -585,24 +550,6 @@ impl AppSettings {
         }
     }
 
-    pub fn set_stage_frequency<'a>(&mut self, stage_name: &'a str, frequency: u32) -> Result<(), AppSettingsError<'a>> {
-        if self.is_in_spare(stage_name) {
-            self.spare_stage_mut(stage_name).unwrap().set_frequency(frequency);
-
-            Ok(())
-        } else if self.is_in_busy(stage_name) {
-            // TODO: clear Commands that have same stage name
-            self.commands.push(AppCommand::SetBusyStageFrequency {
-                stage_name: String::from(stage_name),
-                frequency,
-            });
-
-            Ok(())
-        } else {
-            Err(AppSettingsError::StageNotExist(stage_name))
-        }
-    }
-
     pub fn quit(&mut self) {
         self.commands.push(AppCommand::AppQuit);
     }
@@ -624,7 +571,6 @@ enum AppCommand {
     PushStageToWork { stage: AppStage },
     PushStageToWorkAfter { stage: AppStage, before_stage_name: String },
     MakeBusyStageToRest { stage_name: String },
-    SetBusyStageFrequency { stage_name: String, frequency: u32 },
     AppQuit,
 }
 
