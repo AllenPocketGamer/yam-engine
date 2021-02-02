@@ -1,5 +1,5 @@
 use std::collections::HashMap;
-use winit::event::{DeviceEvent, ElementState, Event, MouseScrollDelta, WindowEvent};
+use winit::event::{DeviceEvent, ElementState, Event, KeyboardInput, MouseScrollDelta, WindowEvent};
 
 pub struct Input {
     pub mouse: Mouse,
@@ -16,15 +16,16 @@ impl Input {
 
     pub(crate) fn apply(&mut self, evts: &mut Vec<Event<()>>) {
         self.mouse.before_apply();
+        self.keyboard.before_apply();
 
         for evt in evts.drain(..) {
             match evt {
                 Event::WindowEvent { event, .. } => match event {
                     WindowEvent::MouseInput { button, state, .. } => {
                         if let Some(bs) = self.mouse.mouse_button_state.get_mut(&button) {
-                            *bs = match state {
-                                ElementState::Pressed => ButtonState::JustPressed,
-                                ElementState::Released => ButtonState::JustReleased,
+                            match state {
+                                ElementState::Pressed => *bs = ButtonState::JustPressed,
+                                ElementState::Released => *bs = ButtonState::JustReleased,
                             };
                         } else {
                             self.mouse.mouse_button_state.insert(
@@ -52,6 +53,33 @@ impl Input {
                     WindowEvent::CursorMoved { position, .. } => {
                         self.mouse.cursor_position = (position.x as f32, position.y as f32);
                     }
+
+                    WindowEvent::KeyboardInput {
+                        input:
+                            KeyboardInput {
+                                state,
+                                virtual_keycode: Some(keycode),
+                                ..
+                            },
+                        ..
+                    } => {
+                        if let Some(bs) = self.keyboard.key_button_state.get_mut(&keycode) {
+                            match state {
+                                ElementState::Pressed if *bs != ButtonState::Pressed => *bs = ButtonState::JustPressed,
+                                ElementState::Released => *bs = ButtonState::JustReleased,
+                                _ => {}
+                            }
+                        } else {
+                            self.keyboard.key_button_state.insert(
+                                keycode,
+                                match state {
+                                    ElementState::Pressed => ButtonState::JustPressed,
+                                    ElementState::Released => ButtonState::JustReleased,
+                                },
+                            );
+                        }
+                    }
+
                     _ => {}
                 },
                 Event::DeviceEvent { event, .. } => match event {
@@ -148,79 +176,61 @@ impl Mouse {
         };
 
         for bs in self.mouse_button_state.values_mut() {
-            *bs = match *bs {
-                ButtonState::JustPressed => ButtonState::Pressed,
-                ButtonState::JustReleased => ButtonState::Released,
-                _ => *bs,
+            match *bs {
+                ButtonState::JustPressed => *bs = ButtonState::Pressed,
+                ButtonState::JustReleased => *bs = ButtonState::Released,
+                _ => {}
             };
         }
     }
 }
 
 pub struct Keyboard {
-    keycode_to_state: HashMap<KeyCode, ButtonState>,
+    key_button_state: HashMap<KeyCode, ButtonState>,
 }
 
 impl Keyboard {
     fn new() -> Self {
         Self {
-            keycode_to_state: HashMap::with_capacity(16),
-        }
-    }
-
-    fn prepare(&mut self) {
-        self.keycode_to_state.iter_mut().map(|(_k, e)| e).for_each(|e| match *e {
-            ButtonState::JustPressed => *e = ButtonState::Pressed,
-            ButtonState::JustReleased => *e = ButtonState::Released,
-            _ => {}
-        });
-    }
-
-    pub(crate) fn set_keycode_state(&mut self, keycode: KeyCode, is_pressed: bool) {
-        match self.keycode_to_state.get_mut(&keycode) {
-            Some(state) => match *state {
-                ButtonState::Pressed if !is_pressed => *state = ButtonState::JustReleased,
-                ButtonState::Released if is_pressed => *state = ButtonState::JustPressed,
-                _ => {}
-            },
-            None => {
-                self.keycode_to_state.insert(
-                    keycode,
-                    if is_pressed {
-                        ButtonState::JustPressed
-                    } else {
-                        ButtonState::JustReleased
-                    },
-                );
-            }
+            key_button_state: HashMap::with_capacity(16),
         }
     }
 
     pub fn just_pressed(&self, keycode: KeyCode) -> bool {
-        match self.keycode_to_state.get(&keycode) {
+        match self.key_button_state.get(&keycode) {
             Some(state) => *state == ButtonState::JustPressed,
             None => false,
         }
     }
 
     pub fn just_released(&self, keycode: KeyCode) -> bool {
-        match self.keycode_to_state.get(&keycode) {
+        match self.key_button_state.get(&keycode) {
             Some(state) => *state == ButtonState::JustReleased,
             None => false,
         }
     }
 
     pub fn pressed(&self, keycode: KeyCode) -> bool {
-        match self.keycode_to_state.get(&keycode) {
+        match self.key_button_state.get(&keycode) {
             Some(state) => *state == ButtonState::Pressed,
             None => false,
         }
     }
 
     pub fn released(&self, keycode: KeyCode) -> bool {
-        match self.keycode_to_state.get(&keycode) {
+        match self.key_button_state.get(&keycode) {
             Some(state) => *state == ButtonState::Released,
             None => true,
+        }
+    }
+
+    fn before_apply(&mut self) {
+        for bs in self.key_button_state.values_mut() {
+            match *bs {
+                ButtonState::JustPressed => *bs = ButtonState::Pressed,
+                ButtonState::JustReleased => *bs = ButtonState::Released,
+                _ => {}
+            }
         }
     }
 }
