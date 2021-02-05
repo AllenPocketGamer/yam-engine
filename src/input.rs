@@ -1,5 +1,7 @@
 use std::collections::HashMap;
-use winit::event::{DeviceEvent, ElementState, Event, KeyboardInput, MouseScrollDelta, WindowEvent};
+use winit::event::{
+    DeviceEvent, ElementState, Event, KeyboardInput, MouseScrollDelta, WindowEvent,
+};
 
 pub struct Input {
     pub mouse: Mouse,
@@ -65,7 +67,9 @@ impl Input {
                     } => {
                         if let Some(bs) = self.keyboard.key_button_state.get_mut(&keycode) {
                             match state {
-                                ElementState::Pressed if *bs != ButtonState::Pressed => *bs = ButtonState::JustPressed,
+                                ElementState::Pressed if *bs != ButtonState::Pressed => {
+                                    *bs = ButtonState::JustPressed
+                                }
                                 ElementState::Released => *bs = ButtonState::JustReleased,
                                 _ => {}
                             }
@@ -160,7 +164,6 @@ impl Mouse {
         self.cursor_state == CursorState::JustEntered
     }
 
-    // FIXME: change(u32, u32) to vec2 after finishing math module
     pub fn cursor_position(&self) -> (f32, f32) {
         self.cursor_position
     }

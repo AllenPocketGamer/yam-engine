@@ -64,7 +64,7 @@ impl PulseTimer {
     pub fn total_time(&self) -> Duration {
         self.total_time
     }
-    
+
     pub fn accumulated_time(&self) -> Duration {
         self.accumulated_time
     }
@@ -76,7 +76,8 @@ impl PulseTimer {
     pub fn next_tick_proximity(&self) -> f32 {
         let delta = self.accumulated_time;
 
-        self.target_ticks as f32 * (delta.as_secs() as f32 + (delta.subsec_micros() as f32 / 1_000_000.0))
+        self.target_ticks as f32
+            * (delta.as_secs() as f32 + (delta.subsec_micros() as f32 / 1_000_000.0))
     }
 
     pub fn set_ticks_per_second(&mut self, ticks_per_second: u32) {
@@ -100,12 +101,12 @@ impl Default for PulseTimer {
 impl fmt::Debug for PulseTimer {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         f.debug_struct("PulseTimer")
-        .field("frequency", &self.target_ticks)
-        .field("delta", &self.delta().as_secs_f32())
-        .field("total_time", &self.total_time.as_secs_f32())
-        .field("accumulated_time", &self.accumulated_time.as_secs_f32())
-        .field("next_tick_proximity", &self.next_tick_proximity())
-        .finish()
+            .field("frequency", &self.target_ticks)
+            .field("delta", &self.delta().as_secs_f32())
+            .field("total_time", &self.total_time.as_secs_f32())
+            .field("accumulated_time", &self.accumulated_time.as_secs_f32())
+            .field("next_tick_proximity", &self.next_tick_proximity())
+            .finish()
     }
 }
 
@@ -192,9 +193,9 @@ impl Time {
 impl fmt::Debug for Time {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         f.debug_struct("FrameTimer")
-        .field("time", &self.time().as_secs_f32())
-        .field("delta", &self.delta.as_secs_f32())
-        .field("tick count", &self.tick_count)
-        .finish()
+            .field("time", &self.time().as_secs_f32())
+            .field("delta", &self.delta.as_secs_f32())
+            .field("tick count", &self.tick_count)
+            .finish()
     }
 }

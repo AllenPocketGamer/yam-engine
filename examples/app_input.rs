@@ -58,13 +58,3 @@ fn parallel_process(#[resource] input: &Input) {
 fn parallel_destroy() {
     println!("parallel destroy");
 }
-
-struct P {
-    arr: [i32; 4],
-}
-
-impl Borrow<[i32]> for P {
-    fn borrow(&self) -> &[i32] {
-        self.arr.as_ref()
-    }
-}

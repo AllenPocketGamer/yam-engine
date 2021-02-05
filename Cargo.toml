@@ -10,6 +10,10 @@ winit = "0.*"
 num_cpus = "1.*"
 legion = "0.*"
 legion_codegen = "0.*"
+nalgebra = "0.*"
+wgpu = "0.*"
+futures = "0.*"
+# lazy_static = "1.*"
 
 [[example]]
 name = "legion_system"

@@ -1,4 +1,4 @@
-use super::{input::Input, misc::Time};
+use crate::{input::Input, misc::Time, render::create_app_stage_render, window::Window};
 use legion::{
     systems::{Builder, ParallelRunnable, Runnable},
     Resources, Schedule, World,
@@ -28,15 +28,19 @@ impl App {
     }
 
     pub fn from_stages(stages: Vec<AppStage>) -> Self {
-        Self { busy_stages: stages }
+        Self {
+            busy_stages: stages,
+        }
     }
 
     /// # Panics
     ///
     /// Panics if the ownership of `AppSettings` moved to outer
     pub fn run(self) {
-        // take busy_stages out of the app and drop the app
         let busy_stages = Rc::new(RefCell::new(self.busy_stages));
+
+        // FIXME: add render app_stage to busy_stages temporiary
+        busy_stages.borrow_mut().push(create_app_stage_render());
 
         fn apply_and_ask_quit(resources: &mut Resources) -> bool {
             resources.get_mut::<AppSettings>().unwrap().apply()
@@ -45,11 +49,16 @@ impl App {
         let mut world = World::default();
         let mut resources = Resources::default();
 
+        let event_loop = EventLoop::new();
+
         resources.insert::<Input>(Input::new());
         resources.insert::<AppSettings>(AppSettings::new(&busy_stages));
-
-        let event_loop = EventLoop::new();
-        let _window = WindowBuilder::new().with_title("default").build(&event_loop).unwrap();
+        resources.insert::<Window>(Window::new(
+            WindowBuilder::new()
+                .with_title("default")
+                .build(&event_loop)
+                .unwrap(),
+        ));
 
         let mut input_evts: Vec<Event<'static, ()>> = Default::default();
 
@@ -75,7 +84,9 @@ impl App {
                     }
                     _ => {}
                 },
-                Event::WindowEvent { event: ref wevt, .. } => match wevt {
+                Event::WindowEvent {
+                    event: ref wevt, ..
+                } => match wevt {
                     WindowEvent::CloseRequested => {
                         *control_flow = ControlFlow::Exit;
                     }
@@ -105,7 +116,9 @@ impl App {
                     // TODO: for specific platform(like android, iphone)
                     todo!()
                 }
-                Event::MainEventsCleared => resources.get_mut::<Input>().unwrap().apply(&mut input_evts),
+                Event::MainEventsCleared => {
+                    resources.get_mut::<Input>().unwrap().apply(&mut input_evts)
+                }
                 Event::RedrawRequested(_) => {}
                 Event::RedrawEventsCleared => {}
                 Event::LoopDestroyed => {
@@ -132,7 +145,10 @@ impl AppBuilder {
         }
     }
 
-    pub fn add_stage_builder(mut self, stage_builder: AppStageBuilder) -> Result<Self, AppBuildError> {
+    pub fn add_stage_builder(
+        mut self,
+        stage_builder: AppStageBuilder,
+    ) -> Result<Self, AppBuildError> {
         if self.has_stage(stage_builder.name()) {
             Err(AppBuildError::DuplicateName(stage_builder))
         } else {
@@ -141,7 +157,10 @@ impl AppBuilder {
         }
     }
 
-    pub fn create_stage_builder(self, stage_name: String) -> Result<AppStageBuilder, AppBuildError> {
+    pub fn create_stage_builder(
+        self,
+        stage_name: String,
+    ) -> Result<AppStageBuilder, AppBuildError> {
         let mut stage_builder = AppStageBuilder::new(stage_name);
 
         if self.has_stage(stage_builder.name()) {
@@ -153,11 +172,19 @@ impl AppBuilder {
     }
 
     pub fn build(self) -> App {
-        App::from_stages(self.stage_builders.into_iter().map(|stage_builder| stage_builder.build()).collect())
+        App::from_stages(
+            self.stage_builders
+                .into_iter()
+                .map(|stage_builder| stage_builder.build())
+                .collect(),
+        )
     }
 
     fn has_stage(&self, stage_name: &str) -> bool {
-        self.stage_builders.iter().find(|stage| stage.name() == stage_name).is_some()
+        self.stage_builders
+            .iter()
+            .find(|stage| stage.name() == stage_name)
+            .is_some()
     }
 }
 
@@ -194,28 +221,30 @@ impl AppStage {
     pub(crate) fn init(&self, world: &mut World, resources: &mut Resources) {
         self.time.borrow_mut().reset();
         resources.insert::<Time>(*self.time.borrow_mut());
-        
+
         self.startup.borrow_mut().execute(world, resources);
     }
 
     pub(crate) fn play(&self, world: &mut World, resources: &mut Resources) {
         self.time.borrow_mut().tick();
         resources.insert::<Time>(*self.time.borrow_mut());
-        
+
         self.process.borrow_mut().execute(world, resources);
     }
 
     pub(crate) fn free(&self, world: &mut World, resources: &mut Resources) {
         self.time.borrow_mut().tick();
         resources.insert::<Time>(*self.time.borrow_mut());
-        
+
         self.destroy.borrow_mut().execute(world, resources);
     }
 }
 
 impl fmt::Debug for AppStage {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        f.debug_struct("AppStage").field("name", &self.name).finish()
+        f.debug_struct("AppStage")
+            .field("name", &self.name)
+            .finish()
     }
 }
 
@@ -231,7 +260,9 @@ pub struct AppStageBuilder {
 
 impl fmt::Debug for AppStageBuilder {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        f.debug_struct("AppStageBuilder").field("name", &self.name).finish()
+        f.debug_struct("AppStageBuilder")
+            .field("name", &self.name)
+            .finish()
     }
 }
 
@@ -288,19 +319,28 @@ impl AppStageBuilder {
         self
     }
 
-    pub fn add_thread_local_fn_startup<F: FnMut(&mut World, &mut Resources) + 'static>(mut self, f: F) -> Self {
+    pub fn add_thread_local_fn_startup<F: FnMut(&mut World, &mut Resources) + 'static>(
+        mut self,
+        f: F,
+    ) -> Self {
         self.builder_startup.add_thread_local_fn(f);
 
         self
     }
 
-    pub fn add_thread_local_fn_process<F: FnMut(&mut World, &mut Resources) + 'static>(mut self, f: F) -> Self {
+    pub fn add_thread_local_fn_process<F: FnMut(&mut World, &mut Resources) + 'static>(
+        mut self,
+        f: F,
+    ) -> Self {
         self.builder_process.add_thread_local_fn(f);
 
         self
     }
 
-    pub fn add_thread_local_fn_destroy<F: FnMut(&mut World, &mut Resources) + 'static>(mut self, f: F) -> Self {
+    pub fn add_thread_local_fn_destroy<F: FnMut(&mut World, &mut Resources) + 'static>(
+        mut self,
+        f: F,
+    ) -> Self {
         self.builder_destroy.add_thread_local_fn(f);
 
         self
@@ -356,19 +396,28 @@ impl AppSettings {
 
         for cmd in self.commands.drain(..) {
             match cmd {
-                AppCommand::PushStageToWorkBefore { stage, after_stage_name } => {
-                    let index = fuck_borrow_checker(&self.busy_stages.borrow(), after_stage_name.as_str());
+                AppCommand::PushStageToWorkBefore {
+                    stage,
+                    after_stage_name,
+                } => {
+                    let index =
+                        fuck_borrow_checker(&self.busy_stages.borrow(), after_stage_name.as_str());
                     self.busy_stages.borrow_mut().insert(index, stage);
                 }
                 AppCommand::PushStageToWork { stage } => {
                     self.busy_stages.borrow_mut().push(stage);
                 }
-                AppCommand::PushStageToWorkAfter { stage, before_stage_name } => {
-                    let index = fuck_borrow_checker(&self.busy_stages.borrow(), before_stage_name.as_str());
+                AppCommand::PushStageToWorkAfter {
+                    stage,
+                    before_stage_name,
+                } => {
+                    let index =
+                        fuck_borrow_checker(&self.busy_stages.borrow(), before_stage_name.as_str());
                     self.busy_stages.borrow_mut().insert(index + 1, stage);
                 }
                 AppCommand::MakeBusyStageToRest { stage_name } => {
-                    let index = fuck_borrow_checker(&self.busy_stages.borrow(), stage_name.as_str());
+                    let index =
+                        fuck_borrow_checker(&self.busy_stages.borrow(), stage_name.as_str());
                     let stage = self.busy_stages.borrow_mut().remove(index);
                     self.spare_stages.push(stage);
                 }
@@ -400,7 +449,9 @@ impl AppSettings {
     }
 
     pub fn spare_stage(&self, stage_name: &str) -> Option<&AppStage> {
-        self.spare_stages.iter().find(|stage| stage.name() == stage_name)
+        self.spare_stages
+            .iter()
+            .find(|stage| stage.name() == stage_name)
     }
 
     pub fn spare_stage_iter(&self) -> Iter<AppStage> {
@@ -408,7 +459,9 @@ impl AppSettings {
     }
 
     pub fn spare_stage_mut(&mut self, stage_name: &str) -> Option<&mut AppStage> {
-        self.spare_stages.iter_mut().find(|stage| stage.name() == stage_name)
+        self.spare_stages
+            .iter_mut()
+            .find(|stage| stage.name() == stage_name)
     }
 
     pub fn spare_stage_iter_mut(&mut self) -> IterMut<AppStage> {
@@ -430,11 +483,18 @@ impl AppSettings {
     }
 
     pub fn is_in_busy(&self, stage_name: &str) -> bool {
-        self.busy_stages.borrow().iter().find(|stage| stage.name() == stage_name).is_some()
+        self.busy_stages
+            .borrow()
+            .iter()
+            .find(|stage| stage.name() == stage_name)
+            .is_some()
     }
 
     pub fn is_in_spare(&self, stage_name: &str) -> bool {
-        self.spare_stages.iter().find(|stage| stage.name() == stage_name).is_some()
+        self.spare_stages
+            .iter()
+            .find(|stage| stage.name() == stage_name)
+            .is_some()
     }
 
     pub fn busy_stage_index<'a>(&self, stage_name: &'a str) -> Result<usize, AppSettingsError<'a>> {
@@ -452,7 +512,11 @@ impl AppSettings {
         }
     }
 
-    pub fn push_stage_to_work_before<'a>(&mut self, stage: AppStage, after_stage_name: &'a str) -> Result<(), AppSettingsError<'a>> {
+    pub fn push_stage_to_work_before<'a>(
+        &mut self,
+        stage: AppStage,
+        after_stage_name: &'a str,
+    ) -> Result<(), AppSettingsError<'a>> {
         if self.is_in_busy(after_stage_name) {
             if self.is_in_busy(stage.name()) {
                 Err(AppSettingsError::DuplicateNameInBusy(stage))
@@ -467,7 +531,10 @@ impl AppSettings {
                 Ok(())
             }
         } else {
-            Err(AppSettingsError::StageNotExistInBusy(after_stage_name, Some(stage)))
+            Err(AppSettingsError::StageNotExistInBusy(
+                after_stage_name,
+                Some(stage),
+            ))
         }
     }
 
@@ -483,7 +550,11 @@ impl AppSettings {
         }
     }
 
-    pub fn push_stage_to_work_after<'a>(&mut self, stage: AppStage, before_stage_name: &'a str) -> Result<(), AppSettingsError<'a>> {
+    pub fn push_stage_to_work_after<'a>(
+        &mut self,
+        stage: AppStage,
+        before_stage_name: &'a str,
+    ) -> Result<(), AppSettingsError<'a>> {
         if self.is_in_busy(before_stage_name) {
             if self.is_in_busy(stage.name()) {
                 Err(AppSettingsError::DuplicateNameInBusy(stage))
@@ -498,11 +569,18 @@ impl AppSettings {
                 Ok(())
             }
         } else {
-            Err(AppSettingsError::StageNotExistInBusy(before_stage_name, Some(stage)))
+            Err(AppSettingsError::StageNotExistInBusy(
+                before_stage_name,
+                Some(stage),
+            ))
         }
     }
 
-    pub fn make_spare_stage_work_before<'a>(&mut self, stage_name: &'a str, after_stage_name: &'a str) -> Result<(), AppSettingsError<'a>> {
+    pub fn make_spare_stage_work_before<'a>(
+        &mut self,
+        stage_name: &'a str,
+        after_stage_name: &'a str,
+    ) -> Result<(), AppSettingsError<'a>> {
         if let Some(stage) = self.take_spare_stage(stage_name) {
             self.push_stage_to_work_before(stage, after_stage_name)
         } else {
@@ -510,7 +588,10 @@ impl AppSettings {
         }
     }
 
-    pub fn make_spare_stage_work<'a>(&mut self, stage_name: &'a str) -> Result<(), AppSettingsError<'a>> {
+    pub fn make_spare_stage_work<'a>(
+        &mut self,
+        stage_name: &'a str,
+    ) -> Result<(), AppSettingsError<'a>> {
         if let Some(stage) = self.take_spare_stage(stage_name) {
             self.push_stage_to_work(stage)
         } else {
@@ -518,7 +599,11 @@ impl AppSettings {
         }
     }
 
-    pub fn make_spare_stage_work_after<'a>(&mut self, stage_name: &'a str, before_stage_name: &'a str) -> Result<(), AppSettingsError<'a>> {
+    pub fn make_spare_stage_work_after<'a>(
+        &mut self,
+        stage_name: &'a str,
+        before_stage_name: &'a str,
+    ) -> Result<(), AppSettingsError<'a>> {
         if let Some(stage) = self.take_spare_stage(stage_name) {
             self.push_stage_to_work_after(stage, before_stage_name)
         } else {
@@ -538,7 +623,10 @@ impl AppSettings {
         }
     }
 
-    pub fn make_busy_stage_rest<'a>(&mut self, stage_name: &'a str) -> Result<(), AppSettingsError<'a>> {
+    pub fn make_busy_stage_rest<'a>(
+        &mut self,
+        stage_name: &'a str,
+    ) -> Result<(), AppSettingsError<'a>> {
         if self.is_in_busy(stage_name) {
             self.commands.push(AppCommand::MakeBusyStageToRest {
                 stage_name: String::from(stage_name),
@@ -567,10 +655,20 @@ impl fmt::Debug for AppSettings {
 
 #[derive(Debug)]
 enum AppCommand {
-    PushStageToWorkBefore { stage: AppStage, after_stage_name: String },
-    PushStageToWork { stage: AppStage },
-    PushStageToWorkAfter { stage: AppStage, before_stage_name: String },
-    MakeBusyStageToRest { stage_name: String },
+    PushStageToWorkBefore {
+        stage: AppStage,
+        after_stage_name: String,
+    },
+    PushStageToWork {
+        stage: AppStage,
+    },
+    PushStageToWorkAfter {
+        stage: AppStage,
+        before_stage_name: String,
+    },
+    MakeBusyStageToRest {
+        stage_name: String,
+    },
     AppQuit,
 }
 
