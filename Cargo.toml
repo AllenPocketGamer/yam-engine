@@ -13,6 +13,7 @@ legion_codegen = "0.*"
 nalgebra = "0.*"
 wgpu = "0.*"
 futures = "0.*"
+bytemuck = { version = "1.4", features = ["derive"] }
 # lazy_static = "1.*"
 
 [[example]]
