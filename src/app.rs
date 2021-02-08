@@ -39,7 +39,7 @@ impl App {
     pub fn run(self) {
         let busy_stages = Rc::new(RefCell::new(self.busy_stages));
 
-        // FIXME: add render app_stage to busy_stages temporiary
+        // FIXME: add render app_stage to busy_stages temporarily
         busy_stages.borrow_mut().push(create_app_stage_render());
 
         fn apply_and_ask_quit(resources: &mut Resources) -> bool {
