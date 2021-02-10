@@ -2,6 +2,13 @@
 // 常量形式的bertex和index;
 // 暂时没有复杂的BindGroup;
 // 开干!
+// NOTE: 基本完成
+// TODO: 逐渐标准化
+// 将.wgsl改为标准的.vs和.fs
+// 增加动态修改Transformation的能力, 主要有
+// 1. Model -> World Transformation
+// 2. World -> View Transformation
+// 3. Camera Projection
 
 // TODO: 了解wgpu-rs的标准写法(cross-platform, debug, high-performance...).
 // 了解RenderPass的debug命令;
@@ -11,16 +18,12 @@
 
 extern crate nalgebra as na;
 
-use crate::{
-    app::{AppStage, AppStageBuilder},
-    input::Input,
-    window::{self, Window},
-};
+use crate::{app::{AppStage, AppStageBuilder}, input::{Input, KeyCode}, misc::Time, window::{self, Window}};
 use bytemuck::{Pod, Zeroable};
 use futures::executor::block_on;
 use legion::{Resources, World};
 use legion_codegen::system;
-use na::{Matrix2x3, Matrix3x1, Matrix4, Orthographic3, Point2, Point3, Vector2, Vector3, Vector4};
+use na::{Matrix, Matrix2x3, Matrix3x1, Matrix4, Orthographic3, Point2, Point3, Translation3, Vector2, Vector3, Vector4};
 use std::{borrow::Cow, iter, ops::DerefMut, usize};
 use wgpu::{
     util::{BufferInitDescriptor, DeviceExt},
@@ -92,8 +95,16 @@ fn temp_render(_world: &mut World, resources: &mut Resources) {
 }
 
 fn quad_render_fn(_world: &mut World, resources: &mut Resources) {
+    let time = resources.get::<Time>().unwrap();
+    let input = resources.get::<Input>().unwrap();
     let mut renderer = resources.get_mut::<Renderer>().unwrap();
-    let quad_material = resources.get_mut::<QuadMaterial>().unwrap();
+    let mut quad_material = resources.get_mut::<QuadMaterial>().unwrap();
+
+    if input.keyboard.pressed(KeyCode::A) {
+        quad_material.v_mt = quad_material.v_mt.append_translation(&(-time.delta().as_secs_f32() * Vector3::x()));
+    } else if input.keyboard.pressed(KeyCode::D) {
+        quad_material.v_mt = quad_material.v_mt.append_translation(&(time.delta().as_secs_f32() * Vector3::x()));
+    }
 
     quad_material.render(renderer.deref_mut());
 }
@@ -170,9 +181,13 @@ pub struct QuadMaterial {
     vertex_buf: wgpu::Buffer,
     // To store index data
     index_buf: wgpu::Buffer,
+    uniform_buf: wgpu::Buffer,
     // To store camera2d data
     bind_group: wgpu::BindGroup,
     pipeline: wgpu::RenderPipeline,
+
+    // FIXME: temp data
+    v_mt: Matrix4<f32>,
 }
 
 impl QuadMaterial {
@@ -282,8 +297,10 @@ impl QuadMaterial {
         Self {
             vertex_buf,
             index_buf,
+            uniform_buf,
             bind_group,
             pipeline,
+            v_mt: Self::mx_view(),
         }
     }
 
@@ -296,6 +313,14 @@ impl QuadMaterial {
             ..
         }: &mut Renderer,
     ) {
+        queue.write_buffer(
+            &self.uniform_buf,
+            0,
+            bytemuck::cast_slice(
+                (Self::mx_correction() * Self::mx_projection() * self.v_mt).as_slice(),
+            ),
+        );
+
         let frame = swap_chain.get_current_frame().unwrap().output;
 
         let mut encoder =
@@ -372,6 +397,29 @@ impl QuadMaterial {
         );
 
         mx_correction * mx_projection * mx_view
+    }
+
+    fn mx_correction() -> Matrix4<f32> {
+        // To adopt wgpu NDC
+        #[cfg_attr(rustfmt, rustfmt_skip)]
+        Matrix4::new(
+            1.0, 0.0, 0.0, 0.0,
+            0.0, 1.0, 0.0, 0.0,
+            0.0, 0.0, 0.5, 0.5,
+            0.0, 0.0, 0.0, 1.0,
+        )
+    }
+
+    fn mx_view() -> Matrix4<f32> {
+        Matrix4::look_at_lh(
+            &Point3::new(0.0, 0.0, 4.0),
+            &Point3::origin(),
+            &Vector3::y(),
+        )
+    }
+
+    fn mx_projection() -> Matrix4<f32> {
+        Matrix4::new_orthographic(-1.0, 1.0, -1.0, 1.0, -10.0, 10.0)
     }
 }
 
