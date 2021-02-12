@@ -1,5 +1,3 @@
-use std::thread;
-
 use legion::*;
 use systems::Runnable;
 

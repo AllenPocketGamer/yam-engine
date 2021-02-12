@@ -16,14 +16,42 @@
 
 // TODO: 管线配置(纹理, 采样器, ..)从硬编码转到可配置
 
+// NOTE: 确定当前yam-engine只用于绘制俯视2D, 所以当前只用支持Sprite Render
+// TODO: SpriteMaterial
+// transformation data(uniform buffer): model transformation + view transformation + projection
+// sprite data: texture + sampler
+// quad data(vertex buffer): 1, 2, 3, 4 vertex
+// index data(index buffer): ..
+// NOTE: Render Init
+// 初始化资源:
+// 1. vertex buffer + index buffer
+// 2. bindgroup: tranformation data + sprite data
+// 3. render pipeline: ..
+// NOTE: Render Loop
+// 读取Entity {Transform, Camera}, 设置view transformation + projection
+// 读取Entity {Transform, Sprite}, 设置model transformation + texture + sampler
+// 提交渲染命令
+
+pub mod components;
+
+mod renderer;
+
 extern crate nalgebra as na;
 
-use crate::{app::{AppStage, AppStageBuilder}, input::{Input, KeyCode}, misc::Time, window::{self, Window}};
+use crate::{
+    app::{AppStage, AppStageBuilder},
+    input::{Input, KeyCode},
+    misc::Time,
+    window::{self, Window},
+};
 use bytemuck::{Pod, Zeroable};
 use futures::executor::block_on;
 use legion::{Resources, World};
 use legion_codegen::system;
-use na::{Matrix, Matrix2x3, Matrix3x1, Matrix4, Orthographic3, Point2, Point3, Translation3, Vector2, Vector3, Vector4};
+use na::{
+    Matrix, Matrix2x3, Matrix3x1, Matrix4, Orthographic3, Point2, Point3, Translation3, Vector2,
+    Vector3, Vector4,
+};
 use std::{borrow::Cow, iter, ops::DerefMut, usize};
 use wgpu::{
     util::{BufferInitDescriptor, DeviceExt},
@@ -101,9 +129,13 @@ fn quad_render_fn(_world: &mut World, resources: &mut Resources) {
     let mut quad_material = resources.get_mut::<QuadMaterial>().unwrap();
 
     if input.keyboard.pressed(KeyCode::A) {
-        quad_material.v_mt = quad_material.v_mt.append_translation(&(-time.delta().as_secs_f32() * Vector3::x()));
+        quad_material.v_mt = quad_material
+            .v_mt
+            .append_translation(&(-time.delta().as_secs_f32() * Vector3::x()));
     } else if input.keyboard.pressed(KeyCode::D) {
-        quad_material.v_mt = quad_material.v_mt.append_translation(&(time.delta().as_secs_f32() * Vector3::x()));
+        quad_material.v_mt = quad_material
+            .v_mt
+            .append_translation(&(time.delta().as_secs_f32() * Vector3::x()));
     }
 
     quad_material.render(renderer.deref_mut());

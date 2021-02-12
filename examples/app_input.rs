@@ -1,5 +1,3 @@
-use std::borrow::Borrow;
-
 use input::Input;
 use yamengine::app::*;
 use yamengine::input::*;
