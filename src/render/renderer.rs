@@ -1,4 +1,4 @@
-use wgpu::{util::DeviceExt, BindGroupEntry, Label};
+use wgpu::util::DeviceExt;
 
 struct Gpu {
     surface: wgpu::Surface,
@@ -64,27 +64,28 @@ impl SpriteRenderer {
 
     fn new(
         Gpu {
+            surface,
+            adapter,
             device,
-            queue,
-            swap_chain,
             ..
         }: &mut Gpu,
     ) -> Self {
-        let vertex_buffer = device.create_buffer_init(&wgpu::util::BufferInitDescriptor {
+        let vertex_size = 4 * 4;
+        let uniform_size = 4 * 9 + 4 * 9 + 4 * 16;
+
+        let vertex_buf = device.create_buffer_init(&wgpu::util::BufferInitDescriptor {
             label: Some("quad vertex"),
             contents: bytemuck::cast_slice(&Self::QUAD_VERTEX[..]),
             usage: wgpu::BufferUsage::VERTEX,
         });
 
-        let index_buffer = device.create_buffer_init(&wgpu::util::BufferInitDescriptor {
+        let index_buf = device.create_buffer_init(&wgpu::util::BufferInitDescriptor {
             label: Some("quad index"),
             contents: bytemuck::cast_slice(&Self::QUAD_VERTEX[..]),
             usage: wgpu::BufferUsage::INDEX,
         });
 
-        let uniform_size = 4 * 9 + 4 * 9 + 4 * 16;
-
-        let uniform_buffer = device.create_buffer(&wgpu::BufferDescriptor {
+        let uniform_buf = device.create_buffer(&wgpu::BufferDescriptor {
             label: Some("model matrix3x3 + view matrix3x3 + projection"),
             size: uniform_size,
             usage: wgpu::BufferUsage::UNIFORM | wgpu::BufferUsage::COPY_DST,
@@ -110,7 +111,7 @@ impl SpriteRenderer {
             layout: &bind_group_layout,
             entries: &[wgpu::BindGroupEntry {
                 binding: 0,
-                resource: uniform_buffer.as_entire_binding(),
+                resource: uniform_buf.as_entire_binding(),
             }],
         });
 
@@ -120,16 +121,51 @@ impl SpriteRenderer {
             push_constant_ranges: &[],
         });
 
+        let mut flags = wgpu::ShaderFlags::VALIDATION;
+        match adapter.get_info().backend {
+            wgpu::Backend::Vulkan | wgpu::Backend::Metal => {
+                flags |= wgpu::ShaderFlags::EXPERIMENTAL_TRANSLATION
+            }
+            _ => {}
+        }
+
+        let shader = device.create_shader_module(&wgpu::ShaderModuleDescriptor {
+            label: Some("sprite shader module"),
+            source: wgpu::ShaderSource::Wgsl(std::borrow::Cow::Borrowed(include_str!(
+                "sprite_shader.wgsl"
+            ))),
+            flags,
+        });
+
         let pipeline = device.create_render_pipeline(&wgpu::RenderPipelineDescriptor {
             label: Some("sprite pipeline"),
             layout: Some(&pipeline_layout),
-            vertex: todo!(),
-            fragment: todo!(),
+            vertex: wgpu::VertexState {
+                module: &shader,
+                entry_point: "vs_main",
+                buffers: &[wgpu::VertexBufferLayout {
+                    array_stride: vertex_size,
+                    step_mode: wgpu::InputStepMode::Vertex,
+                    attributes: &wgpu::vertex_attr_array![0 => Float4],
+                }],
+            },
+            fragment: Some(wgpu::FragmentState {
+                module: &shader,
+                entry_point: "fs_main",
+                targets: &[adapter.get_swap_chain_preferred_format(&surface).into()],
+            }),
             primitive: Default::default(),
-            depth_stencil: todo!(),
+            depth_stencil: None,
             multisample: Default::default(),
         });
 
-        todo!()
+        Self {
+            vertex_buf,
+            index_buf,
+            uniform_buf,
+            
+            bind_group,
+            pipeline,
+        }
     }
 }

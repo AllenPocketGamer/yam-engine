@@ -55,6 +55,18 @@ impl Transform2D {
     pub fn to_raw_data_u8(&self) -> [u8; 36] {
         unsafe { std::mem::transmute(self.to_homogeneous()) }
     }
+
+    pub fn to_inverse_homogeneous(&self) -> na::Matrix3<f32> {
+        self.to_homogeneous().try_inverse().unwrap()
+    }
+
+    pub fn to_inverse_raw_data_f32(&self) -> [f32; 9] {
+        unsafe { std::mem::transmute(self.to_inverse_homogeneous()) }
+    }
+
+    pub fn to_inverse_raw_data_u8(&self) -> [u8; 36] {
+        unsafe { std::mem::transmute(self.to_inverse_homogeneous()) }
+    }
 }
 
 impl Default for Transform2D {
