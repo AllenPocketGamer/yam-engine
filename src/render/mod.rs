@@ -1,37 +1,3 @@
-// TODO: 建立一个硬编码Material, 专门用于绘制旋转的Quad Mesh.
-// 常量形式的bertex和index;
-// 暂时没有复杂的BindGroup;
-// 开干!
-// NOTE: 基本完成
-// TODO: 逐渐标准化
-// 将.wgsl改为标准的.vs和.fs
-// 增加动态修改Transformation的能力, 主要有
-// 1. Model -> World Transformation
-// 2. World -> View Transformation
-// 3. Camera Projection
-
-// TODO: 了解wgpu-rs的标准写法(cross-platform, debug, high-performance...).
-// 了解RenderPass的debug命令;
-// 了解什么是trace, 了解wgpu-rs的features的作用;
-
-// TODO: 管线配置(纹理, 采样器, ..)从硬编码转到可配置
-
-// NOTE: 确定当前yam-engine只用于绘制俯视2D, 所以当前只用支持Sprite Render
-// TODO: SpriteMaterial
-// transformation data(uniform buffer): model transformation + view transformation + projection
-// sprite data: texture + sampler
-// quad data(vertex buffer): 1, 2, 3, 4 vertex
-// index data(index buffer): ..
-// NOTE: Render Init
-// 初始化资源:
-// 1. vertex buffer + index buffer
-// 2. bindgroup: tranformation data + sprite data
-// 3. render pipeline: ..
-// NOTE: Render Loop
-// 读取Entity {Transform, Camera}, 设置view transformation + projection
-// 读取Entity {Transform, Sprite}, 设置model transformation + texture + sampler
-// 提交渲染命令
-
 pub mod components;
 
 mod renderer;
@@ -48,10 +14,7 @@ use bytemuck::{Pod, Zeroable};
 use futures::executor::block_on;
 use legion::{Resources, World};
 use legion_codegen::system;
-use na::{
-    Matrix, Matrix2x3, Matrix3x1, Matrix4, Orthographic3, Point2, Point3, Translation3, Vector2,
-    Vector3, Vector4,
-};
+use na::{Matrix, Matrix2x3, Matrix3x1, Matrix4, Orthographic3, Point2, Point3, Projective3, Translation3, Vector2, Vector3, Vector4};
 use std::{borrow::Cow, iter, ops::DerefMut, usize};
 use wgpu::{
     util::{BufferInitDescriptor, DeviceExt},
@@ -234,7 +197,7 @@ impl QuadMaterial {
         // TODO: 动态的从数据中加载
         let vertex_data = Self::vertex_data();
         let index_data = Self::index_data();
-        let uniform_data = Self::orthographic_vp();
+        let uniform_data = Self::orthographic_vp(sc_desc.width as f32, sc_desc.height as f32);
 
         // Create vertex_buf and index_buf
         let vertex_buf = device.create_buffer_init(&wgpu::util::BufferInitDescriptor {
@@ -342,6 +305,7 @@ impl QuadMaterial {
             device,
             queue,
             swap_chain,
+            sc_desc,
             ..
         }: &mut Renderer,
     ) {
@@ -349,7 +313,7 @@ impl QuadMaterial {
             &self.uniform_buf,
             0,
             bytemuck::cast_slice(
-                (Self::mx_correction() * Self::mx_projection() * self.v_mt).as_slice(),
+                (Self::mx_correction() * Self::mx_projection(sc_desc.width as f32, sc_desc.height as f32) * self.v_mt).as_slice(),
             ),
         );
 
@@ -412,7 +376,7 @@ impl QuadMaterial {
         ]
     }
 
-    fn orthographic_vp() -> Matrix4<f32> {
+    fn orthographic_vp(width: f32, height: f32) -> Matrix4<f32> {
         // To adopt wgpu NDC
         #[cfg_attr(rustfmt, rustfmt_skip)]
         let mx_correction = Matrix4::new(
@@ -421,7 +385,8 @@ impl QuadMaterial {
             0.0, 0.0, 0.5, 0.5,
             0.0, 0.0, 0.0, 1.0,
         );
-        let mx_projection = Matrix4::new_orthographic(-1.0, 1.0, -1.0, 1.0, -10.0, 10.0);
+        // let mx_projection = Matrix4::new_orthographic(-width / 20.0, width / 20.0, -height / 20.0, height / 20.0, -10.0, 10.0);
+        let mx_projection = Matrix4::new_perspective(width / height, 3.14 / 4.0, 1.0, 1000.0);
         let mx_view = Matrix4::look_at_lh(
             &Point3::new(0.0, 0.0, 4.0),
             &Point3::origin(),
@@ -450,8 +415,11 @@ impl QuadMaterial {
         )
     }
 
-    fn mx_projection() -> Matrix4<f32> {
-        Matrix4::new_orthographic(-1.0, 1.0, -1.0, 1.0, -10.0, 10.0)
+    fn mx_projection(width: f32, height: f32) -> Matrix4<f32> {
+        // Matrix4::new_perspective(width / height, 3.14 / 4.0, 1.0, 1000.0)
+        let l = width / 200.0;
+        let t = height / 200.0;
+        Matrix4::new_orthographic(-l, l, -t, t, 0.0, -10.0)
     }
 }
 

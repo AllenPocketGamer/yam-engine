@@ -62,7 +62,7 @@ impl SpriteRenderer {
         2, 3, 0, // Face CDA
     ];
 
-    fn new(
+    pub(super) fn new(
         Gpu {
             surface,
             adapter,
@@ -163,9 +163,64 @@ impl SpriteRenderer {
             vertex_buf,
             index_buf,
             uniform_buf,
-            
+
             bind_group,
             pipeline,
         }
+    }
+
+    pub(super) fn set_transformations(
+        &mut self,
+        Gpu { queue, .. }: &mut Gpu,
+        model_matrix: &[u8],
+        view_matrix: &[u8],
+        projection: &[u8],
+    ) {
+        queue.write_buffer(&self.uniform_buf, 0, model_matrix);
+        queue.write_buffer(&self.uniform_buf, 4 * 9, view_matrix);
+        queue.write_buffer(&self.uniform_buf, 4 * 9 + 4 * 9, projection);
+    }
+
+    pub(super) fn render(
+        &mut self,
+        Gpu {
+            device,
+            queue,
+            swap_chain,
+            ..
+        }: &mut Gpu,
+    ) {
+        let frame = swap_chain.get_current_frame().unwrap().output;
+
+        let mut encoder = device.create_command_encoder(&wgpu::CommandEncoderDescriptor {
+            label: Some("sprite encoder"),
+        });
+
+        {
+            let mut rpass = encoder.begin_render_pass(&wgpu::RenderPassDescriptor {
+                label: Some("sprite render pass"),
+                color_attachments: &[wgpu::RenderPassColorAttachmentDescriptor {
+                    attachment: &frame.view,
+                    resolve_target: None,
+                    ops: wgpu::Operations {
+                        load: wgpu::LoadOp::Clear(wgpu::Color::BLACK),
+                        store: true,
+                    },
+                }],
+                depth_stencil_attachment: None,
+            });
+
+            rpass.push_debug_group("prepare render data");
+            rpass.set_vertex_buffer(0, self.vertex_buf.slice(..));
+            rpass.set_index_buffer(self.index_buf.slice(..), wgpu::IndexFormat::Uint16);
+            rpass.set_bind_group(0, &self.bind_group, &[]);
+            rpass.set_pipeline(&self.pipeline);
+            rpass.pop_debug_group();
+
+            rpass.insert_debug_marker("draw");
+            rpass.draw_indexed(0..6, 0, 0..1);
+        }
+
+        queue.submit(Some(encoder.finish()));
     }
 }
