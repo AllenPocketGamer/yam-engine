@@ -1,10 +1,13 @@
 #version 450
 
-layout(location = 0) in vec4 a_Pos;
+const mat4 MX_CORRECTION = mat4(
+    1.0, 0.0, 0.0, 0.0, // column 0
+    0.0, 1.0, 0.0, 0.0, // column 1
+    0.0, 0.0, 0.5, 0.0, // column 2
+    0.0, 0.0, 0.5, 1.0  // column 3
+);
 
-out gl_PerVertex {
-    vec4 gl_Position;
-};
+layout(location = 0) in vec4 a_Pos;
 
 layout(set = 0, binding = 0, std140) uniform Translations {
     mat4 mx_model;
@@ -13,12 +16,5 @@ layout(set = 0, binding = 0, std140) uniform Translations {
 };
 
 void main() {
-    mat4 mx_correction = mat4(
-        1.0, 0.0, 0.0, 0.0, // column 0
-        0.0, 1.0, 0.0, 0.0, // column 1
-        0.0, 0.0, 0.5, 0.0, // column 2
-        0.0, 0.0, 0.5, 1.0  // column 3
-    );
-
-    gl_Position = mx_correction * mx_projection * mx_view * mx_model * a_Pos;
+    gl_Position = MX_CORRECTION * mx_projection * mx_view * mx_model * a_Pos;
 }

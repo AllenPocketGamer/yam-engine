@@ -1,6 +1,7 @@
-mod transform;
 mod camera;
-mod material;
 mod sprite;
+mod transform;
 
+pub use camera::*;
 pub use transform::*;
+pub use sprite::*;
