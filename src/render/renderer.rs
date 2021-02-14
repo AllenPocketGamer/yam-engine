@@ -1,20 +1,74 @@
+extern crate nalgebra as na;
+
 use wgpu::util::DeviceExt;
 
-struct Gpu {
-    surface: wgpu::Surface,
-    adapter: wgpu::Adapter,
-    device: wgpu::Device,
-    queue: wgpu::Queue,
-    swap_chain: wgpu::SwapChain,
+pub(super) struct Gpu {
+    pub surface: wgpu::Surface,
+    pub adapter: wgpu::Adapter,
+    pub device: wgpu::Device,
+    pub queue: wgpu::Queue,
+    pub swap_chain: wgpu::SwapChain,
+
+    // FIXME: temp value
+    pub sc_desc: wgpu::SwapChainDescriptor,
 }
 
 impl Gpu {
-    fn new() -> Self {
-        todo!()
+    pub(super) async fn new(window: &winit::window::Window) -> Self {
+        let backend = wgpu::BackendBit::PRIMARY;
+        let power_preference = wgpu::PowerPreference::HighPerformance;
+
+        let instance = wgpu::Instance::new(backend);
+
+        let surface = unsafe { instance.create_surface(window) };
+        let adapter = instance
+            .request_adapter(&wgpu::RequestAdapterOptions {
+                power_preference,
+                compatible_surface: Some(&surface),
+            })
+            .await
+            .expect("No suitable GPU adapters found on the system!");
+
+        #[cfg(not(target_arch = "wasm32"))]
+        {
+            let adapter_info = adapter.get_info();
+            println!("Using {} ({:?})", adapter_info.name, adapter_info.backend);
+        }
+
+        let (device, queue) = adapter
+            .request_device(
+                &wgpu::DeviceDescriptor {
+                    label: None,
+                    features: wgpu::Features::empty(),
+                    limits: wgpu::Limits::default(),
+                },
+                None,
+            )
+            .await
+            .expect("Unable to find a suitable GPU adapter!");
+
+        let sc_desc = wgpu::SwapChainDescriptor {
+            usage: wgpu::TextureUsage::RENDER_ATTACHMENT,
+            format: adapter.get_swap_chain_preferred_format(&surface),
+            width: window.inner_size().width,
+            height: window.inner_size().height,
+            present_mode: wgpu::PresentMode::Mailbox,
+        };
+        let swap_chain = device.create_swap_chain(&surface, &sc_desc);
+
+        Self {
+            surface,
+            adapter,
+            device,
+            queue,
+            swap_chain,
+
+            sc_desc,
+        }
     }
 }
 
-struct SpriteRenderer {
+pub(super) struct SpriteRenderer {
     // To store four vertex data(quad)
     vertex_buf: wgpu::Buffer,
     // To store index data of quad
@@ -29,29 +83,29 @@ struct SpriteRenderer {
 
 impl SpriteRenderer {
     #[allow(dead_code)]
-    const QUAD_HALF_SIZE: usize = 32;
+    const QUAD_HALF_SIZE: usize = 16;
 
     // Quad vertex in world coordinate
     #[allow(dead_code)]
     const QUAD_VERTEX: [f32; 16] = [
-        // right-top, point A
+        // left-top, point A
+        -(Self::QUAD_HALF_SIZE as f32),
+        Self::QUAD_HALF_SIZE as f32,
+        0.0,
+        1.0,
+        // right-top, point B
         Self::QUAD_HALF_SIZE as f32,
         Self::QUAD_HALF_SIZE as f32,
         0.0,
         1.0,
-        // right-bottom, point B
+        // right-bottom, point C
         Self::QUAD_HALF_SIZE as f32,
         -(Self::QUAD_HALF_SIZE as f32),
         0.0,
         1.0,
-        // left-bottom, point C
+        // left-bottom, point D
         -(Self::QUAD_HALF_SIZE as f32),
         -(Self::QUAD_HALF_SIZE as f32),
-        0.0,
-        1.0,
-        // left-top, point D
-        -(Self::QUAD_HALF_SIZE as f32),
-        Self::QUAD_HALF_SIZE as f32,
         0.0,
         1.0,
     ];
@@ -71,7 +125,7 @@ impl SpriteRenderer {
         }: &mut Gpu,
     ) -> Self {
         let vertex_size = 4 * 4;
-        let uniform_size = 4 * 9 + 4 * 9 + 4 * 16;
+        let uniform_size = 4 * 16 + 4 * 16 + 4 * 16;
 
         let vertex_buf = device.create_buffer_init(&wgpu::util::BufferInitDescriptor {
             label: Some("quad vertex"),
@@ -81,7 +135,7 @@ impl SpriteRenderer {
 
         let index_buf = device.create_buffer_init(&wgpu::util::BufferInitDescriptor {
             label: Some("quad index"),
-            contents: bytemuck::cast_slice(&Self::QUAD_VERTEX[..]),
+            contents: bytemuck::cast_slice(&Self::QUAD_INDEX[..]),
             usage: wgpu::BufferUsage::INDEX,
         });
 
@@ -121,28 +175,24 @@ impl SpriteRenderer {
             push_constant_ranges: &[],
         });
 
-        let mut flags = wgpu::ShaderFlags::VALIDATION;
-        match adapter.get_info().backend {
-            wgpu::Backend::Vulkan | wgpu::Backend::Metal => {
-                flags |= wgpu::ShaderFlags::EXPERIMENTAL_TRANSLATION
-            }
-            _ => {}
-        }
+        let vert_shader = device.create_shader_module(&wgpu::ShaderModuleDescriptor {
+            label: Some("sprite vertex shader"),
+            source: wgpu::util::make_spirv(include_bytes!("sprite_shader.vert.spv")),
+            flags: wgpu::ShaderFlags::VALIDATION,
+        });
 
-        let shader = device.create_shader_module(&wgpu::ShaderModuleDescriptor {
-            label: Some("sprite shader module"),
-            source: wgpu::ShaderSource::Wgsl(std::borrow::Cow::Borrowed(include_str!(
-                "sprite_shader.wgsl"
-            ))),
-            flags,
+        let frag_shader = device.create_shader_module(&wgpu::ShaderModuleDescriptor {
+            label: Some("sprite fragment shader"),
+            source: wgpu::util::make_spirv(include_bytes!("sprite_shader.frag.spv")),
+            flags: wgpu::ShaderFlags::VALIDATION,
         });
 
         let pipeline = device.create_render_pipeline(&wgpu::RenderPipelineDescriptor {
             label: Some("sprite pipeline"),
             layout: Some(&pipeline_layout),
             vertex: wgpu::VertexState {
-                module: &shader,
-                entry_point: "vs_main",
+                module: &vert_shader,
+                entry_point: "main",
                 buffers: &[wgpu::VertexBufferLayout {
                     array_stride: vertex_size,
                     step_mode: wgpu::InputStepMode::Vertex,
@@ -150,11 +200,15 @@ impl SpriteRenderer {
                 }],
             },
             fragment: Some(wgpu::FragmentState {
-                module: &shader,
-                entry_point: "fs_main",
+                module: &frag_shader,
+                entry_point: "main",
                 targets: &[adapter.get_swap_chain_preferred_format(&surface).into()],
             }),
-            primitive: Default::default(),
+            primitive: wgpu::PrimitiveState {
+                front_face: wgpu::FrontFace::Ccw,
+                cull_mode: wgpu::CullMode::None,
+                ..Default::default()
+            },
             depth_stencil: None,
             multisample: Default::default(),
         });
@@ -172,13 +226,13 @@ impl SpriteRenderer {
     pub(super) fn set_transformations(
         &mut self,
         Gpu { queue, .. }: &mut Gpu,
-        model_matrix: &[u8],
-        view_matrix: &[u8],
-        projection: &[u8],
+        mx_model: &na::Matrix4<f32>,
+        mx_view: &na::Matrix4<f32>,
+        mx_projection:  &na::Matrix4<f32>,
     ) {
-        queue.write_buffer(&self.uniform_buf, 0, model_matrix);
-        queue.write_buffer(&self.uniform_buf, 4 * 9, view_matrix);
-        queue.write_buffer(&self.uniform_buf, 4 * 9 + 4 * 9, projection);
+        queue.write_buffer(&self.uniform_buf, 0, bytemuck::cast_slice(mx_model.as_slice()));
+        queue.write_buffer(&self.uniform_buf, 4 * 16, bytemuck::cast_slice(mx_view.as_slice()));
+        queue.write_buffer(&self.uniform_buf, 2 * 4 * 16, bytemuck::cast_slice(mx_projection.as_slice()));
     }
 
     pub(super) fn render(
@@ -203,7 +257,7 @@ impl SpriteRenderer {
                     attachment: &frame.view,
                     resolve_target: None,
                     ops: wgpu::Operations {
-                        load: wgpu::LoadOp::Clear(wgpu::Color::BLACK),
+                        load: wgpu::LoadOp::Clear(wgpu::Color::RED),
                         store: true,
                     },
                 }],
@@ -219,6 +273,7 @@ impl SpriteRenderer {
 
             rpass.insert_debug_marker("draw");
             rpass.draw_indexed(0..6, 0, 0..1);
+            // rpass.draw(0..3, 0..1);
         }
 
         queue.submit(Some(encoder.finish()));

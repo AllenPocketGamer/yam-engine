@@ -1,3 +1,5 @@
+use na::{UnitQuaternion, Vector3};
+
 extern crate nalgebra as na;
 
 pub struct Transform2D {
@@ -46,26 +48,11 @@ impl Transform2D {
             .append_translation(&self.position)
     }
 
-    /// the entire homogeneous matrix entries ordered by column by column.
-    pub fn to_raw_data_f32(&self) -> [f32; 9] {
-        unsafe { std::mem::transmute(self.to_homogeneous()) }
-    }
-
-    /// the entire homogeneous matrix entries ordered by column by column.
-    pub fn to_raw_data_u8(&self) -> [u8; 36] {
-        unsafe { std::mem::transmute(self.to_homogeneous()) }
-    }
-
-    pub fn to_inverse_homogeneous(&self) -> na::Matrix3<f32> {
-        self.to_homogeneous().try_inverse().unwrap()
-    }
-
-    pub fn to_inverse_raw_data_f32(&self) -> [f32; 9] {
-        unsafe { std::mem::transmute(self.to_inverse_homogeneous()) }
-    }
-
-    pub fn to_inverse_raw_data_u8(&self) -> [u8; 36] {
-        unsafe { std::mem::transmute(self.to_inverse_homogeneous()) }
+    pub fn to_homogeneous_3d(&self) -> na::Matrix4<f32> {
+        na::UnitQuaternion::new(na::Vector3::new(0.0, 0.0, self.angle))
+            .to_homogeneous()
+            .prepend_nonuniform_scaling(&na::Vector3::new(self.scale.x, self.scale.y, 1.0))
+            .append_translation(&na::Vector3::new(self.position.x, self.position.y, 0.0))
     }
 }
 
@@ -111,14 +98,6 @@ mod tests {
             0.0, 0.0, 1.0,
         );
 
-        #[cfg_attr(rustfmt, rustfmt_skip)]
-        let raw_data_f32: [f32; 9] = [
-            2.1213203, 2.1213203, 0.0,
-           -2.8284270, 2.8284270, 0.0,
-            1.0,       2.0,       1.0,
-        ];
-
         assert_eq!(t.to_homogeneous(), m_t * m_r * m_s);
-        assert_eq!(t.to_raw_data_f32(), raw_data_f32);
     }
 }

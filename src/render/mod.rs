@@ -10,12 +10,16 @@ use crate::{
     misc::Time,
     window::{self, Window},
 };
-use bytemuck::{Pod, Zeroable};
+use bytemuck::{cast_slice, Pod, Zeroable};
+use components::Transform2D;
 use futures::executor::block_on;
 use legion::{Resources, World};
 use legion_codegen::system;
-use na::{Matrix, Matrix2x3, Matrix3x1, Matrix4, Orthographic3, Point2, Point3, Projective3, Translation3, Vector2, Vector3, Vector4};
-use std::{borrow::Cow, iter, ops::DerefMut, usize};
+use na::{
+    Matrix, Matrix2x3, Matrix3x1, Matrix4, Orthographic3, Point2, Point3, Projective3,
+    Translation3, Vector2, Vector3, Vector4,
+};
+use std::{borrow::Cow, ops::DerefMut, usize};
 use wgpu::{
     util::{BufferInitDescriptor, DeviceExt},
     vertex_attr_array, BufferBindingType, LoadOp,
@@ -23,10 +27,40 @@ use wgpu::{
 
 pub(crate) fn create_app_stage_render() -> AppStage {
     AppStageBuilder::new(String::from("default_render"))
-        .add_thread_local_fn_startup(init_resources)
+        .add_thread_local_fn_startup(core_init)
         // .add_thread_local_fn_process(temp_render)
-        .add_thread_local_fn_process(quad_render_fn)
+        .add_thread_local_fn_process(core_render)
         .build()
+}
+
+fn core_init(_world: &mut World, resources: &mut Resources) {
+    let mut gpu = {
+        let window = resources
+            .get::<Window>()
+            .expect("not found resource window.");
+        block_on(renderer::Gpu::new(&window.window))
+    };
+    let sprite_renderer = renderer::SpriteRenderer::new(&mut gpu);
+
+    resources.insert(gpu);
+    resources.insert(sprite_renderer);
+}
+
+fn core_render(_world: &mut World, resources: &mut Resources) {
+    let mut gpu = resources.get_mut::<renderer::Gpu>().unwrap();
+    let mut sprite_renderer = resources.get_mut::<renderer::SpriteRenderer>().unwrap();
+
+    // FIXME: temp value
+    let (hw, hh) = (
+        gpu.sc_desc.width as f32 / 2.0,
+        gpu.sc_desc.height as f32 / 2.0,
+    );
+    let mx_model = components::Transform2D::default().to_homogeneous_3d();
+    let mx_view = components::Transform2D::default().to_homogeneous_3d();
+    let mx_projection = na::Matrix4::<f32>::new_orthographic(-hw, hw, -hh, hh, 0.0, -10.0);
+
+    sprite_renderer.set_transformations(&mut gpu, &mx_model, &mx_view, &mx_projection);
+    sprite_renderer.render(&mut gpu);
 }
 
 fn init_resources(_world: &mut World, resources: &mut Resources) {
@@ -313,7 +347,10 @@ impl QuadMaterial {
             &self.uniform_buf,
             0,
             bytemuck::cast_slice(
-                (Self::mx_correction() * Self::mx_projection(sc_desc.width as f32, sc_desc.height as f32) * self.v_mt).as_slice(),
+                (Self::mx_correction()
+                    * Self::mx_projection(sc_desc.width as f32, sc_desc.height as f32)
+                    * self.v_mt)
+                    .as_slice(),
             ),
         );
 
