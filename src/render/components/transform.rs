@@ -1,5 +1,3 @@
-use na::{UnitQuaternion, Vector3};
-
 extern crate nalgebra as na;
 
 pub struct Transform2D {

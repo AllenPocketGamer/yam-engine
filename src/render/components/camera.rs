@@ -18,6 +18,10 @@ impl Camera2D {
         }
     }
 
+    pub fn size(&self) -> (f32, f32) {
+        (self.orth.left().abs() * 2.0, self.orth.top().abs() * 2.0)
+    }
+
     pub fn to_homogeneous(&self) -> na::Matrix4<f32> {
         self.orth.to_homogeneous()
     }

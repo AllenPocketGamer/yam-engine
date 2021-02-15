@@ -10,6 +10,9 @@ pub(super) struct Gpu {
     pub swap_chain: wgpu::SwapChain,
 
     // FIXME: temp value
+    pub frame: Option<wgpu::SwapChainFrame>,
+
+    // FIXME: temp value
     pub sc_desc: wgpu::SwapChainDescriptor,
 }
 
@@ -52,7 +55,7 @@ impl Gpu {
             format: adapter.get_swap_chain_preferred_format(&surface),
             width: window.inner_size().width,
             height: window.inner_size().height,
-            present_mode: wgpu::PresentMode::Mailbox,
+            present_mode: wgpu::PresentMode::Fifo,
         };
         let swap_chain = device.create_swap_chain(&surface, &sc_desc);
 
@@ -63,7 +66,36 @@ impl Gpu {
             queue,
             swap_chain,
 
+            frame: None,
+
             sc_desc,
+        }
+    }
+
+    // FIXME: 移动到合适位置
+    pub(super) fn swap_chain_size(&self) -> (u32, u32) {
+        (self.sc_desc.width, self.sc_desc.height)
+    }
+
+    // FIXME: 移动到合适位置
+    pub(super) fn set_swap_chain_size(&mut self, (width, height): (u32, u32)) {
+        if self.sc_desc.width != width || self.sc_desc.height != height {
+            self.sc_desc.width = width;
+            self.sc_desc.height = height;
+
+            self.swap_chain = self.device.create_swap_chain(&self.surface, &self.sc_desc);
+        }
+    }
+
+    pub(super) fn begin_render(&mut self) {
+        if self.frame.is_none() {
+            self.frame = self.swap_chain.get_current_frame().ok();
+        }
+    }
+
+    pub(super) fn end_render(&mut self) {
+        if self.frame.is_some() {
+            self.frame.take();
         }
     }
 }
@@ -73,8 +105,8 @@ pub(super) struct SpriteRenderer {
     vertex_buf: wgpu::Buffer,
     // To store index data of quad
     index_buf: wgpu::Buffer,
-    // To store model matrix3x3 + view matrix3x3 + projection
-    uniform_buf: wgpu::Buffer,
+    // To store model translation + view translation + projection
+    uniform_translation_buf: wgpu::Buffer,
 
     // A group cotains uniform_buf, texture and sampler
     bind_group: wgpu::BindGroup,
@@ -82,32 +114,13 @@ pub(super) struct SpriteRenderer {
 }
 
 impl SpriteRenderer {
-    #[allow(dead_code)]
-    const QUAD_HALF_SIZE: usize = 16;
-
     // Quad vertex in world coordinate
     #[allow(dead_code)]
     const QUAD_VERTEX: [f32; 16] = [
-        // left-top, point A
-        -(Self::QUAD_HALF_SIZE as f32),
-        Self::QUAD_HALF_SIZE as f32,
-        0.0,
-        1.0,
-        // right-top, point B
-        Self::QUAD_HALF_SIZE as f32,
-        Self::QUAD_HALF_SIZE as f32,
-        0.0,
-        1.0,
-        // right-bottom, point C
-        Self::QUAD_HALF_SIZE as f32,
-        -(Self::QUAD_HALF_SIZE as f32),
-        0.0,
-        1.0,
-        // left-bottom, point D
-        -(Self::QUAD_HALF_SIZE as f32),
-        -(Self::QUAD_HALF_SIZE as f32),
-        0.0,
-        1.0,
+        -0.5, 0.5, 0.0, 1.0, // left-top, point A
+        0.5, 0.5, 0.0, 1.0, // right-top, point B
+        0.5, -0.5, 0.0, 1.0, // right-bottom, point C
+        -0.5, -0.5, 0.0, 1.0, // left-bottom, point D
     ];
 
     #[allow(dead_code)]
@@ -216,7 +229,7 @@ impl SpriteRenderer {
         Self {
             vertex_buf,
             index_buf,
-            uniform_buf,
+            uniform_translation_buf: uniform_buf,
 
             bind_group,
             pipeline,
@@ -228,11 +241,23 @@ impl SpriteRenderer {
         Gpu { queue, .. }: &mut Gpu,
         mx_model: &na::Matrix4<f32>,
         mx_view: &na::Matrix4<f32>,
-        mx_projection:  &na::Matrix4<f32>,
+        mx_projection: &na::Matrix4<f32>,
     ) {
-        queue.write_buffer(&self.uniform_buf, 0, bytemuck::cast_slice(mx_model.as_slice()));
-        queue.write_buffer(&self.uniform_buf, 4 * 16, bytemuck::cast_slice(mx_view.as_slice()));
-        queue.write_buffer(&self.uniform_buf, 2 * 4 * 16, bytemuck::cast_slice(mx_projection.as_slice()));
+        queue.write_buffer(
+            &self.uniform_translation_buf,
+            0,
+            bytemuck::cast_slice(mx_model.as_slice()),
+        );
+        queue.write_buffer(
+            &self.uniform_translation_buf,
+            4 * 16,
+            bytemuck::cast_slice(mx_view.as_slice()),
+        );
+        queue.write_buffer(
+            &self.uniform_translation_buf,
+            2 * 4 * 16,
+            bytemuck::cast_slice(mx_projection.as_slice()),
+        );
     }
 
     pub(super) fn render(
@@ -240,12 +265,10 @@ impl SpriteRenderer {
         Gpu {
             device,
             queue,
-            swap_chain,
+            frame,
             ..
         }: &mut Gpu,
     ) {
-        let frame = swap_chain.get_current_frame().unwrap().output;
-
         let mut encoder = device.create_command_encoder(&wgpu::CommandEncoderDescriptor {
             label: Some("sprite encoder"),
         });
@@ -254,10 +277,10 @@ impl SpriteRenderer {
             let mut rpass = encoder.begin_render_pass(&wgpu::RenderPassDescriptor {
                 label: Some("sprite render pass"),
                 color_attachments: &[wgpu::RenderPassColorAttachmentDescriptor {
-                    attachment: &frame.view,
+                    attachment: &(frame.as_ref().unwrap().output.view),
                     resolve_target: None,
                     ops: wgpu::Operations {
-                        load: wgpu::LoadOp::Clear(wgpu::Color::BLACK),
+                        load: wgpu::LoadOp::Load,
                         store: true,
                     },
                 }],
@@ -273,9 +296,45 @@ impl SpriteRenderer {
 
             rpass.insert_debug_marker("draw");
             rpass.draw_indexed(0..6, 0, 0..1);
-            // rpass.draw(0..3, 0..1);
         }
 
         queue.submit(Some(encoder.finish()));
     }
+
+    // NOTE: look like stupid
+    pub(super) fn clear(
+        &mut self,
+        Gpu {
+            device,
+            queue,
+            frame,
+            ..
+        }: &mut Gpu,
+    ) {
+        let mut encoder =
+            device.create_command_encoder(&wgpu::CommandEncoderDescriptor { label: None });
+
+        {
+            encoder.begin_render_pass(&wgpu::RenderPassDescriptor {
+                label: None,
+                color_attachments: &[wgpu::RenderPassColorAttachmentDescriptor {
+                    attachment: &(frame.as_ref().unwrap().output.view),
+                    resolve_target: None,
+                    ops: wgpu::Operations {
+                        load: wgpu::LoadOp::Clear(wgpu::Color::BLACK),
+                        store: true,
+                    },
+                }],
+                depth_stencil_attachment: None,
+            });
+        }
+
+        queue.submit(Some(encoder.finish()));
+    }
+
+    // NOTE: 直接渲染API的功能分割
+    // 1. view + projection需要一个公共的存储区域
+    // 2. 其中一个参数是model transformation, 决定sprite应该画在哪里, 怎么画
+    // 3. viewport也应该有个公共区域
+    pub(super) fn draw(&mut self) {}
 }

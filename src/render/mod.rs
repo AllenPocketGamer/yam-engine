@@ -14,7 +14,6 @@ use legion::{query::*, Resources, World};
 pub(crate) fn create_app_stage_render() -> AppStage {
     AppStageBuilder::new(String::from("default_render"))
         .add_thread_local_fn_startup(init)
-        // .add_thread_local_fn_process(temp_render)
         .add_thread_local_fn_process(render)
         .build()
 }
@@ -33,20 +32,39 @@ fn init(_world: &mut World, resources: &mut Resources) {
 }
 
 fn render(world: &mut World, resources: &mut Resources) {
-    // NOTE: render sprite
+    let window = resources.get::<Window>().unwrap();
     let mut gpu = resources.get_mut::<renderer::Gpu>().unwrap();
     let mut sprite_renderer = resources.get_mut::<renderer::SpriteRenderer>().unwrap();
 
+    // FIXME: resize swapchain(temporary)
+    gpu.set_swap_chain_size(window.inner_size());
+
+    // NOTE: render sprite
     let mut query_camera2d = <(&Transform2D, &Camera2D)>::query();
     let mut query_sprites = <(&Transform2D, &Sprite)>::query();
 
-    let (transform_camera2d, camera2d) = query_camera2d.iter(world).next().unwrap();
-    let (transform_sprite, _) = query_sprites.iter(world).next().unwrap();
+    let (mx_view, mx_projection) =
+        if let Some((transform, camera2d)) = query_camera2d.iter(world).next() {
+            (
+                transform.to_homogeneous_3d().try_inverse().unwrap(),
+                camera2d.to_homogeneous(),
+            )
+        } else {
+            (
+                na::Matrix4::<f32>::identity(),
+                Camera2D::default().to_homogeneous(),
+            )
+        };
 
-    let mx_model = transform_sprite.to_homogeneous_3d();
-    let mx_view = transform_camera2d.to_homogeneous_3d().try_inverse().unwrap();
-    let mx_projection = camera2d.to_homogeneous();
-    
-    sprite_renderer.set_transformations(&mut gpu, &mx_model, &mx_view, &mx_projection);
-    sprite_renderer.render(&mut gpu);
+    gpu.begin_render();
+
+    sprite_renderer.clear(&mut gpu);
+
+    for (transform_sprite, _) in query_sprites.iter(world) {
+        let mx_model = transform_sprite.to_homogeneous_3d();
+        sprite_renderer.set_transformations(&mut gpu, &mx_model, &mx_view, &mx_projection);
+        sprite_renderer.render(&mut gpu);
+    }
+
+    gpu.end_render();
 }
