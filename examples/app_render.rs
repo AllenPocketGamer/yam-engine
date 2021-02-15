@@ -13,6 +13,7 @@ fn main() -> Result<(), AppBuildError> {
         .create_stage_builder(String::from("default"))?
         .add_thread_local_fn_startup(init_entities)
         .add_thread_local_system_process(operate_sprite_system())
+        .add_thread_local_system_process(operate_camera_system())
         .add_system_startup(parallel_startup_system())
         .add_system_destroy(parallel_destroy_system())
         .into_app_builder()
@@ -34,23 +35,34 @@ fn parallel_destroy() {
 
 #[system(for_each)]
 #[filter(component::<Sprite>())]
-fn operate_sprite(
-    transform: &mut Transform2D,
-    #[resource] time: &Time,
-    #[resource] input: &Input,
-) {
-    let speed = 160f32;
+fn operate_sprite(transform: &mut Transform2D, #[resource] time: &Time, #[resource] input: &Input) {
+    const SPEED: f32 = 160.0;
+    const RSPEED: f32 = 3.14;
 
     if input.keyboard.pressed(KeyCode::A) {
-        transform.position -= na::Vector2::<f32>::x() * time.delta().as_secs_f32() * speed;
+        transform.position -= na::Vector2::<f32>::x() * time.delta().as_secs_f32() * SPEED;
     } else if input.keyboard.pressed(KeyCode::D) {
-        transform.position += na::Vector2::<f32>::x() * time.delta().as_secs_f32() * speed;
+        transform.position += na::Vector2::<f32>::x() * time.delta().as_secs_f32() * SPEED;
     }
 
     if input.keyboard.pressed(KeyCode::W) {
-        transform.position += na::Vector2::<f32>::y() * time.delta().as_secs_f32() * speed;
+        transform.position += na::Vector2::<f32>::y() * time.delta().as_secs_f32() * SPEED;
     } else if input.keyboard.pressed(KeyCode::S) {
-        transform.position -= na::Vector2::<f32>::y() * time.delta().as_secs_f32() * speed;
+        transform.position -= na::Vector2::<f32>::y() * time.delta().as_secs_f32() * SPEED;
+    }
+
+    if input.keyboard.pressed(KeyCode::Space) {
+        transform.angle += RSPEED * time.delta().as_secs_f32();
+    }
+}
+
+#[system(for_each)]
+#[filter(component::<Camera2D>())]
+fn operate_camera(transform: &mut Transform2D, #[resource] input: &Input) {
+    if input.mouse.pressed(MouseButton::Middle) {
+        let (dx, dy) = input.mouse.mouse_motion();
+
+        transform.position += na::Vector2::<f32>::new(dx, -dy);
     }
 }
 
