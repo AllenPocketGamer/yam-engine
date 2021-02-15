@@ -10,7 +10,7 @@ use std::{
     slice::{Iter, IterMut},
 };
 use winit::{
-    event::{Event, StartCause, WindowEvent},
+    event::{DeviceEvent, Event, StartCause, WindowEvent},
     event_loop::{ControlFlow, EventLoop},
     window::WindowBuilder,
 };
@@ -107,7 +107,14 @@ impl App {
                     }
                     _ => {}
                 },
-                Event::DeviceEvent { device_id, event } => {}
+                Event::DeviceEvent {
+                    event: ref devt, ..
+                } => match devt {
+                    DeviceEvent::MouseMotion { .. } => {
+                        input_evts.push(event.to_static().unwrap());
+                    }
+                    _ => {}
+                },
                 Event::Suspended => {
                     // TODO: for specific platform(like android, iphone)
                     todo!()

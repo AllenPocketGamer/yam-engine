@@ -88,7 +88,7 @@ impl Input {
                 },
                 Event::DeviceEvent { event, .. } => match event {
                     DeviceEvent::MouseMotion { delta } => {
-                        self.mouse.mouse_motion = (delta.0 as f32, delta.0 as f32);
+                        self.mouse.mouse_motion = (delta.0 as f32, delta.1 as f32);
                     }
                     _ => {}
                 },
@@ -166,6 +166,14 @@ impl Mouse {
 
     pub fn cursor_position(&self) -> (f32, f32) {
         self.cursor_position
+    }
+
+    pub fn mouse_motion(&self) -> (f32, f32) {
+        self.mouse_motion
+    }
+
+    pub fn mouse_wheel_motion(&self) -> (f32, f32) {
+        self.mouse_wheel_motion
     }
 
     fn before_apply(&mut self) {
