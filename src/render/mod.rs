@@ -3,10 +3,7 @@ mod renderer;
 
 extern crate nalgebra as na;
 
-use crate::{
-    app::{AppStage, AppStageBuilder},
-    window::Window,
-};
+use crate::{app::{AppStage, AppStageBuilder}, misc, window::Window};
 use components::*;
 use futures::executor::block_on;
 use legion::{query::*, Resources, World};
@@ -62,8 +59,7 @@ fn render(world: &mut World, resources: &mut Resources) {
 
     for (transform_sprite, _) in query_sprites.iter(world) {
         let mx_model = transform_sprite.to_homogeneous_3d();
-        sprite_renderer.set_transformations(&mut gpu, &mx_model, &mx_view, &mx_projection);
-        sprite_renderer.render(&mut gpu);
+        sprite_renderer.render(&mut gpu, &mx_model, &mx_view, &mx_projection);
     }
 
     gpu.end_render();

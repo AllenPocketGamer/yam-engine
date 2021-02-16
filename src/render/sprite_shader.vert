@@ -9,12 +9,18 @@ const mat4 MX_CORRECTION = mat4(
 
 layout(location = 0) in vec4 a_Pos;
 
-layout(set = 0, binding = 0, std140) uniform Translations {
+layout(set = 0, binding = 0, std140) uniform ToDo {
     mat4 mx_model;
     mat4 mx_view;
     mat4 mx_projection;
 };
 
+layout(push_constant) uniform Translation {
+    mat4 MX_MODEL;
+    mat4 MX_VIEW;
+    mat4 MX_PROJECTION;
+};
+
 void main() {
-    gl_Position = MX_CORRECTION * mx_projection * mx_view * mx_model * a_Pos;
+    gl_Position = MX_CORRECTION * MX_PROJECTION * MX_VIEW * MX_MODEL * a_Pos;
 }

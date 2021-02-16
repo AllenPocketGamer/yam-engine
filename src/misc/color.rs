@@ -14,7 +14,7 @@ impl Color {
     pub fn to_rgba(&self) -> Self {
         match *self {
             Color::Rgba { .. } => *self,
-            Color::Rgb { r, g, b } => Self::Rgba { r, g, b, a: 0.0 },
+            Color::Rgb { r, g, b } => Self::Rgba { r, g, b, a: 1.0 },
         }
     }
 }

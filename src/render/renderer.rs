@@ -32,18 +32,35 @@ impl Gpu {
             .await
             .expect("No suitable GPU adapters found on the system!");
 
-        #[cfg(not(target_arch = "wasm32"))]
-        {
-            let adapter_info = adapter.get_info();
-            println!("Using {} ({:?})", adapter_info.name, adapter_info.backend);
+        let adapter_info = adapter.get_info();
+        println!("Using {} ({:?})", adapter_info.name, adapter_info.backend);
+
+        let can_push_constant = !(adapter.features() & wgpu::Features::PUSH_CONSTANTS).is_empty();
+        let max_push_constant_size = adapter.limits().max_push_constant_size;
+
+        if can_push_constant {
+            println!(
+                "Support PUSH_CONSTANT feature, max push const size: {}.",
+                max_push_constant_size
+            );
+        } else {
+            println!("Not support PUSH_CONSTANT feature.");
         }
+
+        let (features, limits) = if can_push_constant {
+            let mut limits = wgpu::Limits::default();
+            limits.max_push_constant_size = max_push_constant_size;
+            (wgpu::Features::PUSH_CONSTANTS, limits)
+        } else {
+            (wgpu::Features::empty(), wgpu::Limits::default())
+        };
 
         let (device, queue) = adapter
             .request_device(
                 &wgpu::DeviceDescriptor {
                     label: None,
-                    features: wgpu::Features::empty(),
-                    limits: wgpu::Limits::default(),
+                    features,
+                    limits,
                 },
                 None,
             )
@@ -90,12 +107,16 @@ impl Gpu {
     pub(super) fn begin_render(&mut self) {
         if self.frame.is_none() {
             self.frame = self.swap_chain.get_current_frame().ok();
+        } else {
+            panic!("Begin render already.");
         }
     }
 
     pub(super) fn end_render(&mut self) {
         if self.frame.is_some() {
             self.frame.take();
+        } else {
+            panic!("End render already.");
         }
     }
 }
@@ -105,8 +126,8 @@ pub(super) struct SpriteRenderer {
     vertex_buf: wgpu::Buffer,
     // To store index data of quad
     index_buf: wgpu::Buffer,
-    // To store model translation + view translation + projection
-    uniform_translation_buf: wgpu::Buffer,
+    // To store color data
+    uniform_buf: wgpu::Buffer,
 
     // A group cotains uniform_buf, texture and sampler
     bind_group: wgpu::BindGroup,
@@ -138,7 +159,6 @@ impl SpriteRenderer {
         }: &mut Gpu,
     ) -> Self {
         let vertex_size = 4 * 4;
-        let uniform_size = 4 * 16 + 4 * 16 + 4 * 16;
 
         let vertex_buf = device.create_buffer_init(&wgpu::util::BufferInitDescriptor {
             label: Some("quad vertex"),
@@ -153,8 +173,8 @@ impl SpriteRenderer {
         });
 
         let uniform_buf = device.create_buffer(&wgpu::BufferDescriptor {
-            label: Some("model matrix3x3 + view matrix3x3 + projection"),
-            size: uniform_size,
+            label: Some("color"),
+            size: 4 * 4,
             usage: wgpu::BufferUsage::UNIFORM | wgpu::BufferUsage::COPY_DST,
             mapped_at_creation: false,
         });
@@ -167,7 +187,7 @@ impl SpriteRenderer {
                 ty: wgpu::BindingType::Buffer {
                     ty: wgpu::BufferBindingType::Uniform,
                     has_dynamic_offset: false,
-                    min_binding_size: wgpu::BufferSize::new(uniform_size),
+                    min_binding_size: wgpu::BufferSize::new(4 * 4),
                 },
                 count: None,
             }],
@@ -185,13 +205,16 @@ impl SpriteRenderer {
         let pipeline_layout = device.create_pipeline_layout(&wgpu::PipelineLayoutDescriptor {
             label: Some("sprite pipeline layout"),
             bind_group_layouts: &[&bind_group_layout],
-            push_constant_ranges: &[],
+            push_constant_ranges: &[wgpu::PushConstantRange {
+                stages: wgpu::ShaderStage::VERTEX,
+                range: 0..3 * 4 * 16
+            }],
         });
 
         let vert_shader = device.create_shader_module(&wgpu::ShaderModuleDescriptor {
             label: Some("sprite vertex shader"),
             source: wgpu::util::make_spirv(include_bytes!("sprite_shader.vert.spv")),
-            flags: wgpu::ShaderFlags::VALIDATION,
+            flags: wgpu::ShaderFlags::empty(),
         });
 
         let frag_shader = device.create_shader_module(&wgpu::ShaderModuleDescriptor {
@@ -229,35 +252,11 @@ impl SpriteRenderer {
         Self {
             vertex_buf,
             index_buf,
-            uniform_translation_buf: uniform_buf,
+            uniform_buf,
 
             bind_group,
             pipeline,
         }
-    }
-
-    pub(super) fn set_transformations(
-        &mut self,
-        Gpu { queue, .. }: &mut Gpu,
-        mx_model: &na::Matrix4<f32>,
-        mx_view: &na::Matrix4<f32>,
-        mx_projection: &na::Matrix4<f32>,
-    ) {
-        queue.write_buffer(
-            &self.uniform_translation_buf,
-            0,
-            bytemuck::cast_slice(mx_model.as_slice()),
-        );
-        queue.write_buffer(
-            &self.uniform_translation_buf,
-            4 * 16,
-            bytemuck::cast_slice(mx_view.as_slice()),
-        );
-        queue.write_buffer(
-            &self.uniform_translation_buf,
-            2 * 4 * 16,
-            bytemuck::cast_slice(mx_projection.as_slice()),
-        );
     }
 
     pub(super) fn render(
@@ -268,6 +267,9 @@ impl SpriteRenderer {
             frame,
             ..
         }: &mut Gpu,
+        mx_model: &na::Matrix4<f32>,
+        mx_view: &na::Matrix4<f32>,
+        mx_projection: &na::Matrix4<f32>,
     ) {
         let mut encoder = device.create_command_encoder(&wgpu::CommandEncoderDescriptor {
             label: Some("sprite encoder"),
@@ -288,10 +290,31 @@ impl SpriteRenderer {
             });
 
             rpass.push_debug_group("prepare render data");
+            
+            rpass.set_pipeline(&self.pipeline);
             rpass.set_vertex_buffer(0, self.vertex_buf.slice(..));
             rpass.set_index_buffer(self.index_buf.slice(..), wgpu::IndexFormat::Uint16);
+
+            // TODO: change it
             rpass.set_bind_group(0, &self.bind_group, &[]);
-            rpass.set_pipeline(&self.pipeline);
+            
+            // NOTE: Set transformation matrix
+            rpass.set_push_constants(
+                wgpu::ShaderStage::VERTEX,
+                0,
+                bytemuck::cast_slice(mx_model.as_slice()),
+            );
+            rpass.set_push_constants(
+                wgpu::ShaderStage::VERTEX,
+                4 * 16,
+                bytemuck::cast_slice(mx_view.as_slice()),
+            );
+            rpass.set_push_constants(
+                wgpu::ShaderStage::VERTEX,
+                4 * 16 + 4 * 16,
+                bytemuck::cast_slice(mx_projection.as_slice()),
+            );
+            
             rpass.pop_debug_group();
 
             rpass.insert_debug_marker("draw");
