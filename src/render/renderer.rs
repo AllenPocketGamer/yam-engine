@@ -4,17 +4,20 @@ use crate::misc::Color;
 use wgpu::util::DeviceExt;
 
 pub(super) struct Gpu {
-    pub surface: wgpu::Surface,
-    pub adapter: wgpu::Adapter,
-    pub device: wgpu::Device,
-    pub queue: wgpu::Queue,
-    pub swap_chain: wgpu::SwapChain,
+    surface: wgpu::Surface,
+    adapter: wgpu::Adapter,
+    device: wgpu::Device,
+    queue: wgpu::Queue,
+    swap_chain: wgpu::SwapChain,
 
     // FIXME: temp value
-    pub frame: Option<wgpu::SwapChainFrame>,
+    frame: Option<wgpu::SwapChainFrame>,
 
     // FIXME: temp value
-    pub sc_desc: wgpu::SwapChainDescriptor,
+    sc_desc: wgpu::SwapChainDescriptor,
+
+    // FIXME: temp value
+    aspect_ratio: f32,
 }
 
 impl Gpu {
@@ -85,8 +88,8 @@ impl Gpu {
             swap_chain,
 
             frame: None,
-
             sc_desc,
+            aspect_ratio: 16.0 / 9.0,
         }
     }
 
@@ -103,6 +106,16 @@ impl Gpu {
 
             self.swap_chain = self.device.create_swap_chain(&self.surface, &self.sc_desc);
         }
+    }
+
+    // FIXME: 移动到合适位置
+    pub(super) fn asepct_ratio(&self) -> f32 {
+        self.aspect_ratio
+    }
+
+    // FIXME: 移动到合适位置
+    pub(super) fn set_viewport_aspect_ratio(&mut self, aspect_ratio: f32) {
+        self.aspect_ratio = aspect_ratio
     }
 
     pub(super) fn begin_render(&mut self) {
@@ -265,6 +278,8 @@ impl SpriteRenderer {
             device,
             queue,
             frame,
+            sc_desc,
+            aspect_ratio,
             ..
         }: &mut Gpu,
         mx_model: &na::Matrix4<f32>,
@@ -297,6 +312,10 @@ impl SpriteRenderer {
             });
 
             rpass.push_debug_group("prepare render data");
+
+            let (x, y, width, height, min_depth, max_depth) =
+                Self::get_viewport(*aspect_ratio, sc_desc.width as f32, sc_desc.height as f32);
+            rpass.set_viewport(x, y, width, height, min_depth, max_depth);
 
             rpass.set_pipeline(&self.pipeline);
             rpass.set_vertex_buffer(0, self.vertex_buf.slice(..));
@@ -331,7 +350,6 @@ impl SpriteRenderer {
         queue.submit(Some(encoder.finish()));
     }
 
-    // NOTE: look like stupid
     pub(super) fn clear(
         &mut self,
         Gpu {
@@ -368,6 +386,26 @@ impl SpriteRenderer {
         }
 
         queue.submit(Some(encoder.finish()));
+    }
+
+    fn get_viewport(
+        aspect_ratio: f32,
+        screen_width: f32,
+        screen_height: f32,
+    ) -> (f32, f32, f32, f32, f32, f32) {
+        let screen_ratio = screen_width / screen_height;
+
+        if aspect_ratio <= screen_ratio {
+            let (x, y) = ((screen_width - aspect_ratio * screen_height) / 2.0, 0f32);
+            let (width, height) = (aspect_ratio * screen_height, screen_height);
+
+            (x, y, width, height, 0.0, 1.0)
+        } else {
+            let (x, y) = (0f32, (screen_height - screen_width / aspect_ratio) / 2.0);
+            let (width, height) = (screen_width, screen_width / aspect_ratio);
+
+            (x, y, width, height, 0.0, 1.0)
+        }
     }
 
     // NOTE: 直接渲染API的功能分割

@@ -40,18 +40,23 @@ fn render(world: &mut World, resources: &mut Resources) {
     let mut query_camera2d = <(&Transform2D, &Camera2D)>::query();
     let mut query_sprites = <(&Transform2D, &Sprite)>::query();
 
-    let (mx_view, mx_projection) =
+    let (mx_view, mx_projection, aspect_ratio) =
         if let Some((transform, camera2d)) = query_camera2d.iter(world).next() {
             (
                 transform.to_homogeneous_3d().try_inverse().unwrap(),
                 camera2d.to_homogeneous(),
+                camera2d.aspect_ratio(),
             )
         } else {
             (
                 na::Matrix4::<f32>::identity(),
                 Camera2D::default().to_homogeneous(),
+                16.0 / 9.0,
             )
         };
+
+    // FIXME: reset aspect ratio(temporary)
+    gpu.set_viewport_aspect_ratio(aspect_ratio);
 
     gpu.begin_render();
 

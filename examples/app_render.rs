@@ -69,15 +69,15 @@ fn operate_camera(transform: &mut Transform2D, #[resource] input: &Input) {
 fn init_entities(world: &mut World, _resources: &mut Resources) {
     // scale sprite size to 32
     world.push((
-        Transform2D::new(0.0, 0.0, 0.0, 32.0, 32.0),
+        Transform2D::new(0.0, 0.0, 0.0, 2560.0, 2560.0),
         Sprite { color: Color::RED },
-        Marker {},
     ));
     world.push((
         Transform2D::new(64.0, 0.0, 0.5, 32.0, 32.0),
         Sprite {
             color: Color::GREEN,
         },
+        Marker {},
     ));
     world.push((Transform2D::default(), Camera2D::default()));
 }

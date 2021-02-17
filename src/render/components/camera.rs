@@ -22,6 +22,11 @@ impl Camera2D {
         (self.orth.left().abs() * 2.0, self.orth.top().abs() * 2.0)
     }
 
+    pub fn aspect_ratio(&self) -> f32 {
+        let (width, height) = self.size();
+        width / height
+    }
+
     pub fn to_homogeneous(&self) -> na::Matrix4<f32> {
         self.orth.to_homogeneous()
     }
