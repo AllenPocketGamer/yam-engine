@@ -1,5 +1,7 @@
 extern crate nalgebra as na;
 
+use std::todo;
+
 use crate::misc::Color;
 use wgpu::util::DeviceExt;
 
@@ -413,4 +415,46 @@ impl SpriteRenderer {
     // 2. 其中一个参数是model transformation, 决定sprite应该画在哪里, 怎么画
     // 3. viewport也应该有个公共区域
     pub(super) fn draw(&mut self) {}
+}
+
+// TODO: 在mod中, RenderService应该实例化, 但不应该放入Resources中
+// NOTE: 得像一个优秀的方案, AppStage中应该有位置存放数据, 但不暴露到Resources中
+pub struct Render2DService {}
+
+// TODO: 将renderer部分的代码变得优雅, 使用命令式进行渲染任务
+impl Render2DService {
+    pub fn view_transformation() -> na::Matrix4<f32> {
+        todo!()
+    }
+    
+    pub fn set_view_transformation(matrix: na::Matrix4<f32>) {
+        todo!()
+    }
+
+    pub fn projection() -> na::Matrix4<f32> {
+        todo!()
+    }
+
+    pub fn set_projection(matrix: na::Matrix4<f32>) {
+
+    }
+
+    pub fn aspect_ratio() -> f32 {
+        todo!()
+    }
+
+    // NOTE: 注意参数的正负性
+    pub fn set_aspect_ratio(aspect_ratio: f32) {
+        todo!()
+    }
+
+    // FIXME: 缺一个texture参数
+    pub fn draw_sprite_in_world_space(model_transformation: na::Matrix4<f32>, color: Color) {
+        todo!()
+    }
+
+    // FIXME: 缺一个texture参数
+    pub fn draw_sprite_in_screen_space(x: f32, y: f32, width: f32, height:f32, color: Color) {
+        todo!()
+    }
 }

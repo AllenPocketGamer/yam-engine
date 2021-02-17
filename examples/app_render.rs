@@ -79,7 +79,7 @@ fn init_entities(world: &mut World, _resources: &mut Resources) {
         },
         Marker {},
     ));
-    world.push((Transform2D::default(), Camera2D::default()));
+    world.push((Transform2D::default(), Camera2D::new(1920f32, 1080f32)));
 }
 
 struct Marker;
