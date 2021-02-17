@@ -12,9 +12,15 @@ impl Color {
     #[rustfmt::skip]    pub const BLACK: Self = Self::Rgba {r: 0.0, g: 0.0, b: 0.0, a: 1.0};
 
     pub fn to_rgba(&self) -> Self {
-        match *self {
-            Color::Rgba { .. } => *self,
-            Color::Rgb { r, g, b } => Self::Rgba { r, g, b, a: 1.0 },
+        let [r, g, b, a] = self.to_rgba_raw();
+
+        Self::Rgba { r, g, b, a }
+    }
+
+    pub fn to_rgba_raw(&self) -> [f32; 4] {
+        match self {
+            Color::Rgba { r, g, b, a } => [*r, *g, *b, *a],
+            Color::Rgb { r, g, b } => [*r, *g, *b, 1.0],
         }
     }
 }

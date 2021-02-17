@@ -1,5 +1,6 @@
 extern crate nalgebra as na;
 
+use crate::misc::Color;
 use wgpu::util::DeviceExt;
 
 pub(super) struct Gpu {
@@ -172,18 +173,17 @@ impl SpriteRenderer {
             usage: wgpu::BufferUsage::INDEX,
         });
 
-        let uniform_buf = device.create_buffer(&wgpu::BufferDescriptor {
+        let uniform_buf = device.create_buffer_init(&wgpu::util::BufferInitDescriptor {
             label: Some("color"),
-            size: 4 * 4,
+            contents: bytemuck::cast_slice(&Color::WHITE.to_rgba_raw()[..]),
             usage: wgpu::BufferUsage::UNIFORM | wgpu::BufferUsage::COPY_DST,
-            mapped_at_creation: false,
         });
 
         let bind_group_layout = device.create_bind_group_layout(&wgpu::BindGroupLayoutDescriptor {
             label: Some("sprite bind group layout"),
             entries: &[wgpu::BindGroupLayoutEntry {
                 binding: 0,
-                visibility: wgpu::ShaderStage::VERTEX,
+                visibility: wgpu::ShaderStage::FRAGMENT,
                 ty: wgpu::BindingType::Buffer {
                     ty: wgpu::BufferBindingType::Uniform,
                     has_dynamic_offset: false,
@@ -207,7 +207,7 @@ impl SpriteRenderer {
             bind_group_layouts: &[&bind_group_layout],
             push_constant_ranges: &[wgpu::PushConstantRange {
                 stages: wgpu::ShaderStage::VERTEX,
-                range: 0..3 * 4 * 16
+                range: 0..3 * 4 * 16,
             }],
         });
 
@@ -270,7 +270,14 @@ impl SpriteRenderer {
         mx_model: &na::Matrix4<f32>,
         mx_view: &na::Matrix4<f32>,
         mx_projection: &na::Matrix4<f32>,
+        color: Color,
     ) {
+        queue.write_buffer(
+            &self.uniform_buf,
+            0,
+            bytemuck::cast_slice(&color.to_rgba_raw()[..]),
+        );
+
         let mut encoder = device.create_command_encoder(&wgpu::CommandEncoderDescriptor {
             label: Some("sprite encoder"),
         });
@@ -290,14 +297,14 @@ impl SpriteRenderer {
             });
 
             rpass.push_debug_group("prepare render data");
-            
+
             rpass.set_pipeline(&self.pipeline);
             rpass.set_vertex_buffer(0, self.vertex_buf.slice(..));
             rpass.set_index_buffer(self.index_buf.slice(..), wgpu::IndexFormat::Uint16);
 
-            // TODO: change it
+            // TODO: Change it
             rpass.set_bind_group(0, &self.bind_group, &[]);
-            
+
             // NOTE: Set transformation matrix
             rpass.set_push_constants(
                 wgpu::ShaderStage::VERTEX,
@@ -314,7 +321,7 @@ impl SpriteRenderer {
                 4 * 16 + 4 * 16,
                 bytemuck::cast_slice(mx_projection.as_slice()),
             );
-            
+
             rpass.pop_debug_group();
 
             rpass.insert_debug_marker("draw");
@@ -333,7 +340,10 @@ impl SpriteRenderer {
             frame,
             ..
         }: &mut Gpu,
+        clear_color: Color,
     ) {
+        let [r, g, b, a] = clear_color.to_rgba_raw();
+
         let mut encoder =
             device.create_command_encoder(&wgpu::CommandEncoderDescriptor { label: None });
 
@@ -344,7 +354,12 @@ impl SpriteRenderer {
                     attachment: &(frame.as_ref().unwrap().output.view),
                     resolve_target: None,
                     ops: wgpu::Operations {
-                        load: wgpu::LoadOp::Clear(wgpu::Color::BLACK),
+                        load: wgpu::LoadOp::Clear(wgpu::Color {
+                            r: r as f64,
+                            g: g as f64,
+                            b: b as f64,
+                            a: a as f64,
+                        }),
                         store: true,
                     },
                 }],
