@@ -1,7 +1,5 @@
 extern crate nalgebra as na;
 
-use std::todo;
-
 use super::components::{Camera2D, Transform2D};
 use crate::{Sprite, misc::Color};
 
@@ -55,6 +53,7 @@ impl Render2DService {
             .create_swap_chain(&self.gpu.surface, &self.gpu.sc_desc);
     }
 
+    #[allow(dead_code)]
     pub fn view_transformation(&self) -> na::Matrix4<f32> {
         self.mx_view
     }
@@ -66,6 +65,7 @@ impl Render2DService {
             .unwrap()
     }
 
+    #[allow(dead_code)]
     pub fn projection(&self) -> na::Matrix4<f32> {
         self.mx_projection
     }
@@ -74,11 +74,11 @@ impl Render2DService {
         self.mx_projection = camera2d.to_orthographic_homogeneous()
     }
 
+    #[allow(dead_code)]
     pub fn viewport_aspect_ratio(&self) -> f32 {
         self.aspect_ratio
     }
 
-    // NOTE: 注意参数的正负性
     pub fn set_viewport_aspect_ratio(&mut self, aspect_ratio: f32) {
         self.aspect_ratio = aspect_ratio.abs();
     }
@@ -94,7 +94,6 @@ impl Render2DService {
         }
     }
 
-    // FIXME: 缺一个texture参数
     pub fn draw_sprite_in_world_space(&mut self, transform2d: &Transform2D, sprite: &Sprite) {
         let viewport = self.calculate_adapted_viewport();
         let mx_model = transform2d.to_homogeneous_3d();
@@ -110,9 +109,43 @@ impl Render2DService {
         );
     }
 
-    // FIXME: 缺一个texture参数
-    pub fn draw_sprites_in_world_space(&mut self, transform2ds: Vec<Transform2D>, color: Color) {
+    // TODO: try to implement it
+    #[allow(dead_code)]
+    #[allow(unused_variables)]
+    pub fn draw_sprites_in_world_space(&mut self, transform2ds: Vec<Transform2D>, sprite: &Sprite) {
         todo!()
+    }
+
+    #[allow(dead_code)]
+    pub fn clear(&mut self, clear_color: &Color) {
+        let [r, g, b, a] = clear_color.to_rgba_raw();
+
+        let mut encoder = self
+            .gpu
+            .device
+            .create_command_encoder(&wgpu::CommandEncoderDescriptor { label: None });
+
+        {
+            encoder.begin_render_pass(&wgpu::RenderPassDescriptor {
+                label: None,
+                color_attachments: &[wgpu::RenderPassColorAttachmentDescriptor {
+                    attachment: &(self.frame.as_ref().unwrap().output.view),
+                    resolve_target: None,
+                    ops: wgpu::Operations {
+                        load: wgpu::LoadOp::Clear(wgpu::Color {
+                            r: r as f64,
+                            g: g as f64,
+                            b: b as f64,
+                            a: a as f64,
+                        }),
+                        store: true,
+                    },
+                }],
+                depth_stencil_attachment: None,
+            });
+        }
+
+        self.gpu.queue.submit(Some(encoder.finish()));
     }
 
     pub fn end_draw(&mut self) {
@@ -408,7 +441,7 @@ impl SpriteRenderer {
             rpass.set_index_buffer(self.index_buf.slice(..), wgpu::IndexFormat::Uint16);
             rpass.set_bind_group(0, &self.bind_group, &[]);
 
-            // NOTE: Set transformation matrix
+            // Set transformation matrix
             rpass.set_push_constants(
                 wgpu::ShaderStage::VERTEX,
                 0,

@@ -72,9 +72,6 @@ fn init_entities(world: &mut World, _resources: &mut Resources) {
         Sprite {
             color: Color::GREEN,
         },
-        Marker {},
     ));
     world.push((Transform2D::default(), Camera2D::new(1920, 1080)));
 }
-
-struct Marker;
