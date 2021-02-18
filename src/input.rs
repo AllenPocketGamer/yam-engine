@@ -96,6 +96,11 @@ impl Input {
             }
         }
     }
+
+    pub(crate) fn release_all(&mut self) {
+        self.mouse.release_all();
+        self.keyboard.release_all();
+    }
 }
 
 // FIXME: change tuple to vec2 after finishing math module
@@ -194,6 +199,12 @@ impl Mouse {
             };
         }
     }
+
+    pub(crate) fn release_all(&mut self) {
+        for (_, bs) in self.mouse_button_state.iter_mut() {
+            *bs = ButtonState::Released;
+        }
+    }
 }
 
 pub struct Keyboard {
@@ -242,6 +253,12 @@ impl Keyboard {
                 ButtonState::JustReleased => *bs = ButtonState::Released,
                 _ => {}
             }
+        }
+    }
+
+    pub(crate) fn release_all(&mut self) {
+        for (_, bs) in self.key_button_state.iter_mut() {
+            *bs = ButtonState::Released;
         }
     }
 }

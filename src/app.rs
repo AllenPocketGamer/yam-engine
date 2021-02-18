@@ -89,7 +89,10 @@ impl App {
                     WindowEvent::CloseRequested => {
                         *control_flow = ControlFlow::Exit;
                     }
-                    WindowEvent::Resized(_) => {}
+                    WindowEvent::Resized(_) | WindowEvent::Moved(_) => {
+                        // NOTE: To prevent input freeze bug
+                        resources.get_mut::<Input>().unwrap().release_all();
+                    }
                     WindowEvent::ModifiersChanged(_) => {}
 
                     WindowEvent::MouseInput { .. }
