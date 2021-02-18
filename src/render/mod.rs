@@ -3,69 +3,43 @@ mod renderer;
 
 extern crate nalgebra as na;
 
-use crate::{app::{AppStage, AppStageBuilder}, misc::Color, window::Window};
-use components::*;
-use futures::executor::block_on;
-use legion::{query::*, Resources, World};
+pub use components::*;
 
-pub(crate) fn create_app_stage_render() -> AppStage {
-    AppStageBuilder::new(String::from("default_render"))
-        .add_thread_local_fn_startup(init)
-        .add_thread_local_fn_process(render)
-        .build()
-}
+use crate::*;
+use renderer::Render2DService;
 
-fn init(_world: &mut World, resources: &mut Resources) {
-    let mut gpu = {
-        let window = resources
-            .get::<Window>()
-            .expect("not found resource window.");
-        block_on(renderer::Gpu::new(&window.window))
-    };
-    let sprite_renderer = renderer::SpriteRenderer::new(&mut gpu);
+pub(crate) fn create_app_stage_render(window: &winit::window::Window) -> AppStage {
+    let mut render2d_service = Render2DService::new(window);
 
-    resources.insert(gpu);
-    resources.insert(sprite_renderer);
-}
-
-fn render(world: &mut World, resources: &mut Resources) {
-    let window = resources.get::<Window>().unwrap();
-    let mut gpu = resources.get_mut::<renderer::Gpu>().unwrap();
-    let mut sprite_renderer = resources.get_mut::<renderer::SpriteRenderer>().unwrap();
-
-    // FIXME: resize swapchain(temporary)
-    gpu.set_swap_chain_size(window.inner_size());
-
-    // NOTE: render sprite
-    let mut query_camera2d = <(&Transform2D, &Camera2D)>::query();
-    let mut query_sprites = <(&Transform2D, &Sprite)>::query();
-
-    let (mx_view, mx_projection, aspect_ratio) =
-        if let Some((transform, camera2d)) = query_camera2d.iter(world).next() {
-            (
-                transform.to_homogeneous_3d().try_inverse().unwrap(),
-                camera2d.to_homogeneous(),
-                camera2d.aspect_ratio(),
-            )
-        } else {
-            (
-                na::Matrix4::<f32>::identity(),
-                Camera2D::default().to_homogeneous(),
-                16.0 / 9.0,
-            )
+    let render_process = move |world: &mut World, resources: &mut Resources| {
+        let (width, height) = {
+            let window = resources
+                .get::<Window>()
+                .expect("ERR: Not find window resource.");
+            window.inner_size()
         };
 
-    // FIXME: reset aspect ratio(temporary)
-    gpu.set_viewport_aspect_ratio(aspect_ratio);
+        let mut query_camera2d = <(&Transform2D, &Camera2D)>::query();
+        let mut query_sprites = <(&Transform2D, &Sprite)>::query();
 
-    gpu.begin_render();
+        render2d_service.set_swap_chain_size(width, height);
 
-    sprite_renderer.clear(&mut gpu, Color::BLACK);
+        if let Some((transform2d, camera2d)) = query_camera2d.iter(world).next() {
+            render2d_service.set_view_transformation(transform2d);
+            render2d_service.set_projection(camera2d);
+            render2d_service.set_viewport_aspect_ratio(camera2d.aspect_ratio());
+        }
 
-    for (transform_sprite, sprite) in query_sprites.iter(world) {
-        let mx_model = transform_sprite.to_homogeneous_3d();
-        sprite_renderer.render(&mut gpu, &mx_model, &mx_view, &mx_projection, sprite.color);
-    }
+        render2d_service.begin_draw();
 
-    gpu.end_render();
+        for (transform2d, sprite) in query_sprites.iter(world) {
+            render2d_service.draw_sprite_in_world_space(transform2d, sprite);
+        }
+
+        render2d_service.end_draw();
+    };
+
+    AppStageBuilder::new(String::from("default_render"))
+        .add_thread_local_fn_process(render_process)
+        .build()
 }

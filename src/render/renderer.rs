@@ -2,28 +2,160 @@ extern crate nalgebra as na;
 
 use std::todo;
 
-use crate::misc::Color;
+use super::components::{Camera2D, Transform2D};
+use crate::{Sprite, misc::Color};
+
 use wgpu::util::DeviceExt;
 
-pub(super) struct Gpu {
+pub struct Render2DService {
+    gpu: Gpu,
+    sprite_renderer: SpriteRenderer,
+
+    frame: Option<wgpu::SwapChainFrame>,
+    aspect_ratio: f32,
+
+    mx_view: na::Matrix4<f32>,
+    mx_projection: na::Matrix4<f32>,
+}
+
+impl Render2DService {
+    pub fn new(window: &winit::window::Window) -> Self {
+        let mut gpu = futures::executor::block_on(Gpu::new(window));
+        let sprite_renderer = SpriteRenderer::new(&mut gpu);
+
+        let default_camera2d = Camera2D::default();
+        let default_camera2d_transform2d = Transform2D::default();
+
+        Self {
+            gpu,
+            sprite_renderer,
+
+            frame: None,
+            aspect_ratio: default_camera2d.aspect_ratio(),
+
+            mx_view: default_camera2d_transform2d
+                .to_homogeneous_3d()
+                .try_inverse()
+                .unwrap(),
+            mx_projection: default_camera2d.to_orthographic_homogeneous(),
+        }
+    }
+
+    pub fn swap_chain_size(&self) -> (u32, u32) {
+        (self.gpu.sc_desc.width, self.gpu.sc_desc.height)
+    }
+
+    pub fn set_swap_chain_size(&mut self, width: u32, height: u32) {
+        self.gpu.sc_desc.width = width;
+        self.gpu.sc_desc.height = height;
+
+        self.gpu.swap_chain = self
+            .gpu
+            .device
+            .create_swap_chain(&self.gpu.surface, &self.gpu.sc_desc);
+    }
+
+    pub fn view_transformation(&self) -> na::Matrix4<f32> {
+        self.mx_view
+    }
+
+    pub fn set_view_transformation(&mut self, camera2d_transform2d: &Transform2D) {
+        self.mx_view = camera2d_transform2d
+            .to_homogeneous_3d()
+            .try_inverse()
+            .unwrap()
+    }
+
+    pub fn projection(&self) -> na::Matrix4<f32> {
+        self.mx_projection
+    }
+
+    pub fn set_projection(&mut self, camera2d: &Camera2D) {
+        self.mx_projection = camera2d.to_orthographic_homogeneous()
+    }
+
+    pub fn viewport_aspect_ratio(&self) -> f32 {
+        self.aspect_ratio
+    }
+
+    // NOTE: 注意参数的正负性
+    pub fn set_viewport_aspect_ratio(&mut self, aspect_ratio: f32) {
+        self.aspect_ratio = aspect_ratio.abs();
+    }
+
+    pub fn begin_draw(&mut self) {
+        if self.frame.is_none() {
+            match self.gpu.swap_chain.get_current_frame() {
+                Ok(sw_frame) => self.frame = Some(sw_frame),
+                Err(err) => panic!("ERR: {}", err),
+            }
+        } else {
+            panic!("ERR: Drawing has begun already.")
+        }
+    }
+
+    // FIXME: 缺一个texture参数
+    pub fn draw_sprite_in_world_space(&mut self, transform2d: &Transform2D, sprite: &Sprite) {
+        let viewport = self.calculate_adapted_viewport();
+        let mx_model = transform2d.to_homogeneous_3d();
+
+        self.sprite_renderer.render(
+            &mut self.gpu,
+            self.frame.as_ref().unwrap(),
+            &mx_model,
+            &self.mx_view,
+            &self.mx_projection,
+            &sprite.color,
+            &viewport,
+        );
+    }
+
+    // FIXME: 缺一个texture参数
+    pub fn draw_sprites_in_world_space(&mut self, transform2ds: Vec<Transform2D>, color: Color) {
+        todo!()
+    }
+
+    pub fn end_draw(&mut self) {
+        if self.frame.is_some() {
+            self.frame.take();
+        } else {
+            panic!("ERR: Drawing has ended already.")
+        }
+    }
+
+    // return (x, y, width, height, min_depth, max_depth)
+    fn calculate_adapted_viewport(&self) -> (f32, f32, f32, f32, f32, f32) {
+        let (screen_width, screen_height) = self.swap_chain_size();
+        let (screen_width, screen_height) = (screen_width as f32, screen_height as f32);
+
+        let aspect_ratio = self.aspect_ratio;
+        let screen_ratio = screen_width / screen_height;
+
+        if aspect_ratio <= screen_ratio {
+            let (x, y) = ((screen_width - aspect_ratio * screen_height) / 2.0, 0f32);
+            let (width, height) = (aspect_ratio * screen_height, screen_height);
+
+            (x, y, width, height, 0.0, 1.0)
+        } else {
+            let (x, y) = (0f32, (screen_height - screen_width / aspect_ratio) / 2.0);
+            let (width, height) = (screen_width, screen_width / aspect_ratio);
+
+            (x, y, width, height, 0.0, 1.0)
+        }
+    }
+}
+
+struct Gpu {
     surface: wgpu::Surface,
     adapter: wgpu::Adapter,
     device: wgpu::Device,
     queue: wgpu::Queue,
     swap_chain: wgpu::SwapChain,
-
-    // FIXME: temp value
-    frame: Option<wgpu::SwapChainFrame>,
-
-    // FIXME: temp value
     sc_desc: wgpu::SwapChainDescriptor,
-
-    // FIXME: temp value
-    aspect_ratio: f32,
 }
 
 impl Gpu {
-    pub(super) async fn new(window: &winit::window::Window) -> Self {
+    async fn new(window: &winit::window::Window) -> Self {
         let backend = wgpu::BackendBit::PRIMARY;
         let power_preference = wgpu::PowerPreference::HighPerformance;
 
@@ -80,6 +212,7 @@ impl Gpu {
             height: window.inner_size().height,
             present_mode: wgpu::PresentMode::Fifo,
         };
+
         let swap_chain = device.create_swap_chain(&surface, &sc_desc);
 
         Self {
@@ -88,56 +221,12 @@ impl Gpu {
             device,
             queue,
             swap_chain,
-
-            frame: None,
             sc_desc,
-            aspect_ratio: 16.0 / 9.0,
-        }
-    }
-
-    // FIXME: 移动到合适位置
-    pub(super) fn swap_chain_size(&self) -> (u32, u32) {
-        (self.sc_desc.width, self.sc_desc.height)
-    }
-
-    // FIXME: 移动到合适位置
-    pub(super) fn set_swap_chain_size(&mut self, (width, height): (u32, u32)) {
-        if self.sc_desc.width != width || self.sc_desc.height != height {
-            self.sc_desc.width = width;
-            self.sc_desc.height = height;
-
-            self.swap_chain = self.device.create_swap_chain(&self.surface, &self.sc_desc);
-        }
-    }
-
-    // FIXME: 移动到合适位置
-    pub(super) fn asepct_ratio(&self) -> f32 {
-        self.aspect_ratio
-    }
-
-    // FIXME: 移动到合适位置
-    pub(super) fn set_viewport_aspect_ratio(&mut self, aspect_ratio: f32) {
-        self.aspect_ratio = aspect_ratio
-    }
-
-    pub(super) fn begin_render(&mut self) {
-        if self.frame.is_none() {
-            self.frame = self.swap_chain.get_current_frame().ok();
-        } else {
-            panic!("Begin render already.");
-        }
-    }
-
-    pub(super) fn end_render(&mut self) {
-        if self.frame.is_some() {
-            self.frame.take();
-        } else {
-            panic!("End render already.");
         }
     }
 }
 
-pub(super) struct SpriteRenderer {
+struct SpriteRenderer {
     // To store four vertex data(quad)
     vertex_buf: wgpu::Buffer,
     // To store index data of quad
@@ -166,7 +255,7 @@ impl SpriteRenderer {
         2, 3, 0, // Face CDA
     ];
 
-    pub(super) fn new(
+    fn new(
         Gpu {
             surface,
             adapter,
@@ -274,20 +363,15 @@ impl SpriteRenderer {
         }
     }
 
-    pub(super) fn render(
+    fn render(
         &mut self,
-        Gpu {
-            device,
-            queue,
-            frame,
-            sc_desc,
-            aspect_ratio,
-            ..
-        }: &mut Gpu,
+        Gpu { device, queue, .. }: &mut Gpu,
+        frame: &wgpu::SwapChainFrame,
         mx_model: &na::Matrix4<f32>,
         mx_view: &na::Matrix4<f32>,
         mx_projection: &na::Matrix4<f32>,
-        color: Color,
+        color: &Color,
+        viewport: &(f32, f32, f32, f32, f32, f32),
     ) {
         queue.write_buffer(
             &self.uniform_buf,
@@ -303,7 +387,7 @@ impl SpriteRenderer {
             let mut rpass = encoder.begin_render_pass(&wgpu::RenderPassDescriptor {
                 label: Some("sprite render pass"),
                 color_attachments: &[wgpu::RenderPassColorAttachmentDescriptor {
-                    attachment: &(frame.as_ref().unwrap().output.view),
+                    attachment: &(frame.output.view),
                     resolve_target: None,
                     ops: wgpu::Operations {
                         load: wgpu::LoadOp::Load,
@@ -315,15 +399,13 @@ impl SpriteRenderer {
 
             rpass.push_debug_group("prepare render data");
 
-            let (x, y, width, height, min_depth, max_depth) =
-                Self::get_viewport(*aspect_ratio, sc_desc.width as f32, sc_desc.height as f32);
-            rpass.set_viewport(x, y, width, height, min_depth, max_depth);
+            rpass.set_viewport(
+                viewport.0, viewport.1, viewport.2, viewport.3, viewport.4, viewport.5,
+            );
 
             rpass.set_pipeline(&self.pipeline);
             rpass.set_vertex_buffer(0, self.vertex_buf.slice(..));
             rpass.set_index_buffer(self.index_buf.slice(..), wgpu::IndexFormat::Uint16);
-
-            // TODO: Change it
             rpass.set_bind_group(0, &self.bind_group, &[]);
 
             // NOTE: Set transformation matrix
@@ -350,111 +432,5 @@ impl SpriteRenderer {
         }
 
         queue.submit(Some(encoder.finish()));
-    }
-
-    pub(super) fn clear(
-        &mut self,
-        Gpu {
-            device,
-            queue,
-            frame,
-            ..
-        }: &mut Gpu,
-        clear_color: Color,
-    ) {
-        let [r, g, b, a] = clear_color.to_rgba_raw();
-
-        let mut encoder =
-            device.create_command_encoder(&wgpu::CommandEncoderDescriptor { label: None });
-
-        {
-            encoder.begin_render_pass(&wgpu::RenderPassDescriptor {
-                label: None,
-                color_attachments: &[wgpu::RenderPassColorAttachmentDescriptor {
-                    attachment: &(frame.as_ref().unwrap().output.view),
-                    resolve_target: None,
-                    ops: wgpu::Operations {
-                        load: wgpu::LoadOp::Clear(wgpu::Color {
-                            r: r as f64,
-                            g: g as f64,
-                            b: b as f64,
-                            a: a as f64,
-                        }),
-                        store: true,
-                    },
-                }],
-                depth_stencil_attachment: None,
-            });
-        }
-
-        queue.submit(Some(encoder.finish()));
-    }
-
-    fn get_viewport(
-        aspect_ratio: f32,
-        screen_width: f32,
-        screen_height: f32,
-    ) -> (f32, f32, f32, f32, f32, f32) {
-        let screen_ratio = screen_width / screen_height;
-
-        if aspect_ratio <= screen_ratio {
-            let (x, y) = ((screen_width - aspect_ratio * screen_height) / 2.0, 0f32);
-            let (width, height) = (aspect_ratio * screen_height, screen_height);
-
-            (x, y, width, height, 0.0, 1.0)
-        } else {
-            let (x, y) = (0f32, (screen_height - screen_width / aspect_ratio) / 2.0);
-            let (width, height) = (screen_width, screen_width / aspect_ratio);
-
-            (x, y, width, height, 0.0, 1.0)
-        }
-    }
-
-    // NOTE: 直接渲染API的功能分割
-    // 1. view + projection需要一个公共的存储区域
-    // 2. 其中一个参数是model transformation, 决定sprite应该画在哪里, 怎么画
-    // 3. viewport也应该有个公共区域
-    pub(super) fn draw(&mut self) {}
-}
-
-// TODO: 在mod中, RenderService应该实例化, 但不应该放入Resources中
-// NOTE: 得像一个优秀的方案, AppStage中应该有位置存放数据, 但不暴露到Resources中
-pub struct Render2DService {}
-
-// TODO: 将renderer部分的代码变得优雅, 使用命令式进行渲染任务
-impl Render2DService {
-    pub fn view_transformation() -> na::Matrix4<f32> {
-        todo!()
-    }
-    
-    pub fn set_view_transformation(matrix: na::Matrix4<f32>) {
-        todo!()
-    }
-
-    pub fn projection() -> na::Matrix4<f32> {
-        todo!()
-    }
-
-    pub fn set_projection(matrix: na::Matrix4<f32>) {
-
-    }
-
-    pub fn aspect_ratio() -> f32 {
-        todo!()
-    }
-
-    // NOTE: 注意参数的正负性
-    pub fn set_aspect_ratio(aspect_ratio: f32) {
-        todo!()
-    }
-
-    // FIXME: 缺一个texture参数
-    pub fn draw_sprite_in_world_space(model_transformation: na::Matrix4<f32>, color: Color) {
-        todo!()
-    }
-
-    // FIXME: 缺一个texture参数
-    pub fn draw_sprite_in_screen_space(x: f32, y: f32, width: f32, height:f32, color: Color) {
-        todo!()
     }
 }

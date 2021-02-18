@@ -1,5 +1,8 @@
 extern crate nalgebra as na;
 
+/// Transformation from local space to world space.
+///
+/// Position, rotation and scale of an entity in world space.
 pub struct Transform2D {
     pub position: na::Vector2<f32>,
     pub angle: f32,

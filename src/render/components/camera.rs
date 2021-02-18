@@ -1,41 +1,40 @@
 extern crate nalgebra as na;
 
 pub struct Camera2D {
-    orth: na::Orthographic3<f32>,
+    pub width: u32,
+    pub height: u32,
 }
 
 impl Camera2D {
-    pub fn new(width: f32, height: f32) -> Self {
-        Self {
-            orth: na::Orthographic3::<f32>::new(
-                -width / 2.0,
-                width / 2.0,
-                -height / 2.0,
-                height / 2.0,
-                0.0,
-                -10.0,
-            ),
-        }
-    }
-
-    pub fn size(&self) -> (f32, f32) {
-        (self.orth.left().abs() * 2.0, self.orth.top().abs() * 2.0)
+    pub fn new(width: u32, height: u32) -> Self {
+        Self { width, height }
     }
 
     pub fn aspect_ratio(&self) -> f32 {
-        let (width, height) = self.size();
-        width / height
+        self.width as f32 / self.height as f32
     }
 
-    pub fn to_homogeneous(&self) -> na::Matrix4<f32> {
-        self.orth.to_homogeneous()
+    pub fn to_orthographic(&self) -> na::Orthographic3<f32> {
+        let half_wdith = self.width as f32 / 2.0;
+        let half_height = self.height as f32 / 2.0;
+
+        na::Orthographic3::new(
+            -half_wdith,
+            half_wdith,
+            -half_height,
+            half_height,
+            0.0,
+            10.0,
+        )
+    }
+
+    pub fn to_orthographic_homogeneous(&self) -> na::Matrix4<f32> {
+        self.to_orthographic().to_homogeneous()
     }
 }
 
 impl Default for Camera2D {
     fn default() -> Self {
-        Self {
-            orth: na::Orthographic3::new(-512.0, 512.0, -384.0, 384.0, 0.0, -10.0),
-        }
+        Self::new(1024, 720)
     }
 }

@@ -1,11 +1,6 @@
 // FIXME: temp
 extern crate nalgebra as na;
 
-use legion::{query::*, Resources, World};
-use yamengine::app::*;
-use yamengine::input::*;
-use yamengine::misc::*;
-use yamengine::render::components::*;
 use yamengine::*;
 
 fn main() -> Result<(), AppBuildError> {
@@ -34,7 +29,7 @@ fn parallel_destroy() {
 }
 
 #[system(for_each)]
-#[filter(component::<Marker>())]
+#[filter(component::<Sprite>())]
 fn operate_sprite(transform: &mut Transform2D, #[resource] time: &Time, #[resource] input: &Input) {
     const SPEED: f32 = 160.0;
     const RSPEED: f32 = 3.14;
@@ -69,7 +64,7 @@ fn operate_camera(transform: &mut Transform2D, #[resource] input: &Input) {
 fn init_entities(world: &mut World, _resources: &mut Resources) {
     // scale sprite size to 32
     world.push((
-        Transform2D::new(0.0, 0.0, 0.0, 2560.0, 2560.0),
+        Transform2D::new(0.0, 0.0, 0.0, 25.0, 25.0),
         Sprite { color: Color::RED },
     ));
     world.push((
@@ -79,7 +74,7 @@ fn init_entities(world: &mut World, _resources: &mut Resources) {
         },
         Marker {},
     ));
-    world.push((Transform2D::default(), Camera2D::new(1920f32, 1080f32)));
+    world.push((Transform2D::default(), Camera2D::new(1920, 1080)));
 }
 
 struct Marker;

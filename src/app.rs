@@ -37,10 +37,16 @@ impl App {
     ///
     /// Panics if the ownership of `AppSettings` moved to outer
     pub fn run(self) {
+        let event_loop = EventLoop::new();
+        let window = WindowBuilder::new()
+            .with_title("default")
+            .build(&event_loop)
+            .unwrap();
+
         let busy_stages = Rc::new(RefCell::new(self.busy_stages));
 
         // FIXME: add render app_stage to busy_stages temporarily
-        busy_stages.borrow_mut().push(create_app_stage_render());
+        busy_stages.borrow_mut().push(create_app_stage_render(&window));
 
         fn apply_and_ask_quit(resources: &mut Resources) -> bool {
             resources.get_mut::<AppSettings>().unwrap().apply()
@@ -49,16 +55,9 @@ impl App {
         let mut world = World::default();
         let mut resources = Resources::default();
 
-        let event_loop = EventLoop::new();
-
         resources.insert::<Input>(Input::new());
         resources.insert::<AppSettings>(AppSettings::new(&busy_stages));
-        resources.insert::<Window>(Window::new(
-            WindowBuilder::new()
-                .with_title("default")
-                .build(&event_loop)
-                .unwrap(),
-        ));
+        resources.insert::<Window>(Window::new(window));
 
         let mut input_evts: Vec<Event<'static, ()>> = Default::default();
 
