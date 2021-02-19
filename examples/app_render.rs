@@ -47,7 +47,7 @@ fn operate_sprite(transform: &mut Transform2D, #[resource] time: &Time, #[resour
     }
 
     if input.keyboard.pressed(KeyCode::Space) {
-        transform.angle += RSPEED * time.delta().as_secs_f32();
+        transform.rotate(RSPEED * time.delta().as_secs_f32());
     }
 }
 
@@ -59,6 +59,9 @@ fn operate_camera(transform: &mut Transform2D, #[resource] input: &Input) {
 
         transform.position += na::Vector2::<f32>::new(dx, -dy);
     }
+
+    let (_, motion) = input.mouse.mouse_wheel_motion();
+    transform.scale += na::Vector2::new(motion, motion);
 }
 
 fn init_entities(world: &mut World, _resources: &mut Resources) {
@@ -68,13 +71,25 @@ fn init_entities(world: &mut World, _resources: &mut Resources) {
         Sprite { color: Color::RED },
     ));
     world.push((
-        Transform2D::new(64.0, 0.0, 0.5, 32.0, 32.0),
+        Transform2D::new(0.0, 0.0, 0.5, 32.0, 32.0),
         Sprite {
             color: Color::GREEN,
         },
         Marker {},
     ));
     world.push((Transform2D::default(), Camera2D::new(1920, 1080)));
+
+    let mut transform2ds = Vec::<Transform2D>::with_capacity(10000);
+
+    for x in 0..100 {
+        for y in 0..100 {
+            let (tx, ty) = (64.0 * x as f32, 64.0 * y as f32);
+
+            transform2ds.push(Transform2D::new(tx, ty, 0.0, 32.0, 32.0));
+        }
+    }
+
+    world.push((transform2ds, Sprite {color: Color::BLUE}));
 }
 
 struct Marker;

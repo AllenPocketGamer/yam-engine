@@ -9,7 +9,7 @@ use crate::*;
 use renderer::Render2DService;
 
 pub(crate) fn create_app_stage_render(window: &winit::window::Window) -> AppStage {
-    let mut render2d_service = Render2DService::new(window);
+    let mut r2ds = Render2DService::new(window);
 
     let render_process = move |world: &mut World, resources: &mut Resources| {
         let (width, height) = {
@@ -21,22 +21,27 @@ pub(crate) fn create_app_stage_render(window: &winit::window::Window) -> AppStag
 
         let mut query_camera2d = <(&Transform2D, &Camera2D)>::query();
         let mut query_sprites = <(&Transform2D, &Sprite)>::query();
+        let mut query_sprites_instanced = <(&Vec<Transform2D>, &Sprite)>::query();
 
-        render2d_service.set_swap_chain_size(width, height);
+        r2ds.set_swap_chain_size(width, height);
 
         if let Some((transform2d, camera2d)) = query_camera2d.iter(world).next() {
-            render2d_service.set_view_transformation(transform2d);
-            render2d_service.set_projection(camera2d);
-            render2d_service.set_viewport_aspect_ratio(camera2d.aspect_ratio());
+            r2ds.set_view_transformation(transform2d);
+            r2ds.set_projection(camera2d);
+            r2ds.set_viewport_aspect_ratio(camera2d.aspect_ratio());
         }
 
-        render2d_service.begin_draw();
+        r2ds.begin_draw();
 
         for (transform2d, sprite) in query_sprites.iter(world) {
-            render2d_service.draw_sprite_in_world_space(transform2d, sprite);
+            r2ds.draw_sprite_in_world_space(transform2d, sprite);
         }
 
-        render2d_service.end_draw();
+        for (transform2ds, sprite) in query_sprites_instanced.iter(world) {
+            r2ds.draw_sprites_in_world_space(&transform2ds[..], sprite);
+        }
+
+        r2ds.end_draw();
     };
 
     AppStageBuilder::new(String::from("default_render"))

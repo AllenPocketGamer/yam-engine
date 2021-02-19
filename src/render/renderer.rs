@@ -1,7 +1,7 @@
 extern crate nalgebra as na;
 
 use super::components::{Camera2D, Transform2D};
-use crate::{Sprite, misc::Color};
+use crate::{misc::Color, Sprite};
 
 use wgpu::util::DeviceExt;
 
@@ -9,9 +9,7 @@ pub struct Render2DService {
     gpu: Gpu,
     sprite_renderer: SpriteRenderer,
 
-    frame: Option<wgpu::SwapChainFrame>,
     aspect_ratio: f32,
-
     mx_view: na::Matrix4<f32>,
     mx_projection: na::Matrix4<f32>,
 }
@@ -28,9 +26,7 @@ impl Render2DService {
             gpu,
             sprite_renderer,
 
-            frame: None,
             aspect_ratio: default_camera2d.aspect_ratio(),
-
             mx_view: default_camera2d_transform2d
                 .to_homogeneous_3d()
                 .try_inverse()
@@ -84,9 +80,9 @@ impl Render2DService {
     }
 
     pub fn begin_draw(&mut self) {
-        if self.frame.is_none() {
+        if self.gpu.frame.is_none() {
             match self.gpu.swap_chain.get_current_frame() {
-                Ok(sw_frame) => self.frame = Some(sw_frame),
+                Ok(sw_frame) => self.gpu.frame = Some(sw_frame),
                 Err(err) => panic!("ERR: {}", err),
             }
         } else {
@@ -96,24 +92,30 @@ impl Render2DService {
 
     pub fn draw_sprite_in_world_space(&mut self, transform2d: &Transform2D, sprite: &Sprite) {
         let viewport = self.calculate_adapted_viewport();
-        let mx_model = transform2d.to_homogeneous_3d();
 
         self.sprite_renderer.render(
             &mut self.gpu,
-            self.frame.as_ref().unwrap(),
-            &mx_model,
+            std::slice::from_ref(transform2d),
+            &sprite.color,
             &self.mx_view,
             &self.mx_projection,
-            &sprite.color,
             &viewport,
         );
     }
 
-    // TODO: try to implement it
-    #[allow(dead_code)]
-    #[allow(unused_variables)]
-    pub fn draw_sprites_in_world_space(&mut self, transform2ds: Vec<Transform2D>, sprite: &Sprite) {
-        todo!()
+    pub fn draw_sprites_in_world_space(&mut self, transform2ds: &[Transform2D], sprite: &Sprite) {
+        let viewport = self.calculate_adapted_viewport();
+
+        for chunk in transform2ds.chunks(SpriteRenderer::INSTANCE_MAX_COUNT) {
+            self.sprite_renderer.render(
+                &mut self.gpu,
+                chunk,
+                &sprite.color,
+                &self.mx_view,
+                &self.mx_projection,
+                &viewport,
+            );
+        }
     }
 
     #[allow(dead_code)]
@@ -129,7 +131,7 @@ impl Render2DService {
             encoder.begin_render_pass(&wgpu::RenderPassDescriptor {
                 label: None,
                 color_attachments: &[wgpu::RenderPassColorAttachmentDescriptor {
-                    attachment: &(self.frame.as_ref().unwrap().output.view),
+                    attachment: &(self.gpu.frame.as_ref().unwrap().output.view),
                     resolve_target: None,
                     ops: wgpu::Operations {
                         load: wgpu::LoadOp::Clear(wgpu::Color {
@@ -149,8 +151,8 @@ impl Render2DService {
     }
 
     pub fn end_draw(&mut self) {
-        if self.frame.is_some() {
-            self.frame.take();
+        if self.gpu.frame.is_some() {
+            self.gpu.frame.take();
         } else {
             panic!("ERR: Drawing has ended already.")
         }
@@ -185,6 +187,7 @@ struct Gpu {
     queue: wgpu::Queue,
     swap_chain: wgpu::SwapChain,
     sc_desc: wgpu::SwapChainDescriptor,
+    frame: Option<wgpu::SwapChainFrame>,
 }
 
 impl Gpu {
@@ -255,6 +258,7 @@ impl Gpu {
             queue,
             swap_chain,
             sc_desc,
+            frame: None,
         }
     }
 }
@@ -264,6 +268,8 @@ struct SpriteRenderer {
     vertex_buf: wgpu::Buffer,
     // To store index data of quad
     index_buf: wgpu::Buffer,
+    // To store model transformation matrices
+    instance_buf: wgpu::Buffer,
     // To store color data
     uniform_buf: wgpu::Buffer,
 
@@ -273,6 +279,8 @@ struct SpriteRenderer {
 }
 
 impl SpriteRenderer {
+    const INSTANCE_MAX_COUNT: usize = 1000_000;
+
     // Quad vertex in world coordinate
     #[allow(dead_code)]
     const QUAD_VERTEX: [f32; 16] = [
@@ -310,6 +318,14 @@ impl SpriteRenderer {
             usage: wgpu::BufferUsage::INDEX,
         });
 
+        // TODO: create instance buffer
+        let instance_buf = device.create_buffer(&wgpu::BufferDescriptor {
+            label: Some("model transformation matrices"),
+            size: (24 * Self::INSTANCE_MAX_COUNT) as wgpu::BufferAddress,
+            usage: wgpu::BufferUsage::VERTEX | wgpu::BufferUsage::COPY_DST,
+            mapped_at_creation: false,
+        });
+
         let uniform_buf = device.create_buffer_init(&wgpu::util::BufferInitDescriptor {
             label: Some("color"),
             contents: bytemuck::cast_slice(&Color::WHITE.to_rgba_raw()[..]),
@@ -344,7 +360,7 @@ impl SpriteRenderer {
             bind_group_layouts: &[&bind_group_layout],
             push_constant_ranges: &[wgpu::PushConstantRange {
                 stages: wgpu::ShaderStage::VERTEX,
-                range: 0..3 * 4 * 16,
+                range: 0..2 * 4 * 16,
             }],
         });
 
@@ -366,11 +382,18 @@ impl SpriteRenderer {
             vertex: wgpu::VertexState {
                 module: &vert_shader,
                 entry_point: "main",
-                buffers: &[wgpu::VertexBufferLayout {
-                    array_stride: vertex_size,
-                    step_mode: wgpu::InputStepMode::Vertex,
-                    attributes: &wgpu::vertex_attr_array![0 => Float4],
-                }],
+                buffers: &[
+                    wgpu::VertexBufferLayout {
+                        array_stride: 3 * 8,
+                        step_mode: wgpu::InputStepMode::Instance,
+                        attributes: &wgpu::vertex_attr_array![0 => Float2, 1 => Float2, 2 => Float2],
+                    },
+                    wgpu::VertexBufferLayout {
+                        array_stride: vertex_size,
+                        step_mode: wgpu::InputStepMode::Vertex,
+                        attributes: &wgpu::vertex_attr_array![3 => Float4],
+                    },
+                ],
             },
             fragment: Some(wgpu::FragmentState {
                 module: &frag_shader,
@@ -390,22 +413,41 @@ impl SpriteRenderer {
             vertex_buf,
             index_buf,
             uniform_buf,
+            instance_buf,
 
             bind_group,
             pipeline,
         }
     }
 
+    /// Only support 1000_000 transform2d once call.
     fn render(
         &mut self,
-        Gpu { device, queue, .. }: &mut Gpu,
-        frame: &wgpu::SwapChainFrame,
-        mx_model: &na::Matrix4<f32>,
+        Gpu {
+            device,
+            queue,
+            frame,
+            ..
+        }: &mut Gpu,
+        transform2ds: &[Transform2D],
+        color: &Color,
         mx_view: &na::Matrix4<f32>,
         mx_projection: &na::Matrix4<f32>,
-        color: &Color,
         viewport: &(f32, f32, f32, f32, f32, f32),
     ) {
+        let frame = frame
+            .as_ref()
+            .expect("ERR: Not call begin_draw on Render2DService.");
+
+        // Write transform2ds(up to 1000_000) to instance in vertex.
+        let instance_count = std::cmp::min(transform2ds.len(), Self::INSTANCE_MAX_COUNT);
+        queue.write_buffer(
+            &self.instance_buf,
+            0,
+            bytemuck::cast_slice(&transform2ds[0..instance_count]),
+        );
+
+        // Write color to uniform in fragment.
         queue.write_buffer(
             &self.uniform_buf,
             0,
@@ -437,31 +479,27 @@ impl SpriteRenderer {
             );
 
             rpass.set_pipeline(&self.pipeline);
-            rpass.set_vertex_buffer(0, self.vertex_buf.slice(..));
+            rpass.set_vertex_buffer(0, self.instance_buf.slice(..));
+            rpass.set_vertex_buffer(1, self.vertex_buf.slice(..));
             rpass.set_index_buffer(self.index_buf.slice(..), wgpu::IndexFormat::Uint16);
             rpass.set_bind_group(0, &self.bind_group, &[]);
 
-            // Set transformation matrix
+            // Set view transformation matrix + projection matrix
             rpass.set_push_constants(
                 wgpu::ShaderStage::VERTEX,
                 0,
-                bytemuck::cast_slice(mx_model.as_slice()),
-            );
-            rpass.set_push_constants(
-                wgpu::ShaderStage::VERTEX,
-                4 * 16,
                 bytemuck::cast_slice(mx_view.as_slice()),
             );
             rpass.set_push_constants(
                 wgpu::ShaderStage::VERTEX,
-                4 * 16 + 4 * 16,
+                4 * 16,
                 bytemuck::cast_slice(mx_projection.as_slice()),
             );
 
             rpass.pop_debug_group();
 
             rpass.insert_debug_marker("draw");
-            rpass.draw_indexed(0..6, 0, 0..1);
+            rpass.draw_indexed(0..6, 0, 0..instance_count as u32);
         }
 
         queue.submit(Some(encoder.finish()));
