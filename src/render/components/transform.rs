@@ -6,8 +6,7 @@ extern crate nalgebra as na;
 #[derive(Debug, Clone, Copy)]
 pub struct Transform2D {
     pub position: na::Vector2<f32>,
-    pub complex: na::UnitComplex<f32>,
-    // TODO: To prevent components to zero
+    pub rotation: na::UnitComplex<f32>,
     pub scale: na::Vector2<f32>,
 }
 
@@ -15,7 +14,7 @@ impl Transform2D {
     pub fn new(tx: f32, ty: f32, angle: f32, sx: f32, sy: f32) -> Self {
         Self {
             position: na::Vector2::new(tx, ty),
-            complex: na::UnitComplex::new(angle),
+            rotation: na::UnitComplex::new(angle),
             scale: na::Vector2::new(sx, sy),
         }
     }
@@ -23,7 +22,7 @@ impl Transform2D {
     pub fn new_with_translation(tx: f32, ty: f32) -> Self {
         Self {
             position: na::Vector2::new(tx, ty),
-            complex: na::UnitComplex::new(0.0),
+            rotation: na::UnitComplex::new(0.0),
             scale: na::Vector2::new(1.0, 1.0),
         }
     }
@@ -31,7 +30,7 @@ impl Transform2D {
     pub fn new_with_rotation(angle: f32) -> Self {
         Self {
             position: na::Vector2::new(0.0, 0.0),
-            complex: na::UnitComplex::new(angle),
+            rotation: na::UnitComplex::new(angle),
             scale: na::Vector2::new(1.0, 1.0),
         }
     }
@@ -39,21 +38,31 @@ impl Transform2D {
     pub fn new_with_scale(sx: f32, sy: f32) -> Self {
         Self {
             position: na::Vector2::new(0.0, 0.0),
-            complex: na::UnitComplex::new(0.0),
+            rotation: na::UnitComplex::new(0.0),
             scale: na::Vector2::new(sx, sy),
         }
     }
 
     pub fn angle(&self) -> f32 {
-        self.complex.angle()
+        self.rotation.angle()
     }
 
     pub fn set_angle(&mut self, angle: f32) {
-        self.complex = na::UnitComplex::new(angle);
+        self.rotation = na::UnitComplex::new(angle);
     }
 
     pub fn rotate(&mut self, delta_angle: f32) {
-        self.set_angle(self.angle() + delta_angle);
+        self.rotation *= na::UnitComplex::new(delta_angle);
+    }
+
+    pub fn heading(&self) -> na::Vector2<f32> {
+        na::Vector2::new(self.rotation.re, self.rotation.im)
+    }
+
+    pub fn set_heading(&mut self, heading: &na::Vector2<f32>) {
+        let heading = heading.normalize();
+
+        self.rotation = na::UnitComplex::from_cos_sin_unchecked(heading.x, heading.y);
     }
 
     pub fn to_homogeneous(&self) -> na::Matrix3<f32> {
@@ -62,7 +71,7 @@ impl Transform2D {
             Self::normal_or_min(self.scale.y),
         );
 
-        self.complex
+        self.rotation
             .to_homogeneous()
             .prepend_nonuniform_scaling(&scale)
             .append_translation(&self.position)
@@ -75,7 +84,7 @@ impl Transform2D {
             1.0,
         );
 
-        na::UnitQuaternion::new(na::Vector3::new(0.0, 0.0, self.complex.angle()))
+        na::UnitQuaternion::new(na::Vector3::new(0.0, 0.0, self.rotation.angle()))
             .to_homogeneous()
             .prepend_nonuniform_scaling(&scale)
             .append_translation(&na::Vector3::new(self.position.x, self.position.y, 0.0))

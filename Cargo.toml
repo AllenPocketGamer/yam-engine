@@ -18,6 +18,8 @@ bytemuck = { version = "1.4", features = ["derive"] }
 
 [dev-dependencies]
 approx = "0.4"
+rand = "0.8.*"
+rayon = "1.5.*"
 
 [build-dependencies]
 anyhow = "1.*"

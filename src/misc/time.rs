@@ -185,6 +185,10 @@ impl Time {
         self.delta
     }
 
+    pub fn fps(&self) -> u32 {
+        (1.0 / self.delta.as_secs_f32()).floor() as u32
+    }
+
     pub fn tick_count(&self) -> u32 {
         self.tick_count
     }
