@@ -1,4 +1,3 @@
-// FIXME: temp
 extern crate nalgebra as na;
 
 use yamengine::*;
@@ -8,7 +7,7 @@ fn main() -> Result<(), AppBuildError> {
         .create_stage_builder(String::from("default"))?
         .add_thread_local_fn_startup(init_entities)
         .add_thread_local_system_process(operate_camera_system())
-        .add_thread_local_system_process(steering_sprites_system())
+        .add_thread_local_system_process(steering_sprites_system(PulseTimer::new(4)))
         .into_app_builder()
         .build()
         .run();
@@ -35,6 +34,7 @@ fn operate_camera(transform: &mut Transform2D, #[resource] input: &Input) {
 #[system(for_each)]
 #[filter(component::<Sprite>())]
 fn steering_sprites(
+    #[state] pulse_timer: &mut PulseTimer,
     transform2ds: &mut Vec<Transform2D>,
     steerings: &mut Vec<Steering>,
     #[resource] time: &Time,
@@ -44,15 +44,23 @@ fn steering_sprites(
     const RADIUS: f32 = 8.0;
     const DISTANCE: f32 = 4.0;
 
+    if pulse_timer.update() {
+        transform2ds
+            .par_iter_mut()
+            .zip(steerings.par_iter_mut())
+            .for_each(|(transform2d, steering)| {
+                steering.apply_force(&steering.wander(transform2d, RADIUS, DISTANCE));
+            })
+    }
+
+    let delta = time.delta().as_secs_f32();
+
     transform2ds
         .par_iter_mut()
         .zip(steerings.par_iter_mut())
         .for_each(|(transform2d, steering)| {
-            let extra_force: na::Vector2<f32> = steering.wander(transform2d, RADIUS, DISTANCE);
-            steering.motion(transform2d, &extra_force, time.delta().as_secs_f32());
+            steering.motion(transform2d, delta);
         });
-    
-    println!("FPS: {}", time.fps());
 }
 
 fn init_entities(world: &mut World, _resources: &mut Resources) {
@@ -79,6 +87,7 @@ fn init_entities(world: &mut World, _resources: &mut Resources) {
 #[allow(dead_code)]
 struct Steering {
     velocity: na::Vector2<f32>,
+    force: na::Vector2<f32>,
 }
 
 impl Steering {
@@ -92,11 +101,8 @@ impl Steering {
     pub fn new(x: f32, y: f32) -> Self {
         Self {
             velocity: na::Vector2::new(x, y),
+            force: na::Vector2::new(0.0, 0.0),
         }
-    }
-
-    pub fn speed(&self) -> f32 {
-        self.velocity.norm()
     }
 
     #[allow(dead_code)]
@@ -127,21 +133,17 @@ impl Steering {
         desired_velocity - self.velocity
     }
 
-    pub fn motion(
-        &mut self,
-        transform2d: &mut Transform2D,
-        extra_force: &na::Vector2<f32>,
-        delta: f32,
-    ) {
-        let extra_force: na::Vector2<f32> =
-            extra_force.normalize() * Self::MAX_FORCE.min(extra_force.norm());
+    pub fn apply_force(&mut self, force: &na::Vector2<f32>) {
+        self.force = force.normalize() * Self::MAX_FORCE.min(force.norm());
+    }
 
-        self.velocity += extra_force * delta;
+    pub fn motion(&mut self, transform2d: &mut Transform2D, delta: f32) {
+        self.velocity += self.force * delta;
         self.velocity = self.velocity.normalize() * Self::MAX_SPEED.min(self.velocity.norm());
 
         transform2d.position += self.velocity * delta;
 
-        if self.speed() > Self::THREHOLD {
+        if self.velocity.norm() > Self::THREHOLD {
             transform2d.set_heading(&self.velocity.normalize());
         }
     }

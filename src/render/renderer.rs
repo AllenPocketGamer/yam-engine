@@ -5,6 +5,8 @@ use crate::{misc::Color, Sprite};
 
 use wgpu::util::DeviceExt;
 
+use std::mem::size_of;
+
 pub struct Render2DService {
     gpu: Gpu,
     sprite_renderer: SpriteRenderer,
@@ -276,6 +278,9 @@ struct SpriteRenderer {
     // A group cotains uniform_buf, texture and sampler
     bind_group: wgpu::BindGroup,
     pipeline: wgpu::RenderPipeline,
+
+    // Belt transfer data from cpu to gpu
+    staging_belt: wgpu::util::StagingBelt,
 }
 
 impl SpriteRenderer {
@@ -318,10 +323,9 @@ impl SpriteRenderer {
             usage: wgpu::BufferUsage::INDEX,
         });
 
-        // TODO: create instance buffer
         let instance_buf = device.create_buffer(&wgpu::BufferDescriptor {
             label: Some("model transformation matrices"),
-            size: (24 * Self::INSTANCE_MAX_COUNT) as wgpu::BufferAddress,
+            size: (size_of::<Transform2D>() * Self::INSTANCE_MAX_COUNT) as wgpu::BufferAddress,
             usage: wgpu::BufferUsage::VERTEX | wgpu::BufferUsage::COPY_DST,
             mapped_at_creation: false,
         });
@@ -417,6 +421,10 @@ impl SpriteRenderer {
 
             bind_group,
             pipeline,
+
+            staging_belt: wgpu::util::StagingBelt::new(
+                (size_of::<Transform2D>() * Self::INSTANCE_MAX_COUNT / 1) as wgpu::BufferAddress,
+            ),
         }
     }
 
@@ -439,13 +447,27 @@ impl SpriteRenderer {
             .as_ref()
             .expect("ERR: Not call begin_draw on Render2DService.");
 
-        // Write transform2ds(up to 1000_000) to instance in vertex.
         let instance_count = std::cmp::min(transform2ds.len(), Self::INSTANCE_MAX_COUNT);
-        queue.write_buffer(
-            &self.instance_buf,
-            0,
-            bytemuck::cast_slice(&transform2ds[0..instance_count]),
-        );
+
+        let mut encoder = device.create_command_encoder(&wgpu::CommandEncoderDescriptor {
+            label: Some("sprite encoder"),
+        });
+
+        // Write transform2ds(up to 1000_000) to instance buffer to vertex.
+        self.staging_belt
+            .write_buffer(
+                &mut encoder,
+                &self.instance_buf,
+                0,
+                wgpu::BufferSize::new(
+                    (size_of::<Transform2D>() * instance_count) as wgpu::BufferAddress,
+                )
+                .unwrap(),
+                device,
+            )
+            .copy_from_slice(bytemuck::cast_slice(&transform2ds[0..instance_count]));
+        
+        self.staging_belt.finish();
 
         // Write color to uniform in fragment.
         queue.write_buffer(
@@ -453,10 +475,6 @@ impl SpriteRenderer {
             0,
             bytemuck::cast_slice(&color.to_rgba_raw()[..]),
         );
-
-        let mut encoder = device.create_command_encoder(&wgpu::CommandEncoderDescriptor {
-            label: Some("sprite encoder"),
-        });
 
         {
             let mut rpass = encoder.begin_render_pass(&wgpu::RenderPassDescriptor {
@@ -503,5 +521,10 @@ impl SpriteRenderer {
         }
 
         queue.submit(Some(encoder.finish()));
+
+        // TODO: Understand futures and async programming; optimize to the best performance.
+        let belt_future = self.staging_belt.recall();
+        device.poll(wgpu::Maintain::Wait);
+        futures::executor::block_on(belt_future);
     }
 }
