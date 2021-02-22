@@ -152,7 +152,7 @@ pub struct Time {
     delta: Duration,
 
     // Σ(delta_cur - delta_avg_cur)^2
-    delta_diff_pow_ms: u64,
+    delta_diff_pow_us: u64,
     // Σ(fps_cur - fps_avg)^2
     fps_diff_pow: u64,
     tick_count: u64,
@@ -167,7 +167,7 @@ impl Time {
             last_tick: now,
             delta: Default::default(),
 
-            delta_diff_pow_ms: Default::default(),
+            delta_diff_pow_us: Default::default(),
             fps_diff_pow: Default::default(),
             tick_count: Default::default(),
         }
@@ -180,10 +180,10 @@ impl Time {
         self.last_tick = now;
         self.tick_count += 1;
 
-        let delta_ms = self.delta.as_millis() as i64;
-        let delta_avg_ms = self.delta_avg().as_millis() as i64;
+        let delta_us = self.delta.as_micros() as i64;
+        let delta_avg_us = self.delta_avg().as_micros() as i64;
 
-        self.delta_diff_pow_ms += i64::pow(delta_ms - delta_avg_ms, 2) as u64;
+        self.delta_diff_pow_us += i64::pow(delta_us - delta_avg_us, 2) as u64;
 
         let fps = self.fps() as i64;
         let fps_avg = self.fps_avg() as i64;
@@ -212,52 +212,50 @@ impl Time {
 
     /// Variance of deltas.
     pub fn delta_variance(&self) -> Duration {
-        Duration::from_millis(self.delta_variance_millis())
+        Duration::from_micros(self.delta_variance_micros())
     }
 
     /// Standard deviation of deltas.
     pub fn delta_sd(&self) -> Duration {
-        // TODO: fix the precious problem(maybe to use integer sqrt root).
-        let delta_sd = f64::sqrt(self.delta_variance_millis() as f64);
+        let delta_sd = f64::sqrt(self.delta_variance_micros() as f64);
 
-        Duration::from_millis(delta_sd as u64)
+        Duration::from_micros(delta_sd as u64)
     }
 
-    pub fn fps(&self) -> u64 {
+    pub fn fps(&self) -> f32 {
         if self.tick_count > 0 {
-            (1.0 / self.delta.as_secs_f32()).floor() as u64
+            1.0 / self.delta.as_secs_f32()
         } else {
-            0
+            0.0
         }
     }
 
-    pub fn fps_avg(&self) -> u64 {
+    pub fn fps_avg(&self) -> f32 {
         if self.tick_count > 0 {
-            (1.0 / self.delta_avg().as_secs_f32()).floor() as u64
+            1.0 / self.delta_avg().as_secs_f32()
         } else {
-            0
+            0.0
         }
     }
 
-    // NOTE: estimate approximately now!
-    pub fn fps_variance(&self) -> u64 {
+    pub fn fps_variance(&self) -> f32 {
         let tick_count = std::cmp::max(1, self.tick_count);
 
-        self.fps_diff_pow / tick_count
+        (self.fps_diff_pow as f64 / tick_count as f64) as f32
     }
 
-    pub fn fps_sd(&self) -> u64 {
-        f64::sqrt(self.fps_variance() as f64).floor() as u64
+    pub fn fps_sd(&self) -> f32 {
+        f32::sqrt(self.fps_variance())
     }
 
     pub fn tick_count(&self) -> u64 {
         self.tick_count
     }
 
-    pub fn delta_variance_millis(&self) -> u64 {
+    pub fn delta_variance_micros(&self) -> u64 {
         let tick_count = std::cmp::max(1, self.tick_count);
 
-        self.delta_diff_pow_ms / tick_count
+        self.delta_diff_pow_us / tick_count
     }
 }
 
@@ -283,21 +281,21 @@ impl fmt::Debug for Time {
                 )
                 .blue(),
                 format!(
-                    "delta(var): {:>4.1}ms",
+                    "delta(var): {:>6.1}ms",
                     self.delta_variance().as_secs_f32() * 1000.0
                 )
                 .green(),
             ),
             fps_data = format_args!(
                 "{}, {}, {}, {}",
-                format!("fps: {:>3}", self.fps()).red(),
-                format!("fps(avg): {:>3}", self.fps_avg()).yellow(),
-                format!("fps(sd): {:>3}", self.fps_sd()).blue(),
-                format!("fps(var): {:>3}", self.fps_variance()).green(),
+                format!("fps: {:>4.1}", self.fps()).red(),
+                format!("fps(avg): {:>4.1}", self.fps_avg()).yellow(),
+                format!("fps(sd): {:>4.1}", self.fps_sd()).blue(),
+                format!("fps(var): {:>4.1}", self.fps_variance()).green(),
             ),
             debug_data = format_args!(
                 "{}, {}",
-                format!("delta_diff_pow: {:>8}ms", self.delta_diff_pow_ms).red(),
+                format!("delta_diff_pow: {:>8.1}ms", self.delta_diff_pow_us as f64 / 1000.0).red(),
                 format!("fps_diff_pow: {:>8}", self.fps_diff_pow).yellow(),
             ),
         )
@@ -349,12 +347,6 @@ mod tests {
 
     #[test]
     fn test_time() {
-        let mut time = Time::now();
-
-        for _ in 0..100 {
-            println!("{:?}", time);
-            std::thread::sleep(Duration::from_millis(10));
-            time.tick();
-        }
+        todo!()
     }
 }
