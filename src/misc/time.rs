@@ -3,6 +3,8 @@ use std::{
     time::{Duration, Instant},
 };
 
+use colored::Colorize;
+
 #[derive(Clone, Copy)]
 pub struct PulseTimer {
     target_ticks: u32,
@@ -210,11 +212,6 @@ impl Time {
         self.time() / (tick_count as u32)
     }
 
-    /// Variance of deltas.
-    pub fn delta_variance(&self) -> Duration {
-        Duration::from_micros(self.delta_variance_micros())
-    }
-
     /// Standard deviation of deltas.
     pub fn delta_sd(&self) -> Duration {
         let delta_sd = f64::sqrt(self.delta_variance_micros() as f64);
@@ -238,12 +235,6 @@ impl Time {
         }
     }
 
-    pub fn fps_variance(&self) -> f32 {
-        let tick_count = std::cmp::max(1, self.tick_count);
-
-        (self.fps_diff_pow as f64 / tick_count as f64) as f32
-    }
-
     pub fn fps_sd(&self) -> f32 {
         f32::sqrt(self.fps_variance())
     }
@@ -252,10 +243,16 @@ impl Time {
         self.tick_count
     }
 
-    pub fn delta_variance_micros(&self) -> u64 {
+    fn delta_variance_micros(&self) -> u64 {
         let tick_count = std::cmp::max(1, self.tick_count);
 
         self.delta_diff_pow_us / tick_count
+    }
+
+    fn fps_variance(&self) -> f32 {
+        let tick_count = std::cmp::max(1, self.tick_count);
+
+        (self.fps_diff_pow as f64 / tick_count as f64) as f32
     }
 }
 
@@ -282,7 +279,7 @@ impl fmt::Debug for Time {
                 .blue(),
                 format!(
                     "delta(var): {:>6.1}ms",
-                    self.delta_variance().as_secs_f32() * 1000.0
+                    self.delta_variance_micros() as f64 / 1000.0,
                 )
                 .green(),
             ),
@@ -295,7 +292,7 @@ impl fmt::Debug for Time {
             ),
             debug_data = format_args!(
                 "{}, {}",
-                format!("delta_diff_pow: {:>8.1}ms", self.delta_diff_pow_us as f64 / 1000.0).red(),
+                format!("delta_diff_pow: {:>8.1}", self.delta_diff_pow_us as f64).red(),
                 format!("fps_diff_pow: {:>8}", self.fps_diff_pow).yellow(),
             ),
         )
@@ -334,13 +331,196 @@ impl fmt::Display for Time {
     }
 }
 
+#[derive(Clone, Copy)]
+pub struct ProfileTimer {
+    begin_tick: Instant,
+    delta: Duration,
+    delta_avg: Duration,
+    delta_diff_pow_us: u64,
+    record_count: u64,
+
+    is_record: bool,
+}
+
+impl ProfileTimer {
+    pub fn now() -> Self {
+        Self {
+            begin_tick: Instant::now(),
+            delta: Default::default(),
+            delta_avg: Default::default(),
+            delta_diff_pow_us: Default::default(),
+            record_count: Default::default(),
+
+            is_record: false,
+        }
+    }
+
+    pub fn begin_record(&mut self) {
+        if !self.is_record {
+            self.begin_tick = Instant::now();
+            self.is_record = true;
+        } else {
+            panic!("Has started recording.");
+        }
+    }
+
+    pub fn finish_record(&mut self) {
+        if self.is_record {
+            let now = Instant::now();
+
+            self.delta = now - self.begin_tick;
+            self.delta_avg = (self.delta_avg * self.record_count as u32 + self.delta)
+                / (self.record_count as u32 + 1);
+            self.record_count += 1;
+
+            let delta_us = self.delta.as_micros() as i64;
+            let delta_avg_us = self.delta_avg.as_micros() as i64;
+
+            self.delta_diff_pow_us += i64::pow(delta_us - delta_avg_us, 2) as u64;
+
+            self.is_record = false;
+        } else {
+            panic!("Not begin recording.");
+        }
+    }
+
+    pub fn delta(&self) -> Duration {
+        self.delta
+    }
+
+    pub fn delta_avg(&self) -> Duration {
+        self.delta_avg
+    }
+
+    pub fn delta_sd(&self) -> Duration {
+        let delta_sd = f64::sqrt(self.delta_variance_micros() as f64);
+
+        Duration::from_micros(delta_sd as u64)
+    }
+
+    pub fn record_count(&self) -> u64 {
+        self.record_count
+    }
+
+    fn delta_variance_micros(&self) -> u64 {
+        let record_count = std::cmp::max(self.record_count, 1);
+
+        self.delta_diff_pow_us / record_count
+    }
+}
+
+impl Default for ProfileTimer {
+    fn default() -> Self {
+        Self::now()
+    }
+}
+
+impl fmt::Debug for ProfileTimer {
+    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+        write!(
+            f,
+            "{record_count} | {delta_data} | {debug_data}",
+            record_count = format_args!("record_count: {:<8}", self.record_count),
+            delta_data = format_args!(
+                "{} | {} | {} | {}",
+                format!("delta: {:>4.1}ms", self.delta.as_secs_f32() * 1000.0).red(),
+                format!(
+                    "delta(avg): {:>4.1}ms",
+                    self.delta_avg.as_secs_f32() * 1000.0
+                )
+                .yellow(),
+                format!(
+                    "delta(sd): {:>4.1}ms",
+                    self.delta_sd().as_secs_f32() * 1000.0
+                )
+                .blue(),
+                format!(
+                    "delta(var): {:>4.1}ms",
+                    self.delta_variance_micros() as f64 / 1000.0
+                )
+                .green(),
+            ),
+            debug_data = format!("delta_diff_pow: {:>8.1}", self.delta_diff_pow_us).red(),
+        )
+    }
+}
+
+impl fmt::Display for ProfileTimer {
+    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+        write!(
+            f,
+            "{record_count} | {delta_data}",
+            record_count = format_args!("record_count: {:<8}", self.record_count),
+            delta_data = format_args!(
+                "{} | {} | {}",
+                format!("delta: {:>4.1}ms", self.delta.as_secs_f32() * 1000.0).red(),
+                format!(
+                    "delta(avg): {:>4.1}ms",
+                    self.delta_avg.as_secs_f32() * 1000.0
+                )
+                .yellow(),
+                format!(
+                    "delta(sd): {:>4.1}ms",
+                    self.delta_sd().as_secs_f32() * 1000.0
+                )
+                .blue(),
+            ),
+        )
+    }
+}
+
 #[cfg(test)]
 mod tests {
-    use super::Time;
+    use super::*;
     use std::time::Duration;
 
     #[test]
-    fn test_time() {
-        todo!()
+    fn test_time_format() {
+        let mut time = Time::now();
+
+        println!("Debug Format: ");
+        for _ in 0..20 {
+            std::thread::spawn(move || {
+                println!("{:?}", time);
+            });
+            std::thread::sleep(Duration::from_millis(10));
+            time.tick();
+        }
+
+        println!("Display Format: ");
+        for _ in 0..20 {
+            std::thread::spawn(move || {
+                println!("{}", time);
+            });
+            std::thread::sleep(Duration::from_millis(10));
+            time.tick();
+        }
+    }
+
+    #[test]
+    fn test_profile_timer_format() {
+        let mut profile_timer = ProfileTimer::now();
+
+        println!("Debug Format: ");
+        for _ in 0..20 {
+            std::thread::spawn(move || {
+                println!("{:?}", profile_timer);
+            });
+
+            profile_timer.begin_record();
+            std::thread::sleep(Duration::from_millis(10));
+            profile_timer.finish_record();
+        }
+
+        println!("Display Format: ");
+        for _ in 0..20 {
+            std::thread::spawn(move || {
+                println!("{}", profile_timer);
+            });
+
+            profile_timer.begin_record();
+            std::thread::sleep(Duration::from_millis(10));
+            profile_timer.finish_record();
+        }
     }
 }
