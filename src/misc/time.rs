@@ -146,92 +146,78 @@ impl Default for TickTimer {
     }
 }
 
+/// The untility to get time information.
+///
+/// You CANNOT constrcutor or modify `Time`, it just only provide the time information about main-loop of engine to you.
+///
+/// If you want a time utility to diagnostic the time cost of a piece of code, then `ProfileTimer` may meets your needs.
 #[derive(Clone, Copy)]
 pub struct Time {
-    start_tick: Instant,
-    last_tick: Instant,
-    // to store interval between tick()
-    delta: Duration,
+    pt: ProfileTimer,
 
-    // Σ(delta_cur - delta_avg_cur)^2
-    delta_diff_pow_us: u64,
-    // Σ(fps_cur - fps_avg)^2
+    // Σ[(fps - fps_avg)^2]
     fps_diff_pow: u64,
-    tick_count: u64,
 }
 
 impl Time {
     pub(crate) fn now() -> Self {
-        let now = Instant::now();
-
         Self {
-            start_tick: now,
-            last_tick: now,
-            delta: Default::default(),
+            pt: Default::default(),
 
-            delta_diff_pow_us: Default::default(),
             fps_diff_pow: Default::default(),
-            tick_count: Default::default(),
         }
     }
 
+    pub(crate) fn begin_record(&mut self) {
+        self.pt.begin_record();
+    }
+
+    pub(crate) fn finish_record(&mut self) {
+        self.pt.finish_record();
+
+        self.fps_diff_pow += f32::powi(self.fps() - self.fps_avg(), 2) as u64;
+    }
+
     pub(crate) fn tick(&mut self) {
-        let now = Instant::now();
-
-        self.delta = now - self.last_tick;
-        self.last_tick = now;
-        self.tick_count += 1;
-
-        let delta_us = self.delta.as_micros() as i64;
-        let delta_avg_us = self.delta_avg().as_micros() as i64;
-
-        self.delta_diff_pow_us += i64::pow(delta_us - delta_avg_us, 2) as u64;
-
-        let fps = self.fps() as i64;
-        let fps_avg = self.fps_avg() as i64;
-
-        self.fps_diff_pow += i64::pow(fps - fps_avg, 2) as u64;
-    }
-
-    pub(crate) fn reset(&mut self) {
-        *self = Self::now();
-    }
-
-    pub fn time(&self) -> Duration {
-        self.last_tick - self.start_tick
+        self.finish_record();
+        self.begin_record();
     }
 
     pub fn delta(&self) -> Duration {
-        self.delta
+        self.pt.delta()
     }
 
     /// Average of deltas.
     pub fn delta_avg(&self) -> Duration {
-        let tick_count = std::cmp::max(1, self.tick_count);
-
-        self.time() / (tick_count as u32)
+        self.pt.delta_avg()
     }
 
     /// Standard deviation of deltas.
     pub fn delta_sd(&self) -> Duration {
-        let delta_sd = f64::sqrt(self.delta_variance_micros() as f64);
+        self.pt.delta_sd()
+    }
 
-        Duration::from_micros(delta_sd as u64)
+    pub fn record_count(&self) -> u64 {
+        self.pt.record_count()
     }
 
     pub fn fps(&self) -> f32 {
-        if self.tick_count > 0 {
-            1.0 / self.delta.as_secs_f32()
+        let is_zero = self.delta().as_micros() == 0;
+
+        if !is_zero {
+            1.0 / self.delta().as_secs_f32()
         } else {
-            0.0
+            f32::NAN
         }
     }
 
     pub fn fps_avg(&self) -> f32 {
-        if self.tick_count > 0 {
+        let is_zero = self.delta_avg().as_micros() == 0;
+
+        if !is_zero {
             1.0 / self.delta_avg().as_secs_f32()
         } else {
-            0.0
+            f32::NAN
         }
     }
 
@@ -239,18 +225,12 @@ impl Time {
         f32::sqrt(self.fps_variance())
     }
 
-    pub fn tick_count(&self) -> u64 {
-        self.tick_count
-    }
-
-    fn delta_variance_micros(&self) -> u64 {
-        let tick_count = std::cmp::max(1, self.tick_count);
-
-        self.delta_diff_pow_us / tick_count
+    pub fn time(&self) -> Duration {
+        self.delta_avg() * self.record_count() as u32
     }
 
     fn fps_variance(&self) -> f32 {
-        let tick_count = std::cmp::max(1, self.tick_count);
+        let tick_count = std::cmp::max(1, self.record_count());
 
         (self.fps_diff_pow as f64 / tick_count as f64) as f32
     }
@@ -262,27 +242,8 @@ impl fmt::Debug for Time {
 
         write!(
             f,
-            "{tick_count} | {delta_data} | {fps_data} | {debug_data}",
-            tick_count = format_args!("tick_count: {:<8}", self.tick_count),
-            delta_data = format_args!(
-                "{}, {}, {}, {}",
-                format!("delta: {:>4.1}ms", self.delta.as_secs_f32() * 1000.0).red(),
-                format!(
-                    "delta(avg): {:>4.1}ms",
-                    self.delta_avg().as_secs_f32() * 1000.0
-                )
-                .yellow(),
-                format!(
-                    "delta(sd): {:>4.1}ms",
-                    self.delta_sd().as_secs_f32() * 1000.0
-                )
-                .blue(),
-                format!(
-                    "delta(var): {:>6.1}ms",
-                    self.delta_variance_micros() as f64 / 1000.0,
-                )
-                .green(),
-            ),
+            "{pt_data} | {fps_data} | {debug_data}",
+            pt_data = format_args!("{:?}", self.pt),
             fps_data = format_args!(
                 "{}, {}, {}, {}",
                 format!("fps: {:>4.1}", self.fps()).red(),
@@ -290,11 +251,7 @@ impl fmt::Debug for Time {
                 format!("fps(sd): {:>4.1}", self.fps_sd()).blue(),
                 format!("fps(var): {:>4.1}", self.fps_variance()).green(),
             ),
-            debug_data = format_args!(
-                "{}, {}",
-                format!("delta_diff_pow: {:>8.1}", self.delta_diff_pow_us as f64).red(),
-                format!("fps_diff_pow: {:>8}", self.fps_diff_pow).yellow(),
-            ),
+            debug_data = format!("fps_diff_pow: {:>8}", self.fps_diff_pow),
         )
     }
 }
@@ -305,22 +262,8 @@ impl fmt::Display for Time {
 
         write!(
             f,
-            "{tick_count} | {delta_data} | {fps_data}",
-            tick_count = format_args!("tick_count: {:<8}", self.tick_count),
-            delta_data = format_args!(
-                "{}, {}, {}",
-                format!("delta: {:>4.1}ms", self.delta.as_secs_f32() * 1000.0).red(),
-                format!(
-                    "delta(avg): {:>4.1}ms",
-                    self.delta_avg().as_secs_f32() * 1000.0
-                )
-                .yellow(),
-                format!(
-                    "delta(sd): {:>4.1}ms",
-                    self.delta_sd().as_secs_f32() * 1000.0
-                )
-                .blue(),
-            ),
+            "{pt_data} | {fps_data}",
+            pt_data = format_args!("{}", self.pt),
             fps_data = format_args!(
                 "{}, {}, {}",
                 format!("fps: {:>4.1}", self.fps()).red(),
@@ -333,13 +276,15 @@ impl fmt::Display for Time {
 
 #[derive(Clone, Copy)]
 pub struct ProfileTimer {
+    is_record: bool,
     begin_tick: Instant,
-    delta: Duration,
-    delta_avg: Duration,
-    delta_diff_pow_us: u64,
     record_count: u64,
 
-    is_record: bool,
+    delta: Duration,
+    delta_avg: Duration,
+
+    // Σ[(delta - delta_avg)^2]
+    delta_diff_pow_us: u64,
 }
 
 impl ProfileTimer {
@@ -359,8 +304,6 @@ impl ProfileTimer {
         if !self.is_record {
             self.begin_tick = Instant::now();
             self.is_record = true;
-        } else {
-            panic!("Has started recording.");
         }
     }
 
@@ -379,8 +322,6 @@ impl ProfileTimer {
             self.delta_diff_pow_us += i64::pow(delta_us - delta_avg_us, 2) as u64;
 
             self.is_record = false;
-        } else {
-            panic!("Not begin recording.");
         }
     }
 
@@ -422,7 +363,7 @@ impl fmt::Debug for ProfileTimer {
             "{record_count} | {delta_data} | {debug_data}",
             record_count = format_args!("record_count: {:<8}", self.record_count),
             delta_data = format_args!(
-                "{} | {} | {} | {}",
+                "{}, {}, {}, {}",
                 format!("delta: {:>4.1}ms", self.delta.as_secs_f32() * 1000.0).red(),
                 format!(
                     "delta(avg): {:>4.1}ms",
@@ -435,12 +376,12 @@ impl fmt::Debug for ProfileTimer {
                 )
                 .blue(),
                 format!(
-                    "delta(var): {:>4.1}ms",
+                    "delta(var): {:>6.1}ms",
                     self.delta_variance_micros() as f64 / 1000.0
                 )
                 .green(),
             ),
-            debug_data = format!("delta_diff_pow: {:>8.1}", self.delta_diff_pow_us).red(),
+            debug_data = format!("delta_diff_pow: {:>8.1}", self.delta_diff_pow_us),
         )
     }
 }
@@ -452,7 +393,7 @@ impl fmt::Display for ProfileTimer {
             "{record_count} | {delta_data}",
             record_count = format_args!("record_count: {:<8}", self.record_count),
             delta_data = format_args!(
-                "{} | {} | {}",
+                "{}, {}, {}",
                 format!("delta: {:>4.1}ms", self.delta.as_secs_f32() * 1000.0).red(),
                 format!(
                     "delta(avg): {:>4.1}ms",
