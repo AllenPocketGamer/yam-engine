@@ -1,3 +1,5 @@
+#![allow(dead_code)]
+
 use std::{
     fmt,
     time::{Duration, Instant},
@@ -160,47 +162,61 @@ pub struct Time {
 }
 
 impl Time {
+    /// Create instance of `Time`.
     pub(crate) fn now() -> Self {
         Self {
-            pt: Default::default(),
+            pt: ProfileTimer::now(),
 
             fps_diff_pow: Default::default(),
         }
     }
 
+    /// Begin a time record, call `Self::finish_record()` when you want to finish record.
     pub(crate) fn begin_record(&mut self) {
         self.pt.begin_record();
     }
 
+    /// Finish a time record.
     pub(crate) fn finish_record(&mut self) {
         self.pt.finish_record();
 
         self.fps_diff_pow += f32::powi(self.fps() - self.fps_avg(), 2) as u64;
     }
 
+    /// Whether `Self::begin_record()` has been called.
+    pub(crate) fn is_recording(&self) -> bool {
+        self.pt.is_recording()
+    }
+
+    /// Finish a time record and begin a new time record.
+    /// 
+    /// Look like press the stopwatch.
     pub(crate) fn tick(&mut self) {
         self.finish_record();
         self.begin_record();
     }
 
+    /// The interval between `Self::begin_record()` and `Self::finish_record()`.
     pub fn delta(&self) -> Duration {
         self.pt.delta()
     }
 
-    /// Average of deltas.
+    /// The average of deltas recorded.
     pub fn delta_avg(&self) -> Duration {
         self.pt.delta_avg()
     }
 
-    /// Standard deviation of deltas.
+    /// The standard deviation of deltas recorded.
     pub fn delta_sd(&self) -> Duration {
         self.pt.delta_sd()
     }
 
+    /// The count to call pair of `Self::begin_record()` and `Self::finish_record()`
     pub fn record_count(&self) -> u64 {
         self.pt.record_count()
     }
 
+    /// The calculated value of framerate: 1.0 / `Self::delta()`.
     pub fn fps(&self) -> f32 {
         let is_zero = self.delta().as_micros() == 0;
 
@@ -211,6 +227,7 @@ impl Time {
         }
     }
 
+    /// The calculated value of average of framerates: 1.0 / `Self::delta_avg()`.
     pub fn fps_avg(&self) -> f32 {
         let is_zero = self.delta_avg().as_micros() == 0;
 
@@ -221,14 +238,17 @@ impl Time {
         }
     }
 
+    /// The standard deviation of framerates recorded.
     pub fn fps_sd(&self) -> f32 {
         f32::sqrt(self.fps_variance())
     }
 
+    /// The duration from construction to last record.
     pub fn time(&self) -> Duration {
         self.delta_avg() * self.record_count() as u32
     }
 
+    /// The variance of framerates recorded.
     fn fps_variance(&self) -> f32 {
         let tick_count = std::cmp::max(1, self.record_count());
 
@@ -276,7 +296,7 @@ impl fmt::Display for Time {
 
 #[derive(Clone, Copy)]
 pub struct ProfileTimer {
-    is_record: bool,
+    is_recording: bool,
     begin_tick: Instant,
     record_count: u64,
 
@@ -288,27 +308,45 @@ pub struct ProfileTimer {
 }
 
 impl ProfileTimer {
+    /// Craete instance of `ProfileTimer` and call `Self::begin_record()` automatically.
     pub fn now() -> Self {
         Self {
+            is_recording: true,
             begin_tick: Instant::now(),
-            delta: Default::default(),
-            delta_avg: Default::default(),
-            delta_diff_pow_us: Default::default(),
             record_count: Default::default(),
 
-            is_record: false,
+            delta: Default::default(),
+            delta_avg: Default::default(),
+
+            delta_diff_pow_us: Default::default(),
         }
     }
 
+    /// Create instance of `ProfileTimer`.
+    pub fn new() -> Self {
+        Self {
+            is_recording: false,
+            begin_tick: Instant::now(),
+            record_count: Default::default(),
+
+            delta: Default::default(),
+            delta_avg: Default::default(),
+
+            delta_diff_pow_us: Default::default(),
+        }
+    }
+
+    /// Begin a time record, call `Self::finish_record()` when you want to finish record.
     pub fn begin_record(&mut self) {
-        if !self.is_record {
+        if !self.is_recording {
             self.begin_tick = Instant::now();
-            self.is_record = true;
+            self.is_recording = true;
         }
     }
 
+    /// Finish a time record.
     pub fn finish_record(&mut self) {
-        if self.is_record {
+        if self.is_recording {
             let now = Instant::now();
 
             self.delta = now - self.begin_tick;
@@ -321,28 +359,38 @@ impl ProfileTimer {
 
             self.delta_diff_pow_us += i64::pow(delta_us - delta_avg_us, 2) as u64;
 
-            self.is_record = false;
+            self.is_recording = false;
         }
     }
 
+    /// Whether `Self::begin_record()` has been called.
+    pub fn is_recording(&self) -> bool {
+        self.is_recording
+    }
+
+    /// The interval between `Self::begin_record()` and `Self::finish_record()`.
     pub fn delta(&self) -> Duration {
         self.delta
     }
 
+    /// The average of deltas recorded. 
     pub fn delta_avg(&self) -> Duration {
         self.delta_avg
     }
 
+    /// The standard deviation of deltas recorded.
     pub fn delta_sd(&self) -> Duration {
         let delta_sd = f64::sqrt(self.delta_variance_micros() as f64);
 
         Duration::from_micros(delta_sd as u64)
     }
 
+    /// The count to call pair of `Self::begin_record()` and `Self::finish_record()`
     pub fn record_count(&self) -> u64 {
         self.record_count
     }
 
+    /// The variance of deltas recorded(unit is us^2).
     fn delta_variance_micros(&self) -> u64 {
         let record_count = std::cmp::max(self.record_count, 1);
 
@@ -351,6 +399,7 @@ impl ProfileTimer {
 }
 
 impl Default for ProfileTimer {
+    /// Craete instance of `ProfileTimer` and call `Self::begin_record()` automatically.
     fn default() -> Self {
         Self::now()
     }
