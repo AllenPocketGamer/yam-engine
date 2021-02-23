@@ -47,7 +47,7 @@ fn thread_local_process(#[state] sum_freq: &mut f32, #[resource] time: &Time, #[
         println!("exceed 2 seconds, exit");
     } else {
         *sum_freq += 1.0 / time.delta().as_secs_f32();
-        let average_freq = *sum_freq / time.tick_count() as f32;
+        let average_freq = *sum_freq / time.record_count() as f32;
 
         println!("time: {}, delta: {}, average freq: {}", time.time().as_secs_f32(), time.delta().as_secs_f32(), average_freq);
     }

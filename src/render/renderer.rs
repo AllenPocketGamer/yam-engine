@@ -152,7 +152,7 @@ impl Render2DService {
         self.gpu.queue.submit(Some(encoder.finish()));
     }
 
-    pub fn end_draw(&mut self) {
+    pub fn finish_draw(&mut self) {
         if self.gpu.frame.is_some() {
             self.gpu.frame.take();
         } else {
@@ -223,13 +223,16 @@ impl Gpu {
             println!("Not support PUSH_CONSTANT feature.");
         }
 
-        let (features, limits) = if can_push_constant {
+        let (mut features, limits) = if can_push_constant {
             let mut limits = wgpu::Limits::default();
             limits.max_push_constant_size = max_push_constant_size;
             (wgpu::Features::PUSH_CONSTANTS, limits)
         } else {
             (wgpu::Features::empty(), wgpu::Limits::default())
         };
+
+        // FIXME: 临时添加MAPPABLE_PRIMARY_BUFFERS特性用于测试, 用完删除.
+        features |= wgpu::Features::MAPPABLE_PRIMARY_BUFFERS;
 
         let (device, queue) = adapter
             .request_device(
@@ -248,7 +251,12 @@ impl Gpu {
             format: adapter.get_swap_chain_preferred_format(&surface),
             width: window.inner_size().width,
             height: window.inner_size().height,
-            present_mode: wgpu::PresentMode::Fifo,
+            // NOTE: 特别关注这个设置, 跟硬件(显示屏)相关, 不正确的设置可能会导致灵异的bug;
+            //  但现在还没碰到相关问题, 先搁置;
+            // NOTE: 先默认设置为Mailbox, 该模式下画面会以垂直刷新率更新, 但与Fifo不同的是,
+            //  GPU一旦绘制完画面, 会立即提交到表现引擎; 而Fifo模式下会通过阻塞线程的方式强制
+            //  帧率与显示器刷新率同步.
+            present_mode: wgpu::PresentMode::Mailbox,
         };
 
         let swap_chain = device.create_swap_chain(&surface, &sc_desc);
@@ -284,7 +292,7 @@ struct SpriteRenderer {
 }
 
 impl SpriteRenderer {
-    const INSTANCE_MAX_COUNT: usize = 1000_000;
+    const INSTANCE_MAX_COUNT: usize = 2_000_000;
 
     // Quad vertex in world coordinate
     #[allow(dead_code)]
@@ -326,7 +334,7 @@ impl SpriteRenderer {
         let instance_buf = device.create_buffer(&wgpu::BufferDescriptor {
             label: Some("model transformation matrices"),
             size: (size_of::<Transform2D>() * Self::INSTANCE_MAX_COUNT) as wgpu::BufferAddress,
-            usage: wgpu::BufferUsage::VERTEX | wgpu::BufferUsage::COPY_DST,
+            usage: wgpu::BufferUsage::VERTEX | wgpu::BufferUsage::MAP_WRITE,
             mapped_at_creation: false,
         });
 
@@ -423,7 +431,7 @@ impl SpriteRenderer {
             pipeline,
 
             staging_belt: wgpu::util::StagingBelt::new(
-                (size_of::<Transform2D>() * Self::INSTANCE_MAX_COUNT / 1) as wgpu::BufferAddress,
+                (size_of::<Transform2D>() * Self::INSTANCE_MAX_COUNT / 4) as wgpu::BufferAddress,
             ),
         }
     }
@@ -454,20 +462,16 @@ impl SpriteRenderer {
         });
 
         // Write transform2ds(up to 1000_000) to instance buffer to vertex.
-        self.staging_belt
-            .write_buffer(
-                &mut encoder,
-                &self.instance_buf,
-                0,
-                wgpu::BufferSize::new(
-                    (size_of::<Transform2D>() * instance_count) as wgpu::BufferAddress,
-                )
-                .unwrap(),
-                device,
-            )
-            .copy_from_slice(bytemuck::cast_slice(&transform2ds[0..instance_count]));
-        
-        self.staging_belt.finish();
+        let buf_slice = self
+            .instance_buf
+            .slice(0..(size_of::<Transform2D>() * instance_count) as wgpu::BufferAddress);
+        let future = buf_slice.map_async(wgpu::MapMode::Write);
+
+        device.poll(wgpu::Maintain::Wait);
+        let _ = futures::executor::block_on(future);
+        buf_slice.get_mapped_range_mut().copy_from_slice(bytemuck::cast_slice(transform2ds));
+
+        self.instance_buf.unmap();
 
         // Write color to uniform in fragment.
         queue.write_buffer(
@@ -521,10 +525,5 @@ impl SpriteRenderer {
         }
 
         queue.submit(Some(encoder.finish()));
-
-        // TODO: Understand futures and async programming; optimize to the best performance.
-        let belt_future = self.staging_belt.recall();
-        device.poll(wgpu::Maintain::Wait);
-        futures::executor::block_on(belt_future);
     }
 }

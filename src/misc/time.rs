@@ -266,10 +266,10 @@ impl fmt::Debug for Time {
             pt_data = format_args!("{:?}", self.pt),
             fps_data = format_args!(
                 "{}, {}, {}, {}",
-                format!("fps: {:>4.1}", self.fps()).red(),
-                format!("fps(avg): {:>4.1}", self.fps_avg()).yellow(),
-                format!("fps(sd): {:>4.1}", self.fps_sd()).blue(),
-                format!("fps(var): {:>4.1}", self.fps_variance()).green(),
+                format!("fps: {:>6.1}", self.fps()).red(),
+                format!("fps(avg): {:>6.1}", self.fps_avg()).yellow(),
+                format!("fps(sd): {:>6.1}", self.fps_sd()).blue(),
+                format!("fps(var): {:>6.1}", self.fps_variance()).green(),
             ),
             debug_data = format!("fps_diff_pow: {:>8}", self.fps_diff_pow),
         )
@@ -286,9 +286,9 @@ impl fmt::Display for Time {
             pt_data = format_args!("{}", self.pt),
             fps_data = format_args!(
                 "{}, {}, {}",
-                format!("fps: {:>4.1}", self.fps()).red(),
-                format!("fps(avg): {:>4.1}", self.fps_avg()).yellow(),
-                format!("fps(sd): {:>4.1}", self.fps_sd()).blue(),
+                format!("fps: {:>6.1}", self.fps()).red(),
+                format!("fps(avg): {:>6.1}", self.fps_avg()).yellow(),
+                format!("fps(sd): {:>6.1}", self.fps_sd()).blue(),
             ),
         )
     }

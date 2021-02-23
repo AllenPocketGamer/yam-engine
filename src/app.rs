@@ -1,18 +1,29 @@
 use crate::{input::Input, misc::Time, render::create_app_stage_render, window::Window};
+
 use legion::{
     systems::{Builder, ParallelRunnable, Runnable},
     Resources, Schedule, World,
 };
-use std::{
-    cell::RefCell,
-    fmt, panic,
-    rc::Rc,
-    slice::{Iter, IterMut},
-};
+
 use winit::{
     event::{DeviceEvent, Event, StartCause, WindowEvent},
     event_loop::{ControlFlow, EventLoop},
     window::WindowBuilder,
+};
+
+use crossterm::{
+    cursor::MoveTo,
+    style::Print,
+    terminal::{Clear, ClearType},
+    ExecutableCommand,
+};
+
+use std::{
+    cell::RefCell,
+    fmt,
+    io::stdout,
+    rc::Rc,
+    slice::{Iter, IterMut},
 };
 
 #[derive(Default, Debug)]
@@ -46,11 +57,9 @@ impl App {
         let busy_stages = Rc::new(RefCell::new(self.busy_stages));
 
         // FIXME: add render app_stage to busy_stages temporarily
-        busy_stages.borrow_mut().push(create_app_stage_render(&window));
-
-        fn apply_and_ask_quit(resources: &mut Resources) -> bool {
-            resources.get_mut::<AppSettings>().unwrap().apply()
-        }
+        busy_stages
+            .borrow_mut()
+            .push(create_app_stage_render(&window));
 
         let mut world = World::default();
         let mut resources = Resources::default();
@@ -59,10 +68,11 @@ impl App {
         resources.insert::<AppSettings>(AppSettings::new(&busy_stages));
         resources.insert::<Window>(Window::new(window));
 
+        // local datas
         let mut input_evts: Vec<Event<'static, ()>> = Default::default();
+        let mut time = Time::now();
 
         event_loop.run(move |event, _, control_flow| {
-            // *control_flow = ControlFlow::Poll;
             match event {
                 Event::NewEvents(sc) => match sc {
                     StartCause::Init => {
@@ -70,16 +80,48 @@ impl App {
                         for stage in RefCell::borrow(&busy_stages).iter() {
                             stage.init(&mut world, &mut resources);
                         }
+
+                        // FIXME: to delete lately
+                        // let _re = stdout().execute(Clear(ClearType::All));
                     }
                     StartCause::Poll => {
-                        // NOTE: loop all AppStages
-                        if !apply_and_ask_quit(&mut resources) {
+                        // NOTE: apply app_settings added by last frame, if user try to exit, then exit.
+                        if !resources.get_mut::<AppSettings>().unwrap().apply() {
+                            // execute all stages that in work state.
                             for stage in RefCell::borrow(&busy_stages).iter() {
                                 stage.play(&mut world, &mut resources);
                             }
                         } else {
                             *control_flow = ControlFlow::Exit;
                         }
+
+                        // FIXME: output profile data to terminal temporarily.
+                        // std::thread::spawn(move || {
+                        //     // NOTE: it's so fucking time cost, so i move it to another thread.
+                        //     println!("{:?}", &time);
+                        // });
+                        time.tick();
+
+                        // let _ = Self::profile_temp(
+                        //     0,
+                        //     &format!(
+                        //         "DELTA(ms): {:.prec$}(cur) | {:.prec$}(avg) | {:.prec$}(sd)",
+                        //         time.delta().as_secs_f64() * 1000.0,
+                        //         time.delta_avg().as_secs_f64() * 1000.0,
+                        //         time.delta_sd().as_secs_f64() * 1000.0,
+                        //         prec = 3,
+                        //     ),
+                        // );
+                        // let _ = Self::profile_temp(
+                        //     1,
+                        //     &format!(
+                        //         "FPS(f): {}(cur) | {}(avg) | {}(sd) | {}(var)",
+                        //         time.fps(),
+                        //         time.fps_avg(),
+                        //         time.fps_sd(),
+                        //         time.fps_variance(),
+                        //     ),
+                        // );
                     }
                     _ => {}
                 },
@@ -139,6 +181,16 @@ impl App {
                 _ => {}
             }
         });
+    }
+
+    // FIXME: format print profile data to terminal temporarily.
+    fn profile_temp(row: u16, msg: &str) -> crossterm::Result<()> {
+        stdout()
+            .execute(MoveTo(0, row))?
+            .execute(Clear(ClearType::CurrentLine))?
+            .execute(Print(msg))?;
+
+        Ok(())
     }
 }
 
@@ -228,7 +280,7 @@ impl AppStage {
     }
 
     pub(crate) fn init(&self, world: &mut World, resources: &mut Resources) {
-        self.time.borrow_mut().reset();
+        *self.time.borrow_mut() = Time::now();
         resources.insert::<Time>(*self.time.borrow_mut());
 
         self.startup.borrow_mut().execute(world, resources);

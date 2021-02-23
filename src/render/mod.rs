@@ -11,6 +11,10 @@ use renderer::Render2DService;
 pub(crate) fn create_app_stage_render(window: &winit::window::Window) -> AppStage {
     let mut r2ds = Render2DService::new(window);
 
+    // TODO: debug data, delete it after finishing.
+    let mut ptimer_t = ProfileTimer::now();
+    let mut ptimer_r = ProfileTimer::now();
+
     let render_process = move |world: &mut World, resources: &mut Resources| {
         let (width, height) = {
             let window = resources
@@ -33,6 +37,7 @@ pub(crate) fn create_app_stage_render(window: &winit::window::Window) -> AppStag
 
         r2ds.begin_draw();
 
+        ptimer_t.begin_record();
         for (transform2d, sprite) in query_sprites.iter(world) {
             r2ds.draw_sprite_in_world_space(transform2d, sprite);
         }
@@ -40,8 +45,15 @@ pub(crate) fn create_app_stage_render(window: &winit::window::Window) -> AppStag
         for (transform2ds, sprite) in query_sprites_instanced.iter(world) {
             r2ds.draw_sprites_in_world_space(&transform2ds[..], sprite);
         }
+        ptimer_t.finish_record();
 
-        r2ds.end_draw();
+        ptimer_r.begin_record();
+        r2ds.finish_draw();
+        ptimer_r.finish_record();
+
+        std::thread::spawn(move || {
+            println!("io: {}, rd: {}", &ptimer_t, &ptimer_r);
+        });
     };
 
     AppStageBuilder::new(String::from("default_render"))
