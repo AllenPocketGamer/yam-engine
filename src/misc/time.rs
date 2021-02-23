@@ -311,7 +311,7 @@ impl fmt::Display for Time {
             "{tick_count} | {delta_data} | {fps_data}",
             tick_count = format_args!("tick_count: {:<8}", self.tick_count),
             delta_data = format_args!(
-                "{}, {}, {}, {}",
+                "{}, {}, {}",
                 format!("delta: {:>4.1}ms", self.delta.as_secs_f32() * 1000.0).red(),
                 format!(
                     "delta(avg): {:>4.1}ms",
@@ -323,18 +323,12 @@ impl fmt::Display for Time {
                     self.delta_sd().as_secs_f32() * 1000.0
                 )
                 .blue(),
-                format!(
-                    "delta(var): {:>4.1}ms",
-                    self.delta_variance().as_secs_f32() * 1000.0
-                )
-                .green(),
             ),
             fps_data = format_args!(
-                "{}, {}, {}, {}",
-                format!("fps: {:>3}", self.fps()).red(),
-                format!("fps(avg): {:>3}", self.fps_avg()).yellow(),
-                format!("fps(sd): {:>3}", self.fps_sd()).blue(),
-                format!("fps(var): {:>3}", self.fps_variance()).green(),
+                "{}, {}, {}",
+                format!("fps: {:>4.1}", self.fps()).red(),
+                format!("fps(avg): {:>4.1}", self.fps_avg()).yellow(),
+                format!("fps(sd): {:>4.1}", self.fps_sd()).blue(),
             ),
         )
     }
