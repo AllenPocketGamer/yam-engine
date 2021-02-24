@@ -52,7 +52,7 @@ pub(crate) fn create_app_stage_render(window: &winit::window::Window) -> AppStag
         ptimer_r.finish_record();
 
         std::thread::spawn(move || {
-            println!("io: {}, rd: {}", &ptimer_t, &ptimer_r);
+            println!("io: {} | rd: {}", &ptimer_t, &ptimer_r);
         });
     };
 

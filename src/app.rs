@@ -11,17 +11,9 @@ use winit::{
     window::WindowBuilder,
 };
 
-use crossterm::{
-    cursor::MoveTo,
-    style::Print,
-    terminal::{Clear, ClearType},
-    ExecutableCommand,
-};
-
 use std::{
     cell::RefCell,
     fmt,
-    io::stdout,
     rc::Rc,
     slice::{Iter, IterMut},
 };
@@ -70,7 +62,6 @@ impl App {
 
         // local datas
         let mut input_evts: Vec<Event<'static, ()>> = Default::default();
-        let mut time = Time::now();
 
         event_loop.run(move |event, _, control_flow| {
             match event {
@@ -80,9 +71,6 @@ impl App {
                         for stage in RefCell::borrow(&busy_stages).iter() {
                             stage.init(&mut world, &mut resources);
                         }
-
-                        // FIXME: to delete lately
-                        // let _re = stdout().execute(Clear(ClearType::All));
                     }
                     StartCause::Poll => {
                         // NOTE: apply app_settings added by last frame, if user try to exit, then exit.
@@ -94,34 +82,6 @@ impl App {
                         } else {
                             *control_flow = ControlFlow::Exit;
                         }
-
-                        // FIXME: output profile data to terminal temporarily.
-                        // std::thread::spawn(move || {
-                        //     // NOTE: it's so fucking time cost, so i move it to another thread.
-                        //     println!("{:?}", &time);
-                        // });
-                        time.tick();
-
-                        // let _ = Self::profile_temp(
-                        //     0,
-                        //     &format!(
-                        //         "DELTA(ms): {:.prec$}(cur) | {:.prec$}(avg) | {:.prec$}(sd)",
-                        //         time.delta().as_secs_f64() * 1000.0,
-                        //         time.delta_avg().as_secs_f64() * 1000.0,
-                        //         time.delta_sd().as_secs_f64() * 1000.0,
-                        //         prec = 3,
-                        //     ),
-                        // );
-                        // let _ = Self::profile_temp(
-                        //     1,
-                        //     &format!(
-                        //         "FPS(f): {}(cur) | {}(avg) | {}(sd) | {}(var)",
-                        //         time.fps(),
-                        //         time.fps_avg(),
-                        //         time.fps_sd(),
-                        //         time.fps_variance(),
-                        //     ),
-                        // );
                     }
                     _ => {}
                 },
@@ -181,16 +141,6 @@ impl App {
                 _ => {}
             }
         });
-    }
-
-    // FIXME: format print profile data to terminal temporarily.
-    fn profile_temp(row: u16, msg: &str) -> crossterm::Result<()> {
-        stdout()
-            .execute(MoveTo(0, row))?
-            .execute(Clear(ClearType::CurrentLine))?
-            .execute(Print(msg))?;
-
-        Ok(())
     }
 }
 

@@ -223,16 +223,13 @@ impl Gpu {
             println!("Not support PUSH_CONSTANT feature.");
         }
 
-        let (mut features, limits) = if can_push_constant {
+        let (features, limits) = if can_push_constant {
             let mut limits = wgpu::Limits::default();
             limits.max_push_constant_size = max_push_constant_size;
             (wgpu::Features::PUSH_CONSTANTS, limits)
         } else {
             (wgpu::Features::empty(), wgpu::Limits::default())
         };
-
-        // FIXME: 临时添加MAPPABLE_PRIMARY_BUFFERS特性用于测试, 用完删除.
-        features |= wgpu::Features::MAPPABLE_PRIMARY_BUFFERS;
 
         let (device, queue) = adapter
             .request_device(
@@ -289,6 +286,9 @@ struct SpriteRenderer {
 
     // Belt transfer data from cpu to gpu
     staging_belt: wgpu::util::StagingBelt,
+
+    // FIXME: temp property
+    staging_buf: wgpu::Buffer,
 }
 
 impl SpriteRenderer {
@@ -334,7 +334,14 @@ impl SpriteRenderer {
         let instance_buf = device.create_buffer(&wgpu::BufferDescriptor {
             label: Some("model transformation matrices"),
             size: (size_of::<Transform2D>() * Self::INSTANCE_MAX_COUNT) as wgpu::BufferAddress,
-            usage: wgpu::BufferUsage::VERTEX | wgpu::BufferUsage::MAP_WRITE,
+            usage: wgpu::BufferUsage::VERTEX | wgpu::BufferUsage::COPY_DST,
+            mapped_at_creation: false,
+        });
+
+        let staging_buf = device.create_buffer(&wgpu::BufferDescriptor {
+            label: Some("staging buffer"),
+            size: (size_of::<Transform2D>() * Self::INSTANCE_MAX_COUNT) as wgpu::BufferAddress,
+            usage: wgpu::BufferUsage::MAP_WRITE | wgpu::BufferUsage::COPY_SRC,
             mapped_at_creation: false,
         });
 
@@ -433,6 +440,7 @@ impl SpriteRenderer {
             staging_belt: wgpu::util::StagingBelt::new(
                 (size_of::<Transform2D>() * Self::INSTANCE_MAX_COUNT / 4) as wgpu::BufferAddress,
             ),
+            staging_buf,
         }
     }
 
@@ -461,19 +469,20 @@ impl SpriteRenderer {
             label: Some("sprite encoder"),
         });
 
-        // Write transform2ds(up to 1000_000) to instance buffer to vertex.
-        let buf_slice = self
-            .instance_buf
-            .slice(0..(size_of::<Transform2D>() * instance_count) as wgpu::BufferAddress);
+        // Write transform2ds data to instance buffer.
+        let cpy_size = (size_of::<Transform2D>() * instance_count) as wgpu::BufferAddress;
+        let buf_slice = self.staging_buf.slice(0..cpy_size);
         let future = buf_slice.map_async(wgpu::MapMode::Write);
-
         device.poll(wgpu::Maintain::Wait);
-        let _ = futures::executor::block_on(future);
-        buf_slice.get_mapped_range_mut().copy_from_slice(bytemuck::cast_slice(transform2ds));
+        futures::executor::block_on(future).expect("ERR: transfer data from m-mem to v-mem.");
+        buf_slice
+            .get_mapped_range_mut()
+            .copy_from_slice(bytemuck::cast_slice(transform2ds));
+        self.staging_buf.unmap();
 
-        self.instance_buf.unmap();
+        encoder.copy_buffer_to_buffer(&self.staging_buf, 0, &self.instance_buf, 0, cpy_size);
 
-        // Write color to uniform in fragment.
+        // Write color to uniform buffer.
         queue.write_buffer(
             &self.uniform_buf,
             0,
