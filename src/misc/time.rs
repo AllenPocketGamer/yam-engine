@@ -172,13 +172,13 @@ impl Time {
     }
 
     /// Begin a time record, call `Self::finish_record()` when you want to finish record.
-    pub(crate) fn begin_record(&mut self) {
-        self.pt.begin_record();
+    pub(crate) fn start_record(&mut self) {
+        self.pt.start_record();
     }
 
     /// Finish a time record.
-    pub(crate) fn finish_record(&mut self) {
-        self.pt.finish_record();
+    pub(crate) fn stop_record(&mut self) {
+        self.pt.stop_record();
 
         self.fps_diff_pow += f32::powi(self.fps() - self.fps_avg(), 2) as u64;
     }
@@ -192,8 +192,8 @@ impl Time {
     /// 
     /// Look like press the stopwatch.
     pub(crate) fn tick(&mut self) {
-        self.finish_record();
-        self.begin_record();
+        self.stop_record();
+        self.start_record();
     }
 
     /// The interval between `Self::begin_record()` and `Self::finish_record()`.
@@ -337,7 +337,7 @@ impl ProfileTimer {
     }
 
     /// Begin a time record, call `Self::finish_record()` when you want to finish record.
-    pub fn begin_record(&mut self) {
+    pub fn start_record(&mut self) {
         if !self.is_recording {
             self.begin_tick = Instant::now();
             self.is_recording = true;
@@ -345,7 +345,7 @@ impl ProfileTimer {
     }
 
     /// Finish a time record.
-    pub fn finish_record(&mut self) {
+    pub fn stop_record(&mut self) {
         if self.is_recording {
             let now = Instant::now();
 
@@ -497,9 +497,9 @@ mod tests {
                 println!("{:?}", profile_timer);
             });
 
-            profile_timer.begin_record();
+            profile_timer.start_record();
             std::thread::sleep(Duration::from_millis(10));
-            profile_timer.finish_record();
+            profile_timer.stop_record();
         }
 
         println!("Display Format: ");
@@ -508,9 +508,9 @@ mod tests {
                 println!("{}", profile_timer);
             });
 
-            profile_timer.begin_record();
+            profile_timer.start_record();
             std::thread::sleep(Duration::from_millis(10));
-            profile_timer.finish_record();
+            profile_timer.stop_record();
         }
     }
 }

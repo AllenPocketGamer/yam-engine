@@ -1,7 +1,7 @@
 extern crate nalgebra as na;
 
 use super::components::{Camera2D, Transform2D};
-use crate::{misc::Color, Sprite};
+use crate::{Color, Sprite};
 
 use wgpu::util::DeviceExt;
 
@@ -284,15 +284,11 @@ struct SpriteRenderer {
     bind_group: wgpu::BindGroup,
     pipeline: wgpu::RenderPipeline,
 
-    // Belt transfer data from cpu to gpu
-    staging_belt: wgpu::util::StagingBelt,
-
-    // FIXME: temp property
     staging_buf: wgpu::Buffer,
 }
 
 impl SpriteRenderer {
-    const INSTANCE_MAX_COUNT: usize = 2_000_000;
+    const INSTANCE_MAX_COUNT: usize = 1_000_000;
 
     // Quad vertex in world coordinate
     #[allow(dead_code)]
@@ -437,14 +433,11 @@ impl SpriteRenderer {
             bind_group,
             pipeline,
 
-            staging_belt: wgpu::util::StagingBelt::new(
-                (size_of::<Transform2D>() * Self::INSTANCE_MAX_COUNT / 4) as wgpu::BufferAddress,
-            ),
             staging_buf,
         }
     }
 
-    /// Only support 1000_000 transform2d once call.
+    /// Only support `Self::INSTANCE_MAX_COUNT` transform2d once call.
     fn render(
         &mut self,
         Gpu {
@@ -459,28 +452,22 @@ impl SpriteRenderer {
         mx_projection: &na::Matrix4<f32>,
         viewport: &(f32, f32, f32, f32, f32, f32),
     ) {
-        let frame = frame
-            .as_ref()
-            .expect("ERR: Not call begin_draw on Render2DService.");
-
         let instance_count = std::cmp::min(transform2ds.len(), Self::INSTANCE_MAX_COUNT);
+        let instance_size = (size_of::<Transform2D>() * instance_count) as wgpu::BufferAddress;
 
-        let mut encoder = device.create_command_encoder(&wgpu::CommandEncoderDescriptor {
-            label: Some("sprite encoder"),
-        });
-
-        // Write transform2ds data to instance buffer.
-        let cpy_size = (size_of::<Transform2D>() * instance_count) as wgpu::BufferAddress;
-        let buf_slice = self.staging_buf.slice(0..cpy_size);
+        // Transfer data from m-mem to v-mem in asynchronous.
+        let buf_slice = self.staging_buf.slice(0..instance_size);
         let future = buf_slice.map_async(wgpu::MapMode::Write);
         device.poll(wgpu::Maintain::Wait);
         futures::executor::block_on(future).expect("ERR: transfer data from m-mem to v-mem.");
+
+        // TODO: 拷贝操作会idle处理器, 造成性能浪费; 可以尝试使用DMA技术来进行memcpy, 但有可能造成数据不一致;
+        //   可以用unsafe来绕过rust的安全检查, 但可能会有UB; 所以这是一个安全和性能间的权衡问题;
+        //   可以做一个unsafe选项, 开启来提高性能(比较可观), 并在注释中标注出它的危险性!
         buf_slice
             .get_mapped_range_mut()
             .copy_from_slice(bytemuck::cast_slice(transform2ds));
         self.staging_buf.unmap();
-
-        encoder.copy_buffer_to_buffer(&self.staging_buf, 0, &self.instance_buf, 0, cpy_size);
 
         // Write color to uniform buffer.
         queue.write_buffer(
@@ -489,7 +476,19 @@ impl SpriteRenderer {
             bytemuck::cast_slice(&color.to_rgba_raw()[..]),
         );
 
+        let frame = frame
+            .as_ref()
+            .expect("ERR: Not call begin_draw on Render2DService.");
+
+        let mut encoder = device.create_command_encoder(&wgpu::CommandEncoderDescriptor {
+            label: Some("sprite encoder"),
+        });
+
+        // copy transform2ds data to instance buffer.
+        encoder.copy_buffer_to_buffer(&self.staging_buf, 0, &self.instance_buf, 0, instance_size);
+
         {
+            // TODO: 这里应该可以尝试用Bundle优化, 毕竟也有将近0.2-0.3ms的耗时; 但实在鸡肋, 所以闲着没事的时候可以搞搞.
             let mut rpass = encoder.begin_render_pass(&wgpu::RenderPassDescriptor {
                 label: Some("sprite render pass"),
                 color_attachments: &[wgpu::RenderPassColorAttachmentDescriptor {
@@ -510,7 +509,7 @@ impl SpriteRenderer {
             );
 
             rpass.set_pipeline(&self.pipeline);
-            rpass.set_vertex_buffer(0, self.instance_buf.slice(..));
+            rpass.set_vertex_buffer(0, self.instance_buf.slice(0..instance_size));
             rpass.set_vertex_buffer(1, self.vertex_buf.slice(..));
             rpass.set_index_buffer(self.index_buf.slice(..), wgpu::IndexFormat::Uint16);
             rpass.set_bind_group(0, &self.bind_group, &[]);

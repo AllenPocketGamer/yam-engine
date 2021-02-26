@@ -56,7 +56,7 @@ fn steering_sprites(
 
 fn init_entities(world: &mut World, _resources: &mut Resources) {
     const SIZE: f32 = 8.0;
-    const SQRT: usize = 1414;
+    const SQRT: usize = 1000;
 
     world.push((Transform2D::default(), Camera2D::new(1920, 1080)));
 

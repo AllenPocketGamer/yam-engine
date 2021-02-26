@@ -37,7 +37,7 @@ pub(crate) fn create_app_stage_render(window: &winit::window::Window) -> AppStag
 
         r2ds.begin_draw();
 
-        ptimer_t.begin_record();
+        ptimer_t.start_record();
         for (transform2d, sprite) in query_sprites.iter(world) {
             r2ds.draw_sprite_in_world_space(transform2d, sprite);
         }
@@ -45,11 +45,11 @@ pub(crate) fn create_app_stage_render(window: &winit::window::Window) -> AppStag
         for (transform2ds, sprite) in query_sprites_instanced.iter(world) {
             r2ds.draw_sprites_in_world_space(&transform2ds[..], sprite);
         }
-        ptimer_t.finish_record();
+        ptimer_t.stop_record();
 
-        ptimer_r.begin_record();
+        ptimer_r.start_record();
         r2ds.finish_draw();
-        ptimer_r.finish_record();
+        ptimer_r.stop_record();
 
         std::thread::spawn(move || {
             println!("io: {} | rd: {}", &ptimer_t, &ptimer_r);
