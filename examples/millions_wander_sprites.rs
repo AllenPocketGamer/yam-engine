@@ -7,51 +7,12 @@ fn main() -> Result<(), AppBuildError> {
         .create_stage_builder(String::from("default"))?
         .add_thread_local_fn_startup(init_entities)
         .add_thread_local_system_process(operate_camera_system())
-        .add_thread_local_system_process(steering_sprites_system())
+        .add_thread_local_system_process(steering_sprites_system(ProfileTimer::new()))
         .into_app_builder()
         .build()
         .run();
 
     Ok(())
-}
-
-#[system(for_each)]
-#[filter(component::<Camera2D>())]
-fn operate_camera(transform: &mut Transform2D, #[resource] input: &Input) {
-    const TSPEED: f32 = 16.0;
-    const SSPEED: f32 = 0.40;
-
-    if input.mouse.pressed(MouseButton::Middle) {
-        let (dx, dy) = input.mouse.mouse_motion();
-
-        transform.position += na::Vector2::<f32>::new(dx, -dy) * TSPEED;
-    }
-
-    let (_, motion) = input.mouse.mouse_wheel_motion();
-    transform.scale += na::Vector2::new(motion, motion) * SSPEED;
-}
-
-#[system(for_each)]
-#[filter(component::<Sprite>())]
-fn steering_sprites(
-    transform2ds: &mut Vec<Transform2D>,
-    steerings: &mut Vec<Steering>,
-    #[resource] time: &Time,
-) {
-    use rayon::prelude::*;
-
-    const RADIUS: f32 = 8.0;
-    const DISTANCE: f32 = 4.0;
-
-    let delta = time.delta().as_secs_f32();
-
-    transform2ds
-        .par_iter_mut()
-        .zip(steerings.par_iter_mut())
-        .for_each(|(transform2d, steering)| {
-            steering.apply_force(&steering.wander(transform2d, RADIUS, DISTANCE));
-            steering.motion(transform2d, delta);
-        });
 }
 
 fn init_entities(world: &mut World, _resources: &mut Resources) {
@@ -73,6 +34,58 @@ fn init_entities(world: &mut World, _resources: &mut Resources) {
     }
 
     world.push((transform2ds, steerings, Sprite { color: Color::BLUE }));
+}
+
+#[system(for_each)]
+#[filter(component::<Camera2D>())]
+fn operate_camera(transform: &mut Transform2D, #[resource] input: &Input) {
+    const TSPEED: f32 = 16.0;
+    const SSPEED: f32 = 0.40;
+
+    if input.mouse.pressed(MouseButton::Middle) {
+        let (dx, dy) = input.mouse.mouse_motion();
+
+        transform.position += na::Vector2::<f32>::new(dx, -dy) * TSPEED;
+    }
+
+    let (_, motion) = input.mouse.mouse_wheel_motion();
+    transform.scale = na::Vector2::new(
+        (transform.scale.x + motion).max(0.2),
+        (transform.scale.y + motion).max(0.2),
+    );
+}
+
+#[system(for_each)]
+#[filter(component::<Sprite>())]
+fn steering_sprites(
+    #[state] ptimer: &mut ProfileTimer,
+    transform2ds: &mut Vec<Transform2D>,
+    steerings: &mut Vec<Steering>,
+    #[resource] time: &Time,
+) {
+    use rayon::prelude::*;
+
+    const RADIUS: f32 = 8.0;
+    const DISTANCE: f32 = 4.0;
+
+    let delta = time.delta().as_secs_f32();
+
+    ptimer.start_record();
+
+    transform2ds
+        .par_iter_mut()
+        .zip(steerings.par_iter_mut())
+        .for_each(|(transform2d, steering)| {
+            steering.apply_force(&steering.wander(transform2d, RADIUS, DISTANCE));
+            steering.motion(transform2d, delta);
+        });
+
+    ptimer.stop_record();
+
+    let tmp = *ptimer;
+    std::thread::spawn(move || {
+        println!("{}", tmp);
+    });
 }
 
 #[allow(dead_code)]
