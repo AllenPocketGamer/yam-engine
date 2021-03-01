@@ -11,10 +11,10 @@ use std::{
 ///
 /// You CANNOT constrcutor or modify `Time`, it just only provide the time information about main-loop of engine to you.
 ///
-/// If you want a time utility to diagnostic the time cost of a piece of code, then `ProfileTimer` may meets your needs.
+/// If you want a time utility to diagnose the time cost of a piece of code, then `ProfileTimer` may meets your needs.
 #[derive(Clone, Copy)]
 pub struct Time {
-    pt: ProfileTimer,
+    pt: DiagnosticTimer,
 
     // Σ[(fps - fps_avg)^2]
     fps_diff_pow: u64,
@@ -24,7 +24,7 @@ impl Time {
     /// Create instance of `Time`.
     pub(crate) fn now() -> Self {
         Self {
-            pt: ProfileTimer::now(),
+            pt: DiagnosticTimer::now(),
 
             fps_diff_pow: Default::default(),
         }
@@ -153,8 +153,9 @@ impl fmt::Display for Time {
     }
 }
 
+/// A timer used to diagnose the performance of a piece of code.
 #[derive(Clone, Copy)]
-pub struct ProfileTimer {
+pub struct DiagnosticTimer {
     is_recording: bool,
     begin_tick: Instant,
     record_count: u64,
@@ -166,7 +167,7 @@ pub struct ProfileTimer {
     delta_diff_pow_us: u64,
 }
 
-impl ProfileTimer {
+impl DiagnosticTimer {
     /// Craete instance of `ProfileTimer` and call `Self::begin_record()` automatically.
     pub fn now() -> Self {
         Self {
@@ -257,14 +258,14 @@ impl ProfileTimer {
     }
 }
 
-impl Default for ProfileTimer {
+impl Default for DiagnosticTimer {
     /// Craete instance of `ProfileTimer` and call `Self::begin_record()` automatically.
     fn default() -> Self {
         Self::now()
     }
 }
 
-impl fmt::Debug for ProfileTimer {
+impl fmt::Debug for DiagnosticTimer {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
         write!(
             f,
@@ -294,7 +295,7 @@ impl fmt::Debug for ProfileTimer {
     }
 }
 
-impl fmt::Display for ProfileTimer {
+impl fmt::Display for DiagnosticTimer {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
         write!(
             f,
@@ -347,8 +348,8 @@ mod tests {
     }
 
     #[test]
-    fn test_profile_timer_format() {
-        let mut profile_timer = ProfileTimer::now();
+    fn test_diagnostic_timer_format() {
+        let mut profile_timer = DiagnosticTimer::now();
 
         println!("Debug Format: ");
         for _ in 0..20 {

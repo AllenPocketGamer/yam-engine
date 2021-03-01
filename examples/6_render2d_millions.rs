@@ -7,7 +7,7 @@ fn main() -> Result<(), AppBuildError> {
         .create_stage_builder(String::from("default"))?
         .add_thread_local_fn_startup(init_entities)
         .add_thread_local_system_process(operate_camera_system())
-        .add_thread_local_system_process(steering_sprites_system(ProfileTimer::new()))
+        .add_thread_local_system_process(steering_sprites_system(DiagnosticTimer::new()))
         .into_app_builder()
         .build()
         .run();
@@ -58,10 +58,11 @@ fn operate_camera(transform: &mut Transform2D, #[resource] input: &Input) {
 #[system(for_each)]
 #[filter(component::<Sprite>())]
 fn steering_sprites(
-    #[state] ptimer: &mut ProfileTimer,
+    #[state] dtimer: &mut DiagnosticTimer,
     transform2ds: &mut Vec<Transform2D>,
     steerings: &mut Vec<Steering>,
     #[resource] time: &Time,
+    #[resource] input: &Input,
 ) {
     use rayon::prelude::*;
 
@@ -70,7 +71,7 @@ fn steering_sprites(
 
     let delta = time.delta().as_secs_f32();
 
-    ptimer.start_record();
+    dtimer.start_record();
 
     transform2ds
         .par_iter_mut()
@@ -80,12 +81,17 @@ fn steering_sprites(
             steering.motion(transform2d, delta);
         });
 
-    ptimer.stop_record();
+    dtimer.stop_record();
 
-    let tmp = *ptimer;
+    let tmp = *dtimer;
     std::thread::spawn(move || {
         println!("{}", tmp);
     });
+
+    // Restart diagonstic timer.
+    if input.keyboard.just_pressed(KeyCode::R) {
+        *dtimer = DiagnosticTimer::new();
+    }
 }
 
 #[allow(dead_code)]
