@@ -1,7 +1,8 @@
-extern crate nalgebra as na;
-
-use super::components::{Camera2D, Transform2D};
-use crate::{Color, Sprite};
+use crate::{
+    components::{camera::Camera2D, sprite::Sprite, transform::Transform2D},
+    misc::color::Color,
+    nalgebra::Matrix4,
+};
 
 use wgpu::util::DeviceExt;
 
@@ -12,8 +13,8 @@ pub struct Render2DService {
     sprite_renderer: SpriteRenderer,
 
     aspect_ratio: f32,
-    mx_view: na::Matrix4<f32>,
-    mx_projection: na::Matrix4<f32>,
+    mx_view: Matrix4<f32>,
+    mx_projection: Matrix4<f32>,
 }
 
 impl Render2DService {
@@ -52,7 +53,7 @@ impl Render2DService {
     }
 
     #[allow(dead_code)]
-    pub fn view_transformation(&self) -> na::Matrix4<f32> {
+    pub fn view_transformation(&self) -> Matrix4<f32> {
         self.mx_view
     }
 
@@ -64,7 +65,7 @@ impl Render2DService {
     }
 
     #[allow(dead_code)]
-    pub fn projection(&self) -> na::Matrix4<f32> {
+    pub fn projection(&self) -> Matrix4<f32> {
         self.mx_projection
     }
 
@@ -448,8 +449,8 @@ impl SpriteRenderer {
         }: &mut Gpu,
         transform2ds: &[Transform2D],
         color: &Color,
-        mx_view: &na::Matrix4<f32>,
-        mx_projection: &na::Matrix4<f32>,
+        mx_view: &Matrix4<f32>,
+        mx_projection: &Matrix4<f32>,
         viewport: &(f32, f32, f32, f32, f32, f32),
     ) {
         let instance_count = std::cmp::min(transform2ds.len(), Self::INSTANCE_MAX_COUNT);

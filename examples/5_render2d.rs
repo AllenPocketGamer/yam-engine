@@ -1,7 +1,6 @@
-// FIXME: temp
-extern crate nalgebra as na;
-
-use yamengine::*;
+use yam::*;
+use yam::legion::*;
+use yam::nalgebra::Vector2;
 
 fn main() -> Result<(), AppBuildError> {
     AppBuilder::new()
@@ -35,15 +34,15 @@ fn operate_sprite(transform: &mut Transform2D, #[resource] time: &Time, #[resour
     const RSPEED: f32 = 3.14;
 
     if input.keyboard.pressed(KeyCode::A) {
-        transform.position -= na::Vector2::<f32>::x() * time.delta().as_secs_f32() * SPEED;
+        transform.position -= Vector2::<f32>::x() * time.delta().as_secs_f32() * SPEED;
     } else if input.keyboard.pressed(KeyCode::D) {
-        transform.position += na::Vector2::<f32>::x() * time.delta().as_secs_f32() * SPEED;
+        transform.position += Vector2::<f32>::x() * time.delta().as_secs_f32() * SPEED;
     }
 
     if input.keyboard.pressed(KeyCode::W) {
-        transform.position += na::Vector2::<f32>::y() * time.delta().as_secs_f32() * SPEED;
+        transform.position += Vector2::<f32>::y() * time.delta().as_secs_f32() * SPEED;
     } else if input.keyboard.pressed(KeyCode::S) {
-        transform.position -= na::Vector2::<f32>::y() * time.delta().as_secs_f32() * SPEED;
+        transform.position -= Vector2::<f32>::y() * time.delta().as_secs_f32() * SPEED;
     }
 
     if input.keyboard.pressed(KeyCode::Space) {
@@ -57,11 +56,11 @@ fn operate_camera(transform: &mut Transform2D, #[resource] input: &Input) {
     if input.mouse.pressed(MouseButton::Middle) {
         let (dx, dy) = input.mouse.mouse_motion();
 
-        transform.position += na::Vector2::<f32>::new(dx, -dy);
+        transform.position += Vector2::<f32>::new(dx, -dy);
     }
 
     let (_, motion) = input.mouse.mouse_wheel_motion();
-    transform.scale += na::Vector2::new(motion, motion);
+    transform.scale += Vector2::new(motion, motion);
 }
 
 fn init_entities(world: &mut World, _resources: &mut Resources) {

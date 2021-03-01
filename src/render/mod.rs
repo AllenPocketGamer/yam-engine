@@ -1,12 +1,13 @@
-pub mod components;
 mod renderer;
 
-extern crate nalgebra as na;
-
-pub use components::*;
-
-use crate::*;
 use renderer::Render2DService;
+
+use crate::{
+    app::{AppStage, AppStageBuilder},
+    components::{camera::Camera2D, sprite::Sprite, transform::Transform2D},
+    legion::{IntoQuery, Resources, World},
+    window::Window,
+};
 
 pub(crate) fn create_app_stage_render(window: &winit::window::Window) -> AppStage {
     let mut r2ds = Render2DService::new(window);

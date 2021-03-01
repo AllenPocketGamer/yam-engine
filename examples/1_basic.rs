@@ -1,6 +1,5 @@
-use yamengine::app::*;
-use yamengine::misc::*;
-use yamengine::*;
+use yam::*;
+use yam::legion::*;
 
 fn main() -> Result<(), AppBuildError> {
     AppBuilder::new()

@@ -1,7 +1,5 @@
-use input::Input;
-use yamengine::app::*;
-use yamengine::input::*;
-use yamengine::*;
+use yam::*;
+use yam::legion::*;
 
 fn main() -> Result<(), AppBuildError> {
     AppBuilder::new()

@@ -1,6 +1,6 @@
-extern crate nalgebra as na;
-
-use yamengine::*;
+use yam::*;
+use yam::legion::*;
+use yam::nalgebra::Vector2;
 
 fn main() -> Result<(), AppBuildError> {
     AppBuilder::new()
@@ -45,11 +45,11 @@ fn operate_camera(transform: &mut Transform2D, #[resource] input: &Input) {
     if input.mouse.pressed(MouseButton::Middle) {
         let (dx, dy) = input.mouse.mouse_motion();
 
-        transform.position += na::Vector2::<f32>::new(dx, -dy) * TSPEED;
+        transform.position += Vector2::<f32>::new(dx, -dy) * TSPEED;
     }
 
     let (_, motion) = input.mouse.mouse_wheel_motion();
-    transform.scale = na::Vector2::new(
+    transform.scale = Vector2::new(
         (transform.scale.x + motion).max(0.2),
         (transform.scale.y + motion).max(0.2),
     );
@@ -90,8 +90,8 @@ fn steering_sprites(
 
 #[allow(dead_code)]
 struct Steering {
-    velocity: na::Vector2<f32>,
-    force: na::Vector2<f32>,
+    velocity: Vector2<f32>,
+    force: Vector2<f32>,
 }
 
 impl Steering {
@@ -104,15 +104,15 @@ impl Steering {
 
     pub fn new(x: f32, y: f32) -> Self {
         Self {
-            velocity: na::Vector2::new(x, y),
-            force: na::Vector2::new(0.0, 0.0),
+            velocity: Vector2::new(x, y),
+            force: Vector2::new(0.0, 0.0),
         }
     }
 
     #[allow(dead_code)]
-    pub fn seek(&self, transform2d: &Transform2D, target: &na::Vector2<f32>) -> na::Vector2<f32> {
-        let to_target: na::Vector2<f32> = *target - transform2d.position;
-        let desired_velocity: na::Vector2<f32> = to_target.normalize() * Self::MAX_FORCE;
+    pub fn seek(&self, transform2d: &Transform2D, target: &Vector2<f32>) -> Vector2<f32> {
+        let to_target: Vector2<f32> = *target - transform2d.position;
+        let desired_velocity: Vector2<f32> = to_target.normalize() * Self::MAX_FORCE;
 
         desired_velocity - self.velocity
     }
@@ -122,22 +122,21 @@ impl Steering {
         transform2d: &Transform2D,
         r_radius: f32,
         r_distance: f32,
-    ) -> na::Vector2<f32> {
+    ) -> Vector2<f32> {
         // from -1.0 to 1.0
         fn gen_random_f32() -> f32 {
             2.0 * (rand::random::<f32>() - 0.5)
         }
 
-        let jitter: na::Vector2<f32> =
-            na::Vector2::new(gen_random_f32(), gen_random_f32()) * r_radius;
+        let jitter: Vector2<f32> = Vector2::new(gen_random_f32(), gen_random_f32()) * r_radius;
 
-        let to_target: na::Vector2<f32> = jitter + transform2d.heading() * r_distance;
-        let desired_velocity: na::Vector2<f32> = to_target.normalize() * Self::MAX_FORCE;
+        let to_target: Vector2<f32> = jitter + transform2d.heading() * r_distance;
+        let desired_velocity: Vector2<f32> = to_target.normalize() * Self::MAX_FORCE;
 
         desired_velocity - self.velocity
     }
 
-    pub fn apply_force(&mut self, force: &na::Vector2<f32>) {
+    pub fn apply_force(&mut self, force: &Vector2<f32>) {
         self.force = force.normalize() * Self::MAX_FORCE.min(force.norm());
     }
 

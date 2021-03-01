@@ -1,7 +1,11 @@
-use std::collections::HashMap;
 use winit::event::{
     DeviceEvent, ElementState, Event, KeyboardInput, MouseScrollDelta, WindowEvent,
 };
+
+use std::collections::HashMap;
+
+pub type KeyCode = winit::event::VirtualKeyCode;
+pub type MouseButton = winit::event::MouseButton;
 
 pub struct Input {
     pub mouse: Mouse,
@@ -103,7 +107,6 @@ impl Input {
     }
 }
 
-// FIXME: change tuple to vec2 after finishing math module
 pub struct Mouse {
     mouse_motion: (f32, f32),
     mouse_wheel_motion: (f32, f32),
@@ -278,6 +281,3 @@ enum CursorState {
     JustLeft,
     JustEntered,
 }
-
-pub type MouseButton = winit::event::MouseButton;
-pub type KeyCode = winit::event::VirtualKeyCode;

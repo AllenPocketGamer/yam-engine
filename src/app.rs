@@ -1,8 +1,12 @@
-use crate::{input::Input, misc::Time, render::create_app_stage_render, window::Window};
-
-use legion::{
-    systems::{Builder, ParallelRunnable, Runnable},
-    Resources, Schedule, World,
+use crate::{
+    components::time::Time,
+    input::Input,
+    legion::{
+        systems::{Builder, ParallelRunnable, Runnable},
+        Resources, Schedule, World,
+    },
+    render::create_app_stage_render,
+    window::Window,
 };
 
 use winit::{
