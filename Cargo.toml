@@ -53,8 +53,8 @@ harness = false
 # codegen-units = 1
 
 [[example]]
-name = "basic"
-path = "examples/1_basic.rs"
+name = "app"
+path = "examples/1_app.rs"
 
 [[example]]
 name = "input"
