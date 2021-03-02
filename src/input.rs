@@ -128,6 +128,7 @@ impl Mouse {
         }
     }
 
+    /// Detect whether the mouse button has been pressed.
     pub fn pressed(&self, button: MouseButton) -> bool {
         match self.mouse_button_state.get(&button) {
             Some(state) => *state == ButtonState::Pressed,
@@ -135,6 +136,7 @@ impl Mouse {
         }
     }
 
+    /// Detect whether the mouse button has been released.
     pub fn released(&self, button: MouseButton) -> bool {
         match self.mouse_button_state.get(&button) {
             Some(state) => *state == ButtonState::Released,
@@ -142,6 +144,7 @@ impl Mouse {
         }
     }
 
+    /// Detect whether the mouse button has just been pressed.  
     pub fn just_pressed(&self, button: MouseButton) -> bool {
         match self.mouse_button_state.get(&button) {
             Some(state) => *state == ButtonState::JustPressed,
@@ -149,6 +152,7 @@ impl Mouse {
         }
     }
 
+    /// Detect whether the mouse button has just been released.
     pub fn just_released(&self, button: MouseButton) -> bool {
         match self.mouse_button_state.get(&button) {
             Some(state) => *state == ButtonState::JustReleased,
@@ -156,30 +160,37 @@ impl Mouse {
         }
     }
 
+    /// Detect whether the cursor has been left the window.
     pub fn cursor_left(&self) -> bool {
         self.cursor_state == CursorState::Left
     }
 
+    /// Detect whether the cursor has been entered the window.
     pub fn cursor_entered(&self) -> bool {
         self.cursor_state == CursorState::Entered
     }
 
+    /// Detect whether the cursor has just been left the window.
     pub fn cursor_just_left(&self) -> bool {
         self.cursor_state == CursorState::JustLeft
     }
 
+    /// Detect whether the cursor has just been entered the window.
     pub fn cursor_just_entered(&self) -> bool {
         self.cursor_state == CursorState::JustEntered
     }
 
+    /// Return the position of the cursor in the window.
     pub fn cursor_position(&self) -> (f32, f32) {
         self.cursor_position
     }
 
+    /// Return the difference in the position of the mouse between two frames.
     pub fn mouse_motion(&self) -> (f32, f32) {
         self.mouse_motion
     }
 
+    /// Return the difference in the wheel position of the mouse between two frames.
     pub fn mouse_wheel_motion(&self) -> (f32, f32) {
         self.mouse_wheel_motion
     }
@@ -203,7 +214,7 @@ impl Mouse {
         }
     }
 
-    pub(crate) fn release_all(&mut self) {
+    fn release_all(&mut self) {
         for (_, bs) in self.mouse_button_state.iter_mut() {
             *bs = ButtonState::Released;
         }
@@ -221,6 +232,7 @@ impl Keyboard {
         }
     }
 
+    /// Detect whether the keyboard button has been pressed.
     pub fn just_pressed(&self, keycode: KeyCode) -> bool {
         match self.key_button_state.get(&keycode) {
             Some(state) => *state == ButtonState::JustPressed,
@@ -228,6 +240,7 @@ impl Keyboard {
         }
     }
 
+    /// Detect whether the keyboard button has been released.
     pub fn just_released(&self, keycode: KeyCode) -> bool {
         match self.key_button_state.get(&keycode) {
             Some(state) => *state == ButtonState::JustReleased,
@@ -235,6 +248,7 @@ impl Keyboard {
         }
     }
 
+    /// Detect whether the keyboard button has just been pressed.
     pub fn pressed(&self, keycode: KeyCode) -> bool {
         match self.key_button_state.get(&keycode) {
             Some(state) => *state == ButtonState::Pressed,
@@ -242,6 +256,7 @@ impl Keyboard {
         }
     }
 
+    /// Detect whether the keyboard button has just been released.
     pub fn released(&self, keycode: KeyCode) -> bool {
         match self.key_button_state.get(&keycode) {
             Some(state) => *state == ButtonState::Released,
@@ -259,7 +274,7 @@ impl Keyboard {
         }
     }
 
-    pub(crate) fn release_all(&mut self) {
+    fn release_all(&mut self) {
         for (_, bs) in self.key_button_state.iter_mut() {
             *bs = ButtonState::Released;
         }
