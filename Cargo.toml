@@ -40,14 +40,14 @@ approx = "0.4.*"
 criterion = "0.3.*"
 
 [build-dependencies]
-anyhow = "1.0.*"
-fs_extra = "1.2.*"
 glob = "0.3.*"
+anyhow = "1.0.*"
 shaderc ="0.7.*"
+fs_extra = "1.2.*"
 
-[[bench]]
-name = "my_benchmark"
-harness = false
+# [[bench]]
+# name = "my_benchmark"
+# harness = false
 
 # [profile.bench]
 # codegen-units = 1
@@ -75,3 +75,7 @@ path = "examples/5_render2d.rs"
 [[example]]
 name = "render2d_millions"
 path = "examples/6_render2d_millions.rs"
+
+[[example]]
+name = "render2d_millions_with_simd"
+path= "example/7_render2d_millions_with_simd"

@@ -1,15 +1,14 @@
-use yam::*;
-use yam::legion::*;
+use yam::legion::{systems::CommandBuffer, *};
 use yam::nalgebra::Vector2;
+use yam::*;
 
 fn main() -> Result<(), AppBuildError> {
     AppBuilder::new()
         .create_stage_builder(String::from("default"))?
-        .add_thread_local_fn_startup(init_entities)
-        .add_thread_local_system_process(operate_sprite_system())
-        .add_thread_local_system_process(operate_camera_system())
-        .add_system_startup(parallel_startup_system())
-        .add_system_destroy(parallel_destroy_system())
+        .add_thread_local_system_startup(introduction_system())
+        .add_thread_local_system_startup(init_entities_system())
+        .add_thread_local_system_process(control_camera_system())
+        .add_thread_local_system_process(control_sprite_system())
         .into_app_builder()
         .build()
         .run();
@@ -18,77 +17,56 @@ fn main() -> Result<(), AppBuildError> {
 }
 
 #[system]
-fn parallel_startup() {
-    println!("parallel startup");
+fn introduction() {
+    println!("Introduction:");
+    println!("  1. Pressed the middle button of mouse to move the camera.");
+    println!("  2. Pressed AWSD to move the sprite.");
 }
 
 #[system]
-fn parallel_destroy() {
-    println!("parallel destroy");
-}
-
-#[system(for_each)]
-#[filter(component::<Marker>())]
-fn operate_sprite(transform: &mut Transform2D, #[resource] time: &Time, #[resource] input: &Input) {
-    const SPEED: f32 = 160.0;
-    const RSPEED: f32 = 3.14;
-
-    if input.keyboard.pressed(KeyCode::A) {
-        transform.position -= Vector2::<f32>::x() * time.delta().as_secs_f32() * SPEED;
-    } else if input.keyboard.pressed(KeyCode::D) {
-        transform.position += Vector2::<f32>::x() * time.delta().as_secs_f32() * SPEED;
-    }
-
-    if input.keyboard.pressed(KeyCode::W) {
-        transform.position += Vector2::<f32>::y() * time.delta().as_secs_f32() * SPEED;
-    } else if input.keyboard.pressed(KeyCode::S) {
-        transform.position -= Vector2::<f32>::y() * time.delta().as_secs_f32() * SPEED;
-    }
-
-    if input.keyboard.pressed(KeyCode::Space) {
-        transform.rotate(RSPEED * time.delta().as_secs_f32());
-    }
+fn init_entities(commands: &mut CommandBuffer) {
+    // Push camera entity to `World`.
+    commands.push((Transform2D::default(), Camera2D::default()));
+    // Push sprite entity to `World`.
+    commands.push((
+        Transform2D::new_with_scale(64.0, 64.0),
+        Sprite { color: Color::RED },
+    ));
 }
 
 #[system(for_each)]
 #[filter(component::<Camera2D>())]
-fn operate_camera(transform: &mut Transform2D, #[resource] input: &Input) {
+fn control_camera(
+    transform2d: &mut Transform2D,
+    #[resource] input: &Input,
+    #[resource] time: &Time,
+) {
+    const MOVE_SPEED: f32 = 16.0;
+
     if input.mouse.pressed(MouseButton::Middle) {
-        let (dx, dy) = input.mouse.mouse_motion();
-
-        transform.position += Vector2::<f32>::new(dx, -dy);
+        let (mx, my) = input.mouse.mouse_motion();
+        transform2d.position += Vector2::new(mx, my) * time.delta().as_secs_f32() * MOVE_SPEED;
     }
-
-    let (_, motion) = input.mouse.mouse_wheel_motion();
-    transform.scale += Vector2::new(motion, motion);
 }
 
-fn init_entities(world: &mut World, _resources: &mut Resources) {
-    // scale sprite size to 32
-    world.push((
-        Transform2D::new(0.0, 0.0, 0.0, 2560.0, 2560.0),
-        Sprite { color: Color::RED },
-    ));
-    world.push((
-        Transform2D::new(0.0, 0.0, 0.5, 32.0, 32.0),
-        Sprite {
-            color: Color::GREEN,
-        },
-        Marker {},
-    ));
-    world.push((Transform2D::default(), Camera2D::new(1920, 1080)));
+#[system(for_each)]
+#[filter(component::<Sprite>())]
+fn control_sprite(
+    transform2d: &mut Transform2D,
+    #[resource] input: &Input,
+    #[resource] time: &Time,
+) {
+    const MOVE_SPEED: f32 = 256.0;
 
-    let mut transform2ds = Vec::<Transform2D>::with_capacity(10000);
-
-    for x in 0..100 {
-        for y in 0..100 {
-            let (tx, ty) = (64.0 * x as f32, 64.0 * y as f32);
-
-            transform2ds.push(Transform2D::new(tx, ty, 0.0, 32.0, 32.0));
-        }
+    if input.keyboard.pressed(KeyCode::A) {
+        transform2d.position -= Vector2::new(1.0, 0.0) * time.delta().as_secs_f32() * MOVE_SPEED;
+    } else if input.keyboard.pressed(KeyCode::D) {
+        transform2d.position += Vector2::new(1.0, 0.0) * time.delta().as_secs_f32() * MOVE_SPEED;
     }
 
-    world.push((transform2ds, Sprite {color: Color::BLUE}));
+    if input.keyboard.pressed(KeyCode::S) {
+        transform2d.position -= Vector2::new(0.0, 1.0) * time.delta().as_secs_f32() * MOVE_SPEED;
+    } else if input.keyboard.pressed(KeyCode::W) {
+        transform2d.position += Vector2::new(0.0, 1.0) * time.delta().as_secs_f32() * MOVE_SPEED;
+    }
 }
-
-struct Marker;

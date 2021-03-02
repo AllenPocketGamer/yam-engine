@@ -48,5 +48,5 @@ fn diagnostic_time_cost(#[state] d_timer: &mut DiagnosticTimer)
     
     d_timer.stop_record();
 
-    println!("diagnose timer info: {}", d_timer);
+    println!("{}", d_timer);
 }

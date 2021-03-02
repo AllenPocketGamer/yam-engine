@@ -10,7 +10,7 @@ pub mod window;
 // Click [this](https://github.com/amethyst/legion) for more information.
 pub extern crate legion;
 // Use crate `nalgebra` as the algebra tool of yam engine.
-// 
+//
 // Click [this](https://github.com/dimforge/nalgebra) for more information.
 pub extern crate nalgebra;
 
