@@ -2,7 +2,7 @@
 //! 
 //! [What is ECS?](https://en.wikipedia.org/wiki/Entity_component_system)
 //!
-//! `yam` uses the `legion` which is a easy to use, feature rich high performance
+//! `yam` uses the `legion` which is easy to use, feature-rich high-performance
 //! ECS library as the framework of engine.
 //! 
 //! Don't worry, ECS is a simple concept and `legion` is easy to learn, you will

@@ -1,3 +1,5 @@
+//! Run the example with command `cargo run --example render2d_millions` --release`.
+
 use yam::legion::{systems::CommandBuffer, *};
 use yam::nalgebra::Vector2;
 use yam::*;
