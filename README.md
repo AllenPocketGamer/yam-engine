@@ -10,7 +10,7 @@
 
 ## Libraries Used
 
-* [legion](https://github.com/amethyst/legion): easy to use, feature-rich and high-performance ECS `library.
+* [legion](https://github.com/amethyst/legion): easy to use, feature-rich and high-performance ECS library.
 * [nalgebra](https://github.com/dimforge/nalgebra): amazing, powerful and high-performance algebra library.
 * [wgpu-rs](https://github.com/gfx-rs/wgpu-rs): low-level, cross-platform and modern graphics library.
 * [winit](https://github.com/rust-windowing/winit): cross-platform window creation and management in Rust.
