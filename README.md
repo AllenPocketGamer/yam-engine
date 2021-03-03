@@ -53,3 +53,10 @@
     # Use `--release` flag to prevent performance decline.
     cargo run --example render2d_millions --release
     ```
+
+7. (TODO)**render2d_millions_with_simd**: Show how to optimize **render2d_millions** by SIMD.
+
+    ```bash
+    # Use `--release` flag to prevent performance decline.
+    cargo run --example render2d_millions_with_simd --release
+    ```
