@@ -109,16 +109,14 @@ impl Render2DService {
     pub fn draw_sprites_in_world_space(&mut self, transform2ds: &[Transform2D], sprite: &Sprite) {
         let viewport = self.calculate_adapted_viewport();
 
-        for chunk in transform2ds.chunks(SpriteRenderer::INSTANCE_MAX_COUNT) {
-            self.sprite_renderer.render(
-                &mut self.gpu,
-                chunk,
-                &sprite.color,
-                &self.mx_view,
-                &self.mx_projection,
-                &viewport,
-            );
-        }
+        self.sprite_renderer.render(
+            &mut self.gpu,
+            transform2ds,
+            &sprite.color,
+            &self.mx_view,
+            &self.mx_projection,
+            &viewport,
+        );
     }
 
     #[allow(dead_code)]
@@ -286,10 +284,12 @@ struct SpriteRenderer {
     pipeline: wgpu::RenderPipeline,
 
     staging_buf: wgpu::Buffer,
+    staging_buf_size: wgpu::BufferSize,
 }
 
 impl SpriteRenderer {
-    const INSTANCE_MAX_COUNT: usize = 1_000_000;
+    /// Max instance data size per render pass.
+    const MAX_INSTANCE_DATA_SIZE: usize = size_of::<Transform2D>() * 1024 * 1024;
 
     // Quad vertex in world coordinate
     #[allow(dead_code)]
@@ -328,16 +328,18 @@ impl SpriteRenderer {
             usage: wgpu::BufferUsage::INDEX,
         });
 
+        let instance_buf_size = Self::MAX_INSTANCE_DATA_SIZE as wgpu::BufferAddress;
+
         let instance_buf = device.create_buffer(&wgpu::BufferDescriptor {
             label: Some("model transformation matrices"),
-            size: (size_of::<Transform2D>() * Self::INSTANCE_MAX_COUNT) as wgpu::BufferAddress,
+            size: instance_buf_size,
             usage: wgpu::BufferUsage::VERTEX | wgpu::BufferUsage::COPY_DST,
             mapped_at_creation: false,
         });
 
         let staging_buf = device.create_buffer(&wgpu::BufferDescriptor {
             label: Some("staging buffer"),
-            size: (size_of::<Transform2D>() * Self::INSTANCE_MAX_COUNT) as wgpu::BufferAddress,
+            size: instance_buf_size,
             usage: wgpu::BufferUsage::MAP_WRITE | wgpu::BufferUsage::COPY_SRC,
             mapped_at_creation: false,
         });
@@ -435,6 +437,7 @@ impl SpriteRenderer {
             pipeline,
 
             staging_buf,
+            staging_buf_size: wgpu::BufferSize::new(instance_buf_size).unwrap(),
         }
     }
 
@@ -453,11 +456,22 @@ impl SpriteRenderer {
         mx_projection: &Matrix4<f32>,
         viewport: &(f32, f32, f32, f32, f32, f32),
     ) {
-        let instance_count = std::cmp::min(transform2ds.len(), Self::INSTANCE_MAX_COUNT);
-        let instance_size = (size_of::<Transform2D>() * instance_count) as wgpu::BufferAddress;
+        let instance_data_size =
+            (size_of::<Transform2D>() * transform2ds.len()) as wgpu::BufferAddress;
+
+        // Change stage_buf bigger to store the instances data.
+        if instance_data_size > self.staging_buf_size.get() {
+            self.staging_buf = device.create_buffer(&wgpu::BufferDescriptor {
+                label: Some("staging buffer"),
+                size: instance_data_size,
+                usage: wgpu::BufferUsage::MAP_WRITE | wgpu::BufferUsage::COPY_SRC,
+                mapped_at_creation: false,
+            });
+            self.staging_buf_size = wgpu::BufferSize::new(instance_data_size).unwrap();
+        }
 
         // Transfer data from m-mem to v-mem in asynchronous.
-        let buf_slice = self.staging_buf.slice(0..instance_size);
+        let buf_slice = self.staging_buf.slice(0..instance_data_size);
         let future = buf_slice.map_async(wgpu::MapMode::Write);
         device.poll(wgpu::Maintain::Wait);
         futures::executor::block_on(future).expect("ERR: transfer data from m-mem to v-mem.");
@@ -485,52 +499,67 @@ impl SpriteRenderer {
             label: Some("sprite encoder"),
         });
 
-        // copy transform2ds data to instance buffer.
-        encoder.copy_buffer_to_buffer(&self.staging_buf, 0, &self.instance_buf, 0, instance_size);
-
-        {
-            // TODO: 这里应该可以尝试用Bundle优化, 毕竟也有将近0.2-0.3ms的耗时; 但实在鸡肋, 所以闲着没事的时候可以搞搞.
-            let mut rpass = encoder.begin_render_pass(&wgpu::RenderPassDescriptor {
-                label: Some("sprite render pass"),
-                color_attachments: &[wgpu::RenderPassColorAttachmentDescriptor {
-                    attachment: &(frame.output.view),
-                    resolve_target: None,
-                    ops: wgpu::Operations {
-                        load: wgpu::LoadOp::Load,
-                        store: true,
-                    },
-                }],
-                depth_stencil_attachment: None,
-            });
-
-            rpass.push_debug_group("prepare render data");
-
-            rpass.set_viewport(
-                viewport.0, viewport.1, viewport.2, viewport.3, viewport.4, viewport.5,
+        for offset in (0..instance_data_size).step_by(Self::MAX_INSTANCE_DATA_SIZE) {
+            let copy_size = std::cmp::min(
+                instance_data_size - offset,
+                Self::MAX_INSTANCE_DATA_SIZE as u64,
             );
 
-            rpass.set_pipeline(&self.pipeline);
-            rpass.set_vertex_buffer(0, self.instance_buf.slice(0..instance_size));
-            rpass.set_vertex_buffer(1, self.vertex_buf.slice(..));
-            rpass.set_index_buffer(self.index_buf.slice(..), wgpu::IndexFormat::Uint16);
-            rpass.set_bind_group(0, &self.bind_group, &[]);
+            let instance_count = copy_size / size_of::<Transform2D>() as u64;
 
-            // Set view transformation matrix + projection matrix
-            rpass.set_push_constants(
-                wgpu::ShaderStage::VERTEX,
+            // copy transform2ds data to instance buffer.
+            encoder.copy_buffer_to_buffer(
+                &self.staging_buf,
+                offset,
+                &self.instance_buf,
                 0,
-                bytemuck::cast_slice(mx_view.as_slice()),
-            );
-            rpass.set_push_constants(
-                wgpu::ShaderStage::VERTEX,
-                4 * 16,
-                bytemuck::cast_slice(mx_projection.as_slice()),
+                copy_size,
             );
 
-            rpass.pop_debug_group();
+            {
+                // TODO: 这里应该可以尝试用Bundle优化, 毕竟也有将近0.2-0.3ms的耗时; 但实在鸡肋, 所以闲着没事的时候可以搞搞.
+                let mut rpass = encoder.begin_render_pass(&wgpu::RenderPassDescriptor {
+                    label: Some("sprite render pass"),
+                    color_attachments: &[wgpu::RenderPassColorAttachmentDescriptor {
+                        attachment: &(frame.output.view),
+                        resolve_target: None,
+                        ops: wgpu::Operations {
+                            load: wgpu::LoadOp::Load,
+                            store: true,
+                        },
+                    }],
+                    depth_stencil_attachment: None,
+                });
 
-            rpass.insert_debug_marker("draw");
-            rpass.draw_indexed(0..6, 0, 0..instance_count as u32);
+                rpass.push_debug_group("prepare render data");
+
+                rpass.set_viewport(
+                    viewport.0, viewport.1, viewport.2, viewport.3, viewport.4, viewport.5,
+                );
+
+                rpass.set_pipeline(&self.pipeline);
+                rpass.set_vertex_buffer(0, self.instance_buf.slice(0..copy_size));
+                rpass.set_vertex_buffer(1, self.vertex_buf.slice(..));
+                rpass.set_index_buffer(self.index_buf.slice(..), wgpu::IndexFormat::Uint16);
+                rpass.set_bind_group(0, &self.bind_group, &[]);
+
+                // Set view transformation matrix + projection matrix
+                rpass.set_push_constants(
+                    wgpu::ShaderStage::VERTEX,
+                    0,
+                    bytemuck::cast_slice(mx_view.as_slice()),
+                );
+                rpass.set_push_constants(
+                    wgpu::ShaderStage::VERTEX,
+                    4 * 16,
+                    bytemuck::cast_slice(mx_projection.as_slice()),
+                );
+
+                rpass.pop_debug_group();
+
+                rpass.insert_debug_marker("draw");
+                rpass.draw_indexed(0..6, 0, 0..instance_count as u32);
+            }
         }
 
         queue.submit(Some(encoder.finish()));
