@@ -24,9 +24,11 @@ fn introduction() {
 }
 
 #[system]
-fn init_entities(commands: &mut CommandBuffer) {
+fn init_entities(commands: &mut CommandBuffer, #[resource] window: &Window) {
+    let (width, height) = window.resolution();
+
     // Push camera entity to `World`.
-    commands.push((Transform2D::default(), Camera2D::default()));
+    commands.push((Transform2D::default(), Camera2D::new(width, height)));
     // Push sprite entity to `World`.
     commands.push((
         Transform2D::new_with_scale(64.0, 64.0),

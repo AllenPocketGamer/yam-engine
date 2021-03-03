@@ -1,13 +1,14 @@
-use yam::*;
-use yam::legion::*;
+use yam::legion::{systems::CommandBuffer, *};
 use yam::nalgebra::Vector2;
+use yam::*;
 
 fn main() -> Result<(), AppBuildError> {
     AppBuilder::new()
         .create_stage_builder(String::from("default"))?
-        .add_thread_local_fn_startup(init_entities)
-        .add_thread_local_system_process(operate_camera_system())
-        .add_thread_local_system_process(steering_sprites_system(DiagnosticTimer::new()))
+        .add_thread_local_system_startup(introduction_system())
+        .add_thread_local_system_startup(init_entities_system())
+        .add_thread_local_system_process(control_camera_system())
+        .add_thread_local_system_process(wander_system())
         .into_app_builder()
         .build()
         .run();
@@ -15,30 +16,45 @@ fn main() -> Result<(), AppBuildError> {
     Ok(())
 }
 
-fn init_entities(world: &mut World, _resources: &mut Resources) {
-    const SIZE: f32 = 8.0;
-    const SQRT: usize = 1000;
+#[system]
+fn introduction() {
+    println!("Introduction:");
+    println!("  1. Pressed the middle button of mouse to move the camera.");
+    println!("  2. Scroll the wheel of mouse to scale the view of the camera.");
+}
 
-    world.push((Transform2D::default(), Camera2D::new(1920, 1080)));
+#[system]
+fn init_entities(commands: &mut CommandBuffer, #[resource] window: &Window) {
+    const SPRITE_SIZE: f32 = 8.0;
 
-    let mut transform2ds = Vec::<Transform2D>::with_capacity(SQRT * SQRT + 8);
-    let mut steerings = Vec::<Steering>::with_capacity(SQRT * SQRT + 8);
+    const SQRT_COUNT: usize = 1_024;
+    const COUNT: usize = SQRT_COUNT * SQRT_COUNT;
 
-    for x in 0..SQRT {
-        for y in 0..SQRT {
-            let (tx, ty) = (1.2 * SIZE * x as f32, 1.2 * SIZE * y as f32);
+    let (width, height) = window.resolution();
 
-            transform2ds.push(Transform2D::new(tx, ty, 0.0, SIZE, SIZE));
+    // Push camera entity to `World`.
+    commands.push((Transform2D::default(), Camera2D::new(width, height)));
+
+    // `+8` prevent double the capacity of the vec when push element into.
+    let mut steerings: Vec<Steering> = Vec::with_capacity(COUNT + 8);
+    let mut transform2ds: Vec<Transform2D> = Vec::with_capacity(COUNT + 8);
+
+    for x in 0..SQRT_COUNT {
+        for y in 0..SQRT_COUNT {
+            let (tx, ty) = (1.2 * SPRITE_SIZE * x as f32, 1.2 * SPRITE_SIZE * y as f32);
+
             steerings.push(Steering::new(0.0, 0.0));
+            transform2ds.push(Transform2D::new(tx, ty, 0.0, SPRITE_SIZE, SPRITE_SIZE));
         }
     }
 
-    world.push((transform2ds, steerings, Sprite { color: Color::BLUE }));
+    // Push sprite(with instance) entity to `World`.
+    commands.push((transform2ds, steerings, Sprite { color: Color::BLUE }));
 }
 
 #[system(for_each)]
 #[filter(component::<Camera2D>())]
-fn operate_camera(transform: &mut Transform2D, #[resource] input: &Input) {
+fn control_camera(transform: &mut Transform2D, #[resource] input: &Input) {
     const TSPEED: f32 = 16.0;
     const SSPEED: f32 = 0.40;
 
@@ -57,12 +73,10 @@ fn operate_camera(transform: &mut Transform2D, #[resource] input: &Input) {
 
 #[system(for_each)]
 #[filter(component::<Sprite>())]
-fn steering_sprites(
-    #[state] dtimer: &mut DiagnosticTimer,
+fn wander(
     transform2ds: &mut Vec<Transform2D>,
     steerings: &mut Vec<Steering>,
     #[resource] time: &Time,
-    #[resource] input: &Input,
 ) {
     use rayon::prelude::*;
 
@@ -71,8 +85,6 @@ fn steering_sprites(
 
     let delta = time.delta().as_secs_f32();
 
-    dtimer.start_record();
-
     transform2ds
         .par_iter_mut()
         .zip(steerings.par_iter_mut())
@@ -80,18 +92,6 @@ fn steering_sprites(
             steering.apply_force(&steering.wander(transform2d, RADIUS, DISTANCE));
             steering.motion(transform2d, delta);
         });
-
-    dtimer.stop_record();
-
-    let tmp = *dtimer;
-    std::thread::spawn(move || {
-        println!("{}", tmp);
-    });
-
-    // Restart diagonstic timer.
-    if input.keyboard.just_pressed(KeyCode::R) {
-        *dtimer = DiagnosticTimer::new();
-    }
 }
 
 #[allow(dead_code)]
