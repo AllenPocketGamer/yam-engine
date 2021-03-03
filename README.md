@@ -47,7 +47,7 @@
     cargo run --example render2d
     ```
 
-6. **render2d_millions**: Show how to millions of sprites to screen in 60fps.
+6. **render2d_millions**: Show how to render millions of sprites to screen in 60fps.
 
     ```bash
     # Use `--release` flag to prevent performance decline.
