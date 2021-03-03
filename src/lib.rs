@@ -23,4 +23,4 @@ pub use components::{
 };
 pub use input::{Input, KeyCode, MouseButton};
 pub use misc::color::Color;
-pub use window::Window;
+pub use window::{Fullscreen, MonitorHandle, VideoMode, Window};

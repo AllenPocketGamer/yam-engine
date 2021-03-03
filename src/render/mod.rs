@@ -9,7 +9,7 @@ use crate::{
     window::Window,
 };
 
-pub(crate) fn create_app_stage_render(window: &winit::window::Window) -> AppStage {
+pub(crate) fn create_app_stage_render(Window { window }: &Window) -> AppStage {
     let mut r2ds = Render2DService::new(window);
 
     let render_process = move |world: &mut World, resources: &mut Resources| {
@@ -17,7 +17,7 @@ pub(crate) fn create_app_stage_render(window: &winit::window::Window) -> AppStag
             let window = resources
                 .get::<Window>()
                 .expect("ERR: Not find window resource.");
-            window.inner_size()
+            window.resolution()
         };
 
         let mut query_camera2d = <(&Transform2D, &Camera2D)>::query();

@@ -40,19 +40,23 @@ impl App {
         }
     }
 
+    /// Hijack the main thread to run the `App`.
+    ///
     /// # Panics
     ///
-    /// Panics if the ownership of `AppSettings` moved to outer
+    /// Panics if the ownership of `AppSettings` moved to outer.
     pub fn run(self) {
         let event_loop = EventLoop::new();
-        let window = WindowBuilder::new()
-            .with_title("default")
-            .build(&event_loop)
-            .unwrap();
+        let window = Window::new(
+            WindowBuilder::new()
+                .with_title("default")
+                .build(&event_loop)
+                .unwrap(),
+        );
 
         let busy_stages = Rc::new(RefCell::new(self.busy_stages));
 
-        // FIXME: add render app_stage to busy_stages temporarily
+        // FIXME: Place the render `AppStage` to right place to prevent removal in accident.
         busy_stages
             .borrow_mut()
             .push(create_app_stage_render(&window));
@@ -62,7 +66,7 @@ impl App {
 
         resources.insert::<Input>(Input::new());
         resources.insert::<AppSettings>(AppSettings::new(&busy_stages));
-        resources.insert::<Window>(Window::new(window));
+        resources.insert::<Window>(window);
 
         // local datas
         let mut input_evts: Vec<Event<'static, ()>> = Default::default();
