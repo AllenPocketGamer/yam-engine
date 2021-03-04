@@ -15,6 +15,14 @@
 * [wgpu-rs](https://github.com/gfx-rs/wgpu-rs): low-level, cross-platform and modern graphics library.
 * [winit](https://github.com/rust-windowing/winit): cross-platform window creation and management in Rust.
 
+## Roadmap
+
+* A simple `AssetLoader` to load texture, shader and scripts.
+* A debug graph primitive which can draw a line, a circle in limited sytle.
+* Embed a simple `IMGUI` module.
+* Embed a simple `Script` module
+* More flexible render pipeline, get data from shader by reflecting.
+
 ## The Example
 
 1. **app**: Show the basic architecture of `yam`.
