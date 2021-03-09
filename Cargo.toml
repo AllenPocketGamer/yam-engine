@@ -30,6 +30,9 @@ bytemuck = { version = "1.4.*", features = ["derive"] }
 colored = "2.0.*"
 crossterm = "0.18.*"
 
+# assets
+image = "0.23.*"
+
 # async
 futures = "0.3.*"
 
@@ -54,28 +57,32 @@ fs_extra = "1.2.*"
 
 [[example]]
 name = "app"
-path = "examples/1_app.rs"
+path = "examples/1_1_app.rs"
 
 [[example]]
 name = "input"
-path = "examples/2_input.rs"
+path = "examples/1_2_input.rs"
 
 [[example]]
 name = "time"
-path = "examples/3_time.rs"
+path = "examples/1_3_time.rs"
 
 [[example]]
 name = "window"
-path = "examples/4_window.rs"
+path = "examples/1_4_window.rs"
+
+[[example]]
+name = "load_texture"
+path = "examples/1_5_load_texture.rs"
 
 [[example]]
 name = "render2d"
-path = "examples/5_render2d.rs"
+path = "examples/2_1_render2d.rs"
 
 [[example]]
 name = "render2d_millions"
-path = "examples/6_render2d_millions.rs"
+path = "examples/2_2_render2d_millions.rs"
 
 [[example]]
 name = "render2d_millions_with_simd"
-path= "example/7_render2d_millions_with_simd"
+path= "example/2_3_render2d_millions_with_simd"
