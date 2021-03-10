@@ -30,9 +30,6 @@ bytemuck = { version = "1.4.*", features = ["derive"] }
 colored = "2.0.*"
 crossterm = "0.18.*"
 
-# assets
-image = "0.23.*"
-
 # async
 futures = "0.3.*"
 
@@ -70,10 +67,6 @@ path = "examples/1_3_time.rs"
 [[example]]
 name = "window"
 path = "examples/1_4_window.rs"
-
-[[example]]
-name = "load_texture"
-path = "examples/1_5_load_texture.rs"
 
 [[example]]
 name = "render2d"
