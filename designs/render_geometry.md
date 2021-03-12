@@ -57,6 +57,79 @@ fn draw_grid(transform2d: &Transform2D,
 }
 ```
 
+### 结构体设计(请无视内存布局)
+
+```rust
+// 用于表示图元的类型
+enum Geometry {
+    Quad = 0,
+    RQuad,
+    Circle,
+    ETriangle,
+    // Line,
+}
+
+enum BorderType {
+    None = 0,   // 没有边框
+    Solid,      // 实边框
+    Dash,       // 虚边框
+    Navi,       // 导航边框
+    Warn,       // 警示边框
+}
+
+// 边框样式结构体
+struct BorderStyle {
+    b_type: BorderType,
+    is_dynamic: bool,
+    color: Rgba,
+}
+
+enum InnerType {
+    None = 0,   // 空心
+    Solid,      // 实心
+    Dither,     // 抖动
+}
+
+enum InnerStyle {
+    i_type: InnerType,
+    is_dynamic: bool,
+    color: Rgba,
+}
+```
+
+### 声明式绘制
+
+```rust
+#[system]
+fn init(cmd: &mut CommandBuffer) {
+    // 绘制一个`图元`, 默认样式为无边框实心pink色
+    cmd.push((Transform2D::default(), Geometry::Circle));
+
+    // 绘制一个`图元`, 携带`BorderStyle`
+    cmd.push((Transform2D::default(), Geometry::Circle, BorderStyle::default()));
+
+    // 绘制一个`图元`, 携带`InnerStyle`
+    cmd.push((Transform2D::default(), Geometry::Circle, InnerStyle::default()));
+
+    // 绘制一个`图元`, 同时携带`BorderStyle`和`InnerStyle`
+    cmd.push((Transform2D::default(), Geometry::Circle, BorderStyle::default(),
+        InnerStyle::default()
+    ));
+}
+```
+
+### 命令式绘制
+
+```rust
+#[system]
+fn draw(#[resource] r2d: &mut Render2D) {
+    r2d.draw_quad(lb, rt, bstyle, istyle);
+    r2d.draw_rquad(lb, rt, bstyle, istyle);
+    r2d.draw_circle(centre, radius, bstyle, istyle);
+    r2d.draw_etriangle(centre, radius, bstyle, istyle);
+}
+```
+
 ## 实现
 
 着色过程显然是放在GPU端进行的, 但是放在`fragment shader`还是`compute shader`是值得商榷的.
