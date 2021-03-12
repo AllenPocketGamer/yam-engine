@@ -1,275 +1,12 @@
-use crate::{
-    components::{camera::Camera2D, sprite::Sprite, transform::Transform2D},
-    misc::color::Color,
-    nalgebra::Matrix4,
-};
+use super::Gpu;
+
+use crate::{components::transform::Transform2D, misc::color::Color, nalgebra::Matrix4};
 
 use wgpu::util::DeviceExt;
 
 use std::mem::size_of;
 
-pub struct Render2DService {
-    gpu: Gpu,
-    sprite_renderer: SpriteRenderer,
-
-    aspect_ratio: f32,
-    mx_view: Matrix4<f32>,
-    mx_projection: Matrix4<f32>,
-}
-
-impl Render2DService {
-    pub fn new(window: &winit::window::Window) -> Self {
-        let mut gpu = futures::executor::block_on(Gpu::new(window));
-        let sprite_renderer = SpriteRenderer::new(&mut gpu);
-
-        let default_camera2d = Camera2D::default();
-        let default_camera2d_transform2d = Transform2D::default();
-
-        Self {
-            gpu,
-            sprite_renderer,
-
-            aspect_ratio: default_camera2d.aspect_ratio(),
-            mx_view: default_camera2d_transform2d
-                .to_homogeneous_3d()
-                .try_inverse()
-                .unwrap(),
-            mx_projection: default_camera2d.to_orthographic_homogeneous(),
-        }
-    }
-
-    pub fn swap_chain_size(&self) -> (u32, u32) {
-        (self.gpu.sc_desc.width, self.gpu.sc_desc.height)
-    }
-
-    pub fn set_swap_chain_size(&mut self, width: u32, height: u32) {
-        self.gpu.sc_desc.width = width;
-        self.gpu.sc_desc.height = height;
-
-        self.gpu.swap_chain = self
-            .gpu
-            .device
-            .create_swap_chain(&self.gpu.surface, &self.gpu.sc_desc);
-    }
-
-    #[allow(dead_code)]
-    pub fn view_transformation(&self) -> Matrix4<f32> {
-        self.mx_view
-    }
-
-    pub fn set_view_transformation(&mut self, camera2d_transform2d: &Transform2D) {
-        self.mx_view = camera2d_transform2d
-            .to_homogeneous_3d()
-            .try_inverse()
-            .unwrap()
-    }
-
-    #[allow(dead_code)]
-    pub fn projection(&self) -> Matrix4<f32> {
-        self.mx_projection
-    }
-
-    pub fn set_projection(&mut self, camera2d: &Camera2D) {
-        self.mx_projection = camera2d.to_orthographic_homogeneous()
-    }
-
-    #[allow(dead_code)]
-    pub fn viewport_aspect_ratio(&self) -> f32 {
-        self.aspect_ratio
-    }
-
-    pub fn set_viewport_aspect_ratio(&mut self, aspect_ratio: f32) {
-        self.aspect_ratio = aspect_ratio.abs();
-    }
-
-    pub fn begin_draw(&mut self) {
-        if self.gpu.frame.is_none() {
-            match self.gpu.swap_chain.get_current_frame() {
-                Ok(sw_frame) => self.gpu.frame = Some(sw_frame),
-                Err(err) => panic!("ERR: {}", err),
-            }
-        } else {
-            panic!("ERR: Drawing has begun already.")
-        }
-    }
-
-    pub fn draw_sprite_in_world_space(&mut self, transform2d: &Transform2D, sprite: &Sprite) {
-        let viewport = self.calculate_adapted_viewport();
-
-        self.sprite_renderer.render(
-            &mut self.gpu,
-            std::slice::from_ref(transform2d),
-            &sprite.color,
-            &self.mx_view,
-            &self.mx_projection,
-            &viewport,
-        );
-    }
-
-    pub fn draw_sprites_in_world_space(&mut self, transform2ds: &[Transform2D], sprite: &Sprite) {
-        let viewport = self.calculate_adapted_viewport();
-
-        self.sprite_renderer.render(
-            &mut self.gpu,
-            transform2ds,
-            &sprite.color,
-            &self.mx_view,
-            &self.mx_projection,
-            &viewport,
-        );
-    }
-
-    #[allow(dead_code)]
-    pub fn clear(&mut self, clear_color: &Color) {
-        let [r, g, b, a] = clear_color.to_rgba_raw();
-
-        let mut encoder = self
-            .gpu
-            .device
-            .create_command_encoder(&wgpu::CommandEncoderDescriptor { label: None });
-
-        {
-            encoder.begin_render_pass(&wgpu::RenderPassDescriptor {
-                label: None,
-                color_attachments: &[wgpu::RenderPassColorAttachmentDescriptor {
-                    attachment: &(self.gpu.frame.as_ref().unwrap().output.view),
-                    resolve_target: None,
-                    ops: wgpu::Operations {
-                        load: wgpu::LoadOp::Clear(wgpu::Color {
-                            r: r as f64,
-                            g: g as f64,
-                            b: b as f64,
-                            a: a as f64,
-                        }),
-                        store: true,
-                    },
-                }],
-                depth_stencil_attachment: None,
-            });
-        }
-
-        self.gpu.queue.submit(Some(encoder.finish()));
-    }
-
-    pub fn finish_draw(&mut self) {
-        if self.gpu.frame.is_some() {
-            self.gpu.frame.take();
-        } else {
-            panic!("ERR: Drawing has ended already.")
-        }
-    }
-
-    // return (x, y, width, height, min_depth, max_depth)
-    fn calculate_adapted_viewport(&self) -> (f32, f32, f32, f32, f32, f32) {
-        let (screen_width, screen_height) = self.swap_chain_size();
-        let (screen_width, screen_height) = (screen_width as f32, screen_height as f32);
-
-        let aspect_ratio = self.aspect_ratio;
-        let screen_ratio = screen_width / screen_height;
-
-        if aspect_ratio <= screen_ratio {
-            let (x, y) = ((screen_width - aspect_ratio * screen_height) / 2.0, 0f32);
-            let (width, height) = (aspect_ratio * screen_height, screen_height);
-
-            (x, y, width, height, 0.0, 1.0)
-        } else {
-            let (x, y) = (0f32, (screen_height - screen_width / aspect_ratio) / 2.0);
-            let (width, height) = (screen_width, screen_width / aspect_ratio);
-
-            (x, y, width, height, 0.0, 1.0)
-        }
-    }
-}
-
-struct Gpu {
-    surface: wgpu::Surface,
-    adapter: wgpu::Adapter,
-    device: wgpu::Device,
-    queue: wgpu::Queue,
-    swap_chain: wgpu::SwapChain,
-    sc_desc: wgpu::SwapChainDescriptor,
-    frame: Option<wgpu::SwapChainFrame>,
-}
-
-impl Gpu {
-    async fn new(window: &winit::window::Window) -> Self {
-        let backend = wgpu::BackendBit::PRIMARY;
-        let power_preference = wgpu::PowerPreference::HighPerformance;
-
-        let instance = wgpu::Instance::new(backend);
-
-        let surface = unsafe { instance.create_surface(window) };
-        let adapter = instance
-            .request_adapter(&wgpu::RequestAdapterOptions {
-                power_preference,
-                compatible_surface: Some(&surface),
-            })
-            .await
-            .expect("No suitable GPU adapters found on the system!");
-
-        let adapter_info = adapter.get_info();
-        println!("Using {} ({:?})", adapter_info.name, adapter_info.backend);
-
-        let can_push_constant = !(adapter.features() & wgpu::Features::PUSH_CONSTANTS).is_empty();
-        let max_push_constant_size = adapter.limits().max_push_constant_size;
-
-        if can_push_constant {
-            println!(
-                "Support PUSH_CONSTANT feature, max push const size: {}.",
-                max_push_constant_size
-            );
-        } else {
-            println!("Not support PUSH_CONSTANT feature.");
-        }
-
-        let (features, limits) = if can_push_constant {
-            let mut limits = wgpu::Limits::default();
-            limits.max_push_constant_size = max_push_constant_size;
-            (wgpu::Features::PUSH_CONSTANTS, limits)
-        } else {
-            (wgpu::Features::empty(), wgpu::Limits::default())
-        };
-
-        let (device, queue) = adapter
-            .request_device(
-                &wgpu::DeviceDescriptor {
-                    label: None,
-                    features,
-                    limits,
-                },
-                None,
-            )
-            .await
-            .expect("Unable to find a suitable GPU adapter!");
-
-        let sc_desc = wgpu::SwapChainDescriptor {
-            usage: wgpu::TextureUsage::RENDER_ATTACHMENT,
-            format: adapter.get_swap_chain_preferred_format(&surface),
-            width: window.inner_size().width,
-            height: window.inner_size().height,
-            // NOTE: 特别关注这个设置, 跟硬件(显示屏)相关, 不正确的设置可能会导致灵异的bug;
-            //  但现在还没碰到相关问题, 先搁置;
-            // NOTE: 先默认设置为Mailbox, 该模式下画面会以垂直刷新率更新, 但与Fifo不同的是,
-            //  GPU一旦绘制完画面, 会立即提交到表现引擎; 而Fifo模式下会通过阻塞线程的方式强制
-            //  帧率与显示器刷新率同步.
-            present_mode: wgpu::PresentMode::Mailbox,
-        };
-
-        let swap_chain = device.create_swap_chain(&surface, &sc_desc);
-
-        Self {
-            surface,
-            adapter,
-            device,
-            queue,
-            swap_chain,
-            sc_desc,
-            frame: None,
-        }
-    }
-}
-
-struct SpriteRenderer {
+pub(super) struct SpriteRenderer {
     // To store four vertex data(quad)
     vertex_buf: wgpu::Buffer,
     // To store index data of quad
@@ -306,7 +43,7 @@ impl SpriteRenderer {
         2, 3, 0, // Face CDA
     ];
 
-    fn new(
+    pub(super) fn new(
         Gpu {
             surface,
             adapter,
@@ -442,7 +179,7 @@ impl SpriteRenderer {
     }
 
     /// Only support `Self::INSTANCE_MAX_COUNT` transform2d once call.
-    fn render(
+    pub(super) fn render(
         &mut self,
         Gpu {
             device,
@@ -564,4 +301,12 @@ impl SpriteRenderer {
 
         queue.submit(Some(encoder.finish()));
     }
+}
+
+struct GeometryRenderer {
+    // TODO!
+}
+
+impl GeometryRenderer {
+    // TODO!
 }
