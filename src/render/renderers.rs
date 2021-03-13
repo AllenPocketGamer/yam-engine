@@ -1,10 +1,6 @@
 use super::Gpu;
 
-use crate::{
-    components::transform::Transform2D,
-    misc::color::{Hex, Rgba},
-    nalgebra::Matrix4,
-};
+use crate::{components::transform::Transform2D, misc::color::Rgba, nalgebra::Matrix4};
 
 use wgpu::util::DeviceExt;
 

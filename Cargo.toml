@@ -69,13 +69,17 @@ name = "window"
 path = "examples/1_4_window.rs"
 
 [[example]]
-name = "render2d"
-path = "examples/2_1_render2d.rs"
+name = "sprite"
+path = "examples/2_1_sprite.rs"
+
+[[example]]
+name = "geometry"
+path = "examples/2_2_geometry.rs"
 
 [[example]]
 name = "render2d_millions"
-path = "examples/2_2_render2d_millions.rs"
+path = "examples/3_1_render2d_millions.rs"
 
 [[example]]
 name = "render2d_millions_with_simd"
-path= "example/2_3_render2d_millions_with_simd"
+path= "example/3_2_render2d_millions_with_simd"
