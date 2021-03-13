@@ -54,7 +54,7 @@ fn init_entities(commands: &mut CommandBuffer, #[resource] window: &Window) {
     }
 
     // Push sprite(with instance) entity to `World`.
-    commands.push((transform2ds, steerings, Sprite { color: Color::BLUE }));
+    commands.push((transform2ds, steerings, Sprite { color: Rgba::ORANGE }));
 }
 
 #[system(for_each)]

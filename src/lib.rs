@@ -17,10 +17,11 @@ pub extern crate nalgebra;
 pub use app::*;
 pub use components::{
     camera::Camera2D,
+    geometry::Geometry,
     sprite::Sprite,
     time::{DiagnosticTimer, Time},
     transform::Transform2D,
 };
 pub use input::{Input, KeyCode, MouseButton};
-pub use misc::color::Color;
+pub use misc::color::{Hex, Rgba};
 pub use window::{Fullscreen, MonitorHandle, VideoMode, Window};

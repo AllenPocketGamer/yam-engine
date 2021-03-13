@@ -1,10 +1,27 @@
 use super::Gpu;
 
-use crate::{components::transform::Transform2D, misc::color::Color, nalgebra::Matrix4};
+use crate::{
+    components::transform::Transform2D,
+    misc::color::{Hex, Rgba},
+    nalgebra::Matrix4,
+};
 
 use wgpu::util::DeviceExt;
 
 use std::mem::size_of;
+
+// Quad vertex in world coordinate
+const QUAD_VERTEX: [f32; 16] = [
+    -0.5, 0.5, 0.0, 1.0, // left-top, point A
+    0.5, 0.5, 0.0, 1.0, // right-top, point B
+    0.5, -0.5, 0.0, 1.0, // right-bottom, point C
+    -0.5, -0.5, 0.0, 1.0, // left-bottom, point D
+];
+
+const QUAD_INDEX: [u16; 6] = [
+    0, 1, 2, // Face ABC
+    2, 3, 0, // Face CDA
+];
 
 pub(super) struct SpriteRenderer {
     // To store four vertex data(quad)
@@ -28,21 +45,6 @@ impl SpriteRenderer {
     /// Max instance data size per render pass.
     const MAX_INSTANCE_DATA_SIZE: usize = size_of::<Transform2D>() * 1024 * 1024;
 
-    // Quad vertex in world coordinate
-    #[allow(dead_code)]
-    const QUAD_VERTEX: [f32; 16] = [
-        -0.5, 0.5, 0.0, 1.0, // left-top, point A
-        0.5, 0.5, 0.0, 1.0, // right-top, point B
-        0.5, -0.5, 0.0, 1.0, // right-bottom, point C
-        -0.5, -0.5, 0.0, 1.0, // left-bottom, point D
-    ];
-
-    #[allow(dead_code)]
-    const QUAD_INDEX: [u16; 6] = [
-        0, 1, 2, // Face ABC
-        2, 3, 0, // Face CDA
-    ];
-
     pub(super) fn new(
         Gpu {
             surface,
@@ -55,13 +57,13 @@ impl SpriteRenderer {
 
         let vertex_buf = device.create_buffer_init(&wgpu::util::BufferInitDescriptor {
             label: Some("quad vertex"),
-            contents: bytemuck::cast_slice(&Self::QUAD_VERTEX[..]),
+            contents: bytemuck::cast_slice(&QUAD_VERTEX[..]),
             usage: wgpu::BufferUsage::VERTEX,
         });
 
         let index_buf = device.create_buffer_init(&wgpu::util::BufferInitDescriptor {
             label: Some("quad index"),
-            contents: bytemuck::cast_slice(&Self::QUAD_INDEX[..]),
+            contents: bytemuck::cast_slice(&QUAD_INDEX[..]),
             usage: wgpu::BufferUsage::INDEX,
         });
 
@@ -83,7 +85,7 @@ impl SpriteRenderer {
 
         let uniform_buf = device.create_buffer_init(&wgpu::util::BufferInitDescriptor {
             label: Some("color"),
-            contents: bytemuck::cast_slice(&Color::WHITE.to_rgba_raw()[..]),
+            contents: bytemuck::cast_slice(&Rgba::WHITE.to_hex().to_ne_bytes()[..]),
             usage: wgpu::BufferUsage::UNIFORM | wgpu::BufferUsage::COPY_DST,
         });
 
@@ -95,7 +97,7 @@ impl SpriteRenderer {
                 ty: wgpu::BindingType::Buffer {
                     ty: wgpu::BufferBindingType::Uniform,
                     has_dynamic_offset: false,
-                    min_binding_size: wgpu::BufferSize::new(4 * 4),
+                    min_binding_size: wgpu::BufferSize::new(4),
                 },
                 count: None,
             }],
@@ -188,7 +190,7 @@ impl SpriteRenderer {
             ..
         }: &mut Gpu,
         transform2ds: &[Transform2D],
-        color: &Color,
+        color: &Rgba,
         mx_view: &Matrix4<f32>,
         mx_projection: &Matrix4<f32>,
         viewport: &(f32, f32, f32, f32, f32, f32),
@@ -225,7 +227,7 @@ impl SpriteRenderer {
         queue.write_buffer(
             &self.uniform_buf,
             0,
-            bytemuck::cast_slice(&color.to_rgba_raw()[..]),
+            bytemuck::cast_slice(&color.to_hex().to_ne_bytes()[..]),
         );
 
         let frame = frame
@@ -261,7 +263,7 @@ impl SpriteRenderer {
                         attachment: &(frame.output.view),
                         resolve_target: None,
                         ops: wgpu::Operations {
-                            load: wgpu::LoadOp::Load,
+                            load: wgpu::LoadOp::Clear(wgpu::Color::BLACK),
                             store: true,
                         },
                     }],

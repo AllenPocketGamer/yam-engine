@@ -61,7 +61,7 @@ fn draw_grid(transform2d: &Transform2D,
 
 ```rust
 // 用于表示图元的类型
-enum Geometry {
+enum GeometryType {
     Quad = 0,
     RQuad,
     Circle,
@@ -69,6 +69,23 @@ enum Geometry {
     // Line,
 }
 
+// 16bytes
+enum Geometry {
+    // Contains `dynamic`, border和inner的`type`, `thickness`信息
+    //
+    // 0-7bit: geometry_type
+    // 8bit: is_inner_dynamic
+    // 9-15bit: inner_type
+    // 16bit: is_border_dynamic
+    // 17-23bit: border_type
+    // 24-31bit: extra_info
+    _datas: u32,
+    thickness: f32,
+    inner_color: u32,
+    border_color: u32,
+}
+
+// 用7bit表示
 enum BorderType {
     None = 0,   // 没有边框
     Solid,      // 实边框
@@ -77,23 +94,11 @@ enum BorderType {
     Warn,       // 警示边框
 }
 
-// 边框样式结构体
-struct BorderStyle {
-    b_type: BorderType,
-    is_dynamic: bool,
-    color: Rgba,
-}
-
+// 用7bit表示
 enum InnerType {
     None = 0,   // 空心
     Solid,      // 实心
     Dither,     // 抖动
-}
-
-enum InnerStyle {
-    i_type: InnerType,
-    is_dynamic: bool,
-    color: Rgba,
 }
 ```
 
@@ -105,16 +110,8 @@ fn init(cmd: &mut CommandBuffer) {
     // 绘制一个`图元`, 默认样式为无边框实心pink色
     cmd.push((Transform2D::default(), Geometry::Circle));
 
-    // 绘制一个`图元`, 携带`BorderStyle`
-    cmd.push((Transform2D::default(), Geometry::Circle, BorderStyle::default()));
-
-    // 绘制一个`图元`, 携带`InnerStyle`
-    cmd.push((Transform2D::default(), Geometry::Circle, InnerStyle::default()));
-
-    // 绘制一个`图元`, 同时携带`BorderStyle`和`InnerStyle`
-    cmd.push((Transform2D::default(), Geometry::Circle, BorderStyle::default(),
-        InnerStyle::default()
-    ));
+    // 绘制一个`图元`, 携带`GeometryStyle`
+    cmd.push((Transform2D::default(), Geometry::Circle, Geometry::default()));
 }
 ```
 

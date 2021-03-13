@@ -6,7 +6,7 @@ use crate::{
     app::{AppStage, AppStageBuilder},
     components::{camera::Camera2D, sprite::Sprite, transform::Transform2D},
     legion::{IntoQuery, Resources, World},
-    misc::color::Color,
+    misc::color::Rgba,
     nalgebra::Matrix4,
     window::Window,
 };
@@ -252,8 +252,7 @@ impl Render2D {
     }
 
     #[allow(dead_code)]
-    pub fn clear(&mut self, clear_color: &Color) {
-        let [r, g, b, a] = clear_color.to_rgba_raw();
+    pub fn clear(&mut self, clear_color: &Rgba) {
 
         let mut encoder = self
             .gpu
@@ -267,12 +266,7 @@ impl Render2D {
                     attachment: &(self.gpu.frame.as_ref().unwrap().output.view),
                     resolve_target: None,
                     ops: wgpu::Operations {
-                        load: wgpu::LoadOp::Clear(wgpu::Color {
-                            r: r as f64,
-                            g: g as f64,
-                            b: b as f64,
-                            a: a as f64,
-                        }),
+                        load: wgpu::LoadOp::Clear(clear_color.to_wgpu_color()),
                         store: true,
                     },
                 }],

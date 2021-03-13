@@ -32,7 +32,7 @@ fn init_entities(commands: &mut CommandBuffer, #[resource] window: &Window) {
     // Push sprite entity to `World`.
     commands.push((
         Transform2D::new_with_scale(64.0, 64.0),
-        Sprite { color: Color::RED },
+        Sprite { color: Rgba::RED },
     ));
 }
 
