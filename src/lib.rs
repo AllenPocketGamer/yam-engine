@@ -21,6 +21,7 @@ pub use components::{
     sprite::Sprite,
     time::{DiagnosticTimer, Time},
     transform::Transform2D,
+    Instance,
 };
 pub use input::{Input, KeyCode, MouseButton};
 pub use misc::color::{Hex, Rgba};

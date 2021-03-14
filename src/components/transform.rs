@@ -19,7 +19,7 @@ impl Transform2D {
         }
     }
 
-    pub fn new_with_translation(tx: f32, ty: f32) -> Self {
+    pub fn with_position(tx: f32, ty: f32) -> Self {
         Self {
             position: Vector2::new(tx, ty),
             rotation: UnitComplex::new(0.0),
@@ -27,7 +27,7 @@ impl Transform2D {
         }
     }
 
-    pub fn new_with_rotation(angle: f32) -> Self {
+    pub fn with_rotation(angle: f32) -> Self {
         Self {
             position: Vector2::new(0.0, 0.0),
             rotation: UnitComplex::new(angle),
@@ -35,7 +35,7 @@ impl Transform2D {
         }
     }
 
-    pub fn new_with_scale(sx: f32, sy: f32) -> Self {
+    pub fn with_scale(sx: f32, sy: f32) -> Self {
         Self {
             position: Vector2::new(0.0, 0.0),
             rotation: UnitComplex::new(0.0),

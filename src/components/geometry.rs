@@ -33,6 +33,28 @@ impl Geometry {
             _extra_info: 0,
         }
     }
+
+    pub fn with_default_style(gtype: GeometryType) -> Self {
+        Self::new(
+            gtype,
+            InnerType::Solid,
+            Rgba::CYAN.to_hex(),
+            BorderType::Solid,
+            Rgba::WHITE.to_hex(),
+            0.1,
+        )
+    }
+
+    pub fn with_color(gtype: GeometryType, icolor: Hex, bcolor: Hex) -> Self {
+        Self::new(
+            gtype,
+            InnerType::Solid,
+            icolor,
+            BorderType::Solid,
+            bcolor,
+            0.1,
+        )
+    }
 }
 
 impl Default for Geometry {

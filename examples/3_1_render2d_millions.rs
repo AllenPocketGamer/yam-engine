@@ -41,8 +41,8 @@ fn init_entities(commands: &mut CommandBuffer, #[resource] window: &Window) {
     commands.push((Transform2D::default(), Camera2D::new(width, height)));
 
     // `+8` prevent double the capacity of the vec when push element into.
-    let mut steerings: Vec<Steering> = Vec::with_capacity(COUNT + 8);
-    let mut transform2ds: Vec<Transform2D> = Vec::with_capacity(COUNT + 8);
+    let mut steerings: Instance<Steering> = Instance::with_capacity(COUNT + 8);
+    let mut transform2ds: Instance<Transform2D> = Instance::with_capacity(COUNT + 8);
 
     for x in 0..SQRT_COUNT {
         for y in 0..SQRT_COUNT {
@@ -79,8 +79,8 @@ fn control_camera(transform: &mut Transform2D, #[resource] input: &Input) {
 #[system(for_each)]
 #[filter(component::<Sprite>())]
 fn wander(
-    transform2ds: &mut Vec<Transform2D>,
-    steerings: &mut Vec<Steering>,
+    transform2ds: &mut Instance<Transform2D>,
+    steerings: &mut Instance<Steering>,
     #[resource] time: &Time,
 ) {
     use rayon::prelude::*;
