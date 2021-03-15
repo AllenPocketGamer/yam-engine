@@ -1,7 +1,4 @@
-use crate::{
-    misc::color::{Hex, Rgba},
-    nalgebra::Vector2,
-};
+use crate::{misc::color::Rgba, nalgebra::Vector2};
 
 use std::fmt;
 
@@ -11,18 +8,18 @@ use std::fmt;
 #[derive(Debug, Clone, Copy)]
 pub struct Geometry {
     // type info
-    pub gtype: GeometryType,    // 1 byte
-    pub btype: BorderType,      // 1 byte
-    pub itype: InnerType,       // 1 byte
-    pub order: u8,              // 1 byte
+    pub gtype: GeometryType,    // 1 bytes
+    pub btype: BorderType,      // 1 bytes
+    pub itype: InnerType,       // 1 bytes
+    pub order: u8,              // 1 bytes
 
     // decor info
-    pub bcolor: Hex,            // 4 byte, border color
-    pub icolor: Hex,            // 4 byte, inner color
-    pub thickness: f32,         // 4 byte, border thickness
+    pub bcolor: Rgba,           // 4 bytes, border color
+    pub icolor: Rgba,           // 4 bytes, inner color
+    pub thickness: f32,         // 4 bytes, border thickness
 
     // extra info about transformation
-    pub extra: Extra,           // 16 byte
+    pub extra: Extra,           // 16 bytes
 }
 
 impl Geometry {
@@ -32,10 +29,10 @@ impl Geometry {
         order: u8,
 
         btype: BorderType,
-        bcolor: Hex,
+        bcolor: Rgba,
         thickness: f32,
         itype: InnerType,
-        icolor: Hex,
+        icolor: Rgba,
     ) -> Self {
         Self {
             gtype: GeometryType::Circle,
@@ -58,7 +55,7 @@ impl Geometry {
         ed: Vector2<f32>,
         order: u8,
         btype: BorderType,
-        bcolor: Hex,
+        bcolor: Rgba,
         thickness: f32,
     ) -> Self {
         Self {
@@ -68,7 +65,7 @@ impl Geometry {
             order,
 
             bcolor,
-            icolor: Rgba::BLACK.to_hex(),
+            icolor: Rgba::BLACK,
             thickness,
 
             extra: Extra {
@@ -84,10 +81,10 @@ impl Geometry {
         order: u8,
 
         btype: BorderType,
-        bcolor: Hex,
+        bcolor: Rgba,
         thickness: f32,
         itype: InnerType,
-        icolor: Hex,
+        icolor: Rgba,
     ) -> Self {
         Self {
             gtype: GeometryType::ETriangle,
@@ -112,10 +109,10 @@ impl Geometry {
         order: u8,
 
         btype: BorderType,
-        bcolor: Hex,
+        bcolor: Rgba,
         thickness: f32,
         itype: InnerType,
-        icolor: Hex,
+        icolor: Rgba,
     ) -> Self {
         Self {
             gtype: GeometryType::Square,

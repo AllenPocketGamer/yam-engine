@@ -1,6 +1,6 @@
 use super::Gpu;
 
-use crate::{components::transform::Transform2D, misc::color::Rgba, nalgebra::Matrix4};
+use crate::{components::transform::Transform2D, misc::color::Rgba, nalgebra::Matrix4, Geometry};
 
 use wgpu::util::DeviceExt;
 
@@ -18,6 +18,10 @@ const QUAD_INDEX: [u16; 6] = [
     0, 1, 2, // Face ABC
     2, 3, 0, // Face CDA
 ];
+
+const STATIC_INSTANCE_BUF_SIZE: wgpu::BufferAddress = 1 << 27;
+const DYNAMIC_INSTANCE_BUF_SIZE: wgpu::BufferAddress = 1 << 27;
+const STAGING_BUF_SIZE: wgpu::BufferAddress = 1 << 27;
 
 pub(super) struct SpriteRenderer {
     // To store four vertex data(quad)
@@ -301,7 +305,7 @@ impl SpriteRenderer {
     }
 }
 
-struct GeneralRenderer {
+pub struct GeneralRenderer {
     vertex_buf: wgpu::Buffer,
     index_buf: wgpu::Buffer,
     // Size: 256mb = 128mb(static) + 128mb(dynamic)
@@ -336,14 +340,14 @@ impl GeneralRenderer {
 
         let instance_buf = device.create_buffer(&wgpu::BufferDescriptor {
             label: Some("instance buffer"),
-            size: 1 << 28,
+            size: STATIC_INSTANCE_BUF_SIZE + DYNAMIC_INSTANCE_BUF_SIZE,
             usage: wgpu::BufferUsage::VERTEX | wgpu::BufferUsage::COPY_DST,
             mapped_at_creation: false,
         });
-        
+
         let staging_buf = device.create_buffer(&wgpu::BufferDescriptor {
             label: Some("staging buffer"),
-            size: 1 << 27,
+            size: STAGING_BUF_SIZE,
             usage: wgpu::BufferUsage::MAP_WRITE | wgpu::BufferUsage::COPY_SRC,
             mapped_at_creation: false,
         });
@@ -353,7 +357,7 @@ impl GeneralRenderer {
             bind_group_layouts: &[],
             push_constant_ranges: &[wgpu::PushConstantRange {
                 stages: wgpu::ShaderStage::VERTEX,
-                range: 0..2 * 4 * 16,   // view transformation + projection
+                range: 0..2 * 4 * 16, // view transformation + projection
             }],
         });
 
@@ -368,7 +372,7 @@ impl GeneralRenderer {
             source: wgpu::util::make_spirv(include_bytes!("geometry_shader.frag.spv")),
             flags: wgpu::ShaderFlags::VALIDATION,
         });
-        
+
         let pipeline = device.create_render_pipeline(&wgpu::RenderPipelineDescriptor {
             label: Some("geometry pipeline"),
             layout: Some(&pipeline_layout),
@@ -384,8 +388,7 @@ impl GeneralRenderer {
                     wgpu::VertexBufferLayout {
                         array_stride: 3 * 8,
                         step_mode: wgpu::InputStepMode::Instance,
-                        // TODO
-                        attributes: &wgpu::vertex_attr_array![1 => Float4],
+                        attributes: &wgpu::vertex_attr_array![1 => Float2, 2 => Float2, 3 => Float2, 4 => Uchar4, 5 => Uchar4Norm, 6 => Uchar4Norm, 7 => Float, 8 => Float4]
                     },
                 ],
             },
@@ -402,7 +405,7 @@ impl GeneralRenderer {
             depth_stencil: None,
             multisample: Default::default(),
         });
-        
+
         Self {
             vertex_buf,
             index_buf,
@@ -411,4 +414,110 @@ impl GeneralRenderer {
             pipeline,
         }
     }
+
+    pub(super) fn render_geometry_serial(
+        &mut self,
+        Gpu {
+            device,
+            queue,
+            frame,
+            ..
+        }: &mut Gpu,
+        src: &[(Transform2D, Geometry)],
+        mx_view: &Matrix4<f32>,
+        mx_projection: &Matrix4<f32>,
+        viewport: &(f32, f32, f32, f32, f32, f32),
+    ) {
+        let instance_size = size_of::<(Transform2D, Geometry)>();
+        let max_copy_count = STAGING_BUF_SIZE as usize / instance_size;
+
+        let instance_count = std::cmp::min(max_copy_count, src.len());
+        let copy_size = instance_count * instance_size;
+
+        let staging_slice = self
+            .staging_buf
+            .slice(0..(instance_count * instance_size) as wgpu::BufferAddress);
+        let future = staging_slice.map_async(wgpu::MapMode::Write);
+        device.poll(wgpu::Maintain::Wait);
+        futures::executor::block_on(future).expect("ERR: transfer data from m-mem to v-mem.");
+
+        staging_slice
+            .get_mapped_range_mut()
+            .copy_from_slice(unsafe {
+                use std::slice;
+                slice::from_raw_parts(src.as_ptr() as *const u8, copy_size)
+            });
+        self.staging_buf.unmap();
+
+        let frame = frame
+            .as_ref()
+            .expect("ERR: Not call begin_draw on Render2DService.");
+
+        let mut encoder = device.create_command_encoder(&wgpu::CommandEncoderDescriptor {
+            label: Some("sprite encoder"),
+        });
+
+        {
+            let mut rpass = encoder.begin_render_pass(&wgpu::RenderPassDescriptor {
+                label: Some("geometry render pass"),
+                color_attachments: &[wgpu::RenderPassColorAttachmentDescriptor {
+                    attachment: &(frame.output.view),
+                    resolve_target: None,
+                    ops: wgpu::Operations {
+                        load: wgpu::LoadOp::Clear(wgpu::Color::BLACK),
+                        store: true,
+                    },
+                }],
+                depth_stencil_attachment: None,
+            });
+
+            rpass.set_viewport(
+                viewport.0, viewport.1, viewport.2, viewport.3, viewport.4, viewport.5,
+            );
+
+            rpass.set_pipeline(&self.pipeline);
+            rpass.set_vertex_buffer(0, self.vertex_buf.slice(..));
+            rpass.set_vertex_buffer(
+                1,
+                self.instance_buf.slice(
+                    STATIC_INSTANCE_BUF_SIZE
+                        ..STATIC_INSTANCE_BUF_SIZE + copy_size as wgpu::BufferAddress,
+                ),
+            );
+            rpass.set_index_buffer(self.index_buf.slice(..), wgpu::IndexFormat::Uint16);
+
+            // Set view transformation matrix + projection matrix
+            rpass.set_push_constants(
+                wgpu::ShaderStage::VERTEX,
+                0,
+                bytemuck::cast_slice(mx_view.as_slice()),
+            );
+            rpass.set_push_constants(
+                wgpu::ShaderStage::VERTEX,
+                4 * 16,
+                bytemuck::cast_slice(mx_projection.as_slice()),
+            );
+
+            rpass.pop_debug_group();
+
+            rpass.insert_debug_marker("draw");
+            rpass.draw_indexed(0..6, 0, 0..instance_count as u32);
+        }
+
+        queue.submit(Some(encoder.finish()));
+    }
+
+    // pub(super) fn render_geometry_parall(
+    //     &mut self,
+    //     Gpu {
+    //         device,
+    //         queue,
+    //         frame,
+    //         ..
+    //     }: &mut Gpu,
+    //     mx_view: &Matrix4<f32>,
+    //     mx_projection: &Matrix4<f32>,
+    //     viewport: &(f32, f32, f32, f32, f32, f32),
+    // ) {
+    // }
 }

@@ -1,10 +1,12 @@
 mod renderers;
 
-use renderers::SpriteRenderer;
+use renderers::{GeneralRenderer, SpriteRenderer};
 
 use crate::{
     app::{AppStage, AppStageBuilder},
-    components::{camera::Camera2D, sprite::Sprite, transform::Transform2D},
+    components::{
+        camera::Camera2D, geometry::Geometry, sprite::Sprite, transform::Transform2D, Instance,
+    },
     legion::{IntoQuery, Resources, World},
     misc::color::Rgba,
     nalgebra::Matrix4,
@@ -26,6 +28,8 @@ pub(crate) fn create_app_stage_render(Window { window }: &Window) -> AppStage {
         let mut query_sprites = <(&Transform2D, &Sprite)>::query();
         let mut query_sprites_instanced = <(&Vec<Transform2D>, &Sprite)>::query();
 
+        let mut query_geometries = <&Instance<(Transform2D, Geometry)>>::query();
+
         r2ds.set_swap_chain_size(width, height);
 
         if let Some((transform2d, camera2d)) = query_camera2d.iter(world).next() {
@@ -41,7 +45,11 @@ pub(crate) fn create_app_stage_render(Window { window }: &Window) -> AppStage {
         }
 
         for (transform2ds, sprite) in query_sprites_instanced.iter(world) {
-            r2ds.draw_sprites_in_world_space(&transform2ds[..], sprite);
+            r2ds.draw_sprites_in_world_space(transform2ds, sprite);
+        }
+
+        for src in query_geometries.iter(world) {
+            r2ds.draw_geometries_in_world_space(src);
         }
 
         r2ds.finish_draw();
@@ -143,6 +151,7 @@ impl Gpu {
 pub struct Render2D {
     gpu: Gpu,
     sprite_renderer: SpriteRenderer,
+    general_renderer: GeneralRenderer,
 
     aspect_ratio: f32,
     mx_view: Matrix4<f32>,
@@ -153,6 +162,7 @@ impl Render2D {
     pub fn new(window: &winit::window::Window) -> Self {
         let mut gpu = futures::executor::block_on(Gpu::new(window));
         let sprite_renderer = SpriteRenderer::new(&mut gpu);
+        let general_renderer = GeneralRenderer::new(&mut gpu);
 
         let default_camera2d = Camera2D::default();
         let default_camera2d_transform2d = Transform2D::default();
@@ -160,6 +170,7 @@ impl Render2D {
         Self {
             gpu,
             sprite_renderer,
+            general_renderer,
 
             aspect_ratio: default_camera2d.aspect_ratio(),
             mx_view: default_camera2d_transform2d
@@ -251,9 +262,20 @@ impl Render2D {
         );
     }
 
+    pub fn draw_geometries_in_world_space(&mut self, src: &[(Transform2D, Geometry)]) {
+        let viewport = self.calculate_adapted_viewport();
+
+        self.general_renderer.render_geometry_serial(
+            &mut self.gpu,
+            src,
+            &self.mx_view,
+            &self.mx_projection,
+            &viewport,
+        )
+    }
+
     #[allow(dead_code)]
     pub fn clear(&mut self, clear_color: &Rgba) {
-
         let mut encoder = self
             .gpu
             .device
