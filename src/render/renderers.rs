@@ -301,10 +301,114 @@ impl SpriteRenderer {
     }
 }
 
-struct GeometryRenderer {
-    // TODO!
+struct GeneralRenderer {
+    vertex_buf: wgpu::Buffer,
+    index_buf: wgpu::Buffer,
+    // Size: 256mb = 128mb(static) + 128mb(dynamic)
+    instance_buf: wgpu::Buffer,
+    // Size: 128mb
+    staging_buf: wgpu::Buffer,
+
+    pipeline: wgpu::RenderPipeline,
+    // bind_group: wgpu::BindGroup,
 }
 
-impl GeometryRenderer {
-    // TODO!
+impl GeneralRenderer {
+    pub(super) fn new(
+        Gpu {
+            surface,
+            adapter,
+            device,
+            ..
+        }: &mut Gpu,
+    ) -> Self {
+        let vertex_buf = device.create_buffer_init(&wgpu::util::BufferInitDescriptor {
+            label: Some("vertex buffer"),
+            contents: bytemuck::cast_slice(&QUAD_VERTEX[..]),
+            usage: wgpu::BufferUsage::VERTEX,
+        });
+
+        let index_buf = device.create_buffer_init(&wgpu::util::BufferInitDescriptor {
+            label: Some("index buffer"),
+            contents: bytemuck::cast_slice(&QUAD_INDEX[..]),
+            usage: wgpu::BufferUsage::INDEX,
+        });
+
+        let instance_buf = device.create_buffer(&wgpu::BufferDescriptor {
+            label: Some("instance buffer"),
+            size: 1 << 28,
+            usage: wgpu::BufferUsage::VERTEX | wgpu::BufferUsage::COPY_DST,
+            mapped_at_creation: false,
+        });
+        
+        let staging_buf = device.create_buffer(&wgpu::BufferDescriptor {
+            label: Some("staging buffer"),
+            size: 1 << 27,
+            usage: wgpu::BufferUsage::MAP_WRITE | wgpu::BufferUsage::COPY_SRC,
+            mapped_at_creation: false,
+        });
+
+        let pipeline_layout = device.create_pipeline_layout(&wgpu::PipelineLayoutDescriptor {
+            label: Some("geometry pipeline layout"),
+            bind_group_layouts: &[],
+            push_constant_ranges: &[wgpu::PushConstantRange {
+                stages: wgpu::ShaderStage::VERTEX,
+                range: 0..2 * 4 * 16,   // view transformation + projection
+            }],
+        });
+
+        let vert_shader = device.create_shader_module(&wgpu::ShaderModuleDescriptor {
+            label: Some("sprite vertex shader"),
+            source: wgpu::util::make_spirv(include_bytes!("geometry_shader.vert.spv")),
+            flags: wgpu::ShaderFlags::empty(),
+        });
+
+        let frag_shader = device.create_shader_module(&wgpu::ShaderModuleDescriptor {
+            label: Some("sprite fragment shader"),
+            source: wgpu::util::make_spirv(include_bytes!("geometry_shader.frag.spv")),
+            flags: wgpu::ShaderFlags::VALIDATION,
+        });
+        
+        let pipeline = device.create_render_pipeline(&wgpu::RenderPipelineDescriptor {
+            label: Some("geometry pipeline"),
+            layout: Some(&pipeline_layout),
+            vertex: wgpu::VertexState {
+                module: &vert_shader,
+                entry_point: "main",
+                buffers: &[
+                    wgpu::VertexBufferLayout {
+                        array_stride: 4 * 4,
+                        step_mode: wgpu::InputStepMode::Vertex,
+                        attributes: &wgpu::vertex_attr_array![0 => Float4],
+                    },
+                    wgpu::VertexBufferLayout {
+                        array_stride: 3 * 8,
+                        step_mode: wgpu::InputStepMode::Instance,
+                        // TODO
+                        attributes: &wgpu::vertex_attr_array![1 => Float4],
+                    },
+                ],
+            },
+            fragment: Some(wgpu::FragmentState {
+                module: &frag_shader,
+                entry_point: "main",
+                targets: &[adapter.get_swap_chain_preferred_format(&surface).into()],
+            }),
+            primitive: wgpu::PrimitiveState {
+                front_face: wgpu::FrontFace::Ccw,
+                cull_mode: wgpu::CullMode::None,
+                ..Default::default()
+            },
+            depth_stencil: None,
+            multisample: Default::default(),
+        });
+        
+        Self {
+            vertex_buf,
+            index_buf,
+            instance_buf,
+            staging_buf,
+            pipeline,
+        }
+    }
 }
