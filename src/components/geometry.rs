@@ -50,6 +50,19 @@ impl Geometry {
         }
     }
 
+    pub fn circle_default_style(centra: Vector2<f32>, radius: f32, order: u8) -> Self {
+        Self::new_circle(
+            centra,
+            radius,
+            order,
+            BorderType::None,
+            Rgba::BLACK,
+            0.1,
+            InnerType::Solid,
+            Rgba::WHITE,
+        )
+    }
+
     pub fn new_line(
         st: Vector2<f32>,
         ed: Vector2<f32>,

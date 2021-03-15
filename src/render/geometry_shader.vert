@@ -32,8 +32,8 @@ mat4 to_mx_model() {
     return mat4(
         i_complex.x * i_scale.x, i_complex.y * i_scale.x, 0.0, 0.0,     // column 0
         -i_complex.y * i_scale.y, i_complex.x * i_scale.y, 0.0, 0.0,    // column 1
-        0.0, 0.0, 1.0, 0.0,                                 // column 2
-        i_position.x, i_position.y, 0.0, 1.0                // column 3
+        0.0, 0.0, 1.0, 0.0,                                             // column 2
+        i_position.x, i_position.y, 0.0, 1.0                            // column 3
     );
 }
 

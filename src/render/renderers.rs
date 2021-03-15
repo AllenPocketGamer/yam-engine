@@ -1,6 +1,11 @@
 use super::Gpu;
 
-use crate::{components::transform::Transform2D, misc::color::Rgba, nalgebra::Matrix4, Geometry};
+use crate::{
+    components::transform::Transform2D,
+    misc::color::Rgba,
+    nalgebra::{Matrix4, Vector4},
+    Geometry,
+};
 
 use wgpu::util::DeviceExt;
 
@@ -53,8 +58,6 @@ impl SpriteRenderer {
             ..
         }: &mut Gpu,
     ) -> Self {
-        let vertex_size = 4 * 4;
-
         let vertex_buf = device.create_buffer_init(&wgpu::util::BufferInitDescriptor {
             label: Some("quad vertex"),
             contents: bytemuck::cast_slice(&QUAD_VERTEX[..]),
@@ -141,12 +144,12 @@ impl SpriteRenderer {
                 entry_point: "main",
                 buffers: &[
                     wgpu::VertexBufferLayout {
-                        array_stride: 3 * 8,
+                        array_stride: size_of::<Transform2D>() as wgpu::BufferAddress,
                         step_mode: wgpu::InputStepMode::Instance,
                         attributes: &wgpu::vertex_attr_array![0 => Float2, 1 => Float2, 2 => Float2],
                     },
                     wgpu::VertexBufferLayout {
-                        array_stride: vertex_size,
+                        array_stride: size_of::<Vector4<f32>>() as wgpu::BufferAddress,
                         step_mode: wgpu::InputStepMode::Vertex,
                         attributes: &wgpu::vertex_attr_array![3 => Float4],
                     },
@@ -381,12 +384,12 @@ impl GeneralRenderer {
                 entry_point: "main",
                 buffers: &[
                     wgpu::VertexBufferLayout {
-                        array_stride: 4 * 4,
+                        array_stride: size_of::<Vector4<f32>>() as wgpu::BufferAddress,
                         step_mode: wgpu::InputStepMode::Vertex,
                         attributes: &wgpu::vertex_attr_array![0 => Float4],
                     },
                     wgpu::VertexBufferLayout {
-                        array_stride: 3 * 8,
+                        array_stride: size_of::<(Transform2D, Geometry)>() as wgpu::BufferAddress,
                         step_mode: wgpu::InputStepMode::Instance,
                         attributes: &wgpu::vertex_attr_array![1 => Float2, 2 => Float2, 3 => Float2, 4 => Uchar4, 5 => Uchar4Norm, 6 => Uchar4Norm, 7 => Float, 8 => Float4]
                     },
@@ -434,9 +437,7 @@ impl GeneralRenderer {
         let instance_count = std::cmp::min(max_copy_count, src.len());
         let copy_size = instance_count * instance_size;
 
-        let staging_slice = self
-            .staging_buf
-            .slice(0..(instance_count * instance_size) as wgpu::BufferAddress);
+        let staging_slice = self.staging_buf.slice(0..copy_size as wgpu::BufferAddress);
         let future = staging_slice.map_async(wgpu::MapMode::Write);
         device.poll(wgpu::Maintain::Wait);
         futures::executor::block_on(future).expect("ERR: transfer data from m-mem to v-mem.");
@@ -445,6 +446,7 @@ impl GeneralRenderer {
             .get_mapped_range_mut()
             .copy_from_slice(unsafe {
                 use std::slice;
+
                 slice::from_raw_parts(src.as_ptr() as *const u8, copy_size)
             });
         self.staging_buf.unmap();
@@ -456,6 +458,14 @@ impl GeneralRenderer {
         let mut encoder = device.create_command_encoder(&wgpu::CommandEncoderDescriptor {
             label: Some("sprite encoder"),
         });
+
+        encoder.copy_buffer_to_buffer(
+            &self.staging_buf,
+            0,
+            &self.instance_buf,
+            STATIC_INSTANCE_BUF_SIZE,
+            copy_size as wgpu::BufferAddress,
+        );
 
         {
             let mut rpass = encoder.begin_render_pass(&wgpu::RenderPassDescriptor {
@@ -470,6 +480,8 @@ impl GeneralRenderer {
                 }],
                 depth_stencil_attachment: None,
             });
+
+            rpass.push_debug_group("prepare render data.");
 
             rpass.set_viewport(
                 viewport.0, viewport.1, viewport.2, viewport.3, viewport.4, viewport.5,
