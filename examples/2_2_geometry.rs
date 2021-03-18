@@ -21,55 +21,45 @@ fn init_entities(cmd: &mut CommandBuffer, #[resource] window: &Window) {
     // Push camera entity to `World`.
     cmd.push((Transform2D::default(), Camera2D::new(width, height)));
 
-    // // 层级树支持: 并排容易支持, I型和II型串排支持得考虑应用场景.
+    // 1-1 mode.
+    cmd.push((
+        Transform2D::new(0.0, 0.0, 0.0, 16.0, 16.0),
+        Geometry::new_circle(Vector2::new(0.0, 0.0), 16.0, 0),
+    ));
+    cmd.push((
+        Transform2D::new(32.0, 0.0, 0.0, 16.0, 16.0),
+        Geometry::new_circle(Vector2::new(0.0, 0.0), 16.0, 0),
+    ));
 
-    // // 1(串排). Push 2 circle to `World`.
-    // cmd.push((
-    //     Transform2D::with_position(0.0, 0.0),
-    //     Geometry::with_color(
-    //         GeometryType::Circle,
-    //         Rgba::CYAN.to_hex(),
-    //         Rgba::WHITE.to_hex(),
-    //     ),
-    // ));
-    // cmd.push((
-    //     Transform2D::with_position(4.0, 0.0),
-    //     Geometry::with_color(
-    //         GeometryType::Circle,
-    //         Rgba::CYAN.to_hex(),
-    //         Rgba::ORANGE.to_hex(),
-    //     ),
-    // ));
+    // 1-N mode.
+    cmd.push((
+        Transform2D::new(0.0, 32.0, 0.0, 16.0, 16.0),
+        vec![
+            Geometry::new_triangle(Vector2::new(0.0, 0.0), 16.0, 0.0, 0),
+            Geometry::new_triangle(Vector2::new(32.0, 0.0), 16.0, 0.0, 0),
+        ],
+    ));
 
-    // 2(串排). Push 2 square to `World`, euqal to 1.
-    //
-    // 串排模式会渲染<Transform2D + Sprite/Geometry>`N`次, N = Instance<..>.len().
-    //
-    // 支持串排模式:
-    // [Transform2D + Sprite/Geometry + ...] + ...
-    let squares: Instance<(Transform2D, Geometry)> = vec![
-        (
-            Transform2D::new(0.0, 4.0, 0.0, 16.0, 16.0),
-            Geometry::circle_default_style(Vector2::new(0.0, 0.0), 2.0, 0),
-        ),
-        (
-            Transform2D::new(128.0, 4.0, 0.0, 16.0, 64.0),
-            Geometry::circle_default_style(Vector2::new(0.0, 0.0), 2.0, 0),
-        ),
-    ];
-    cmd.push((squares,));
+    // N-1 mode.
+    cmd.push((
+        vec![
+            Transform2D::new(0.0, 64.0, 0.0, 16.0, 16.0),
+            Transform2D::new(32.0, 64.0, 0.0, 16.0, 16.0),
+        ],
+        Geometry::new_square(Vector2::new(0.0, 0.0), 16.0, 0.0, 0),
+    ));
 
-    // // 3(并排). Push 2 triangle to `World`.
-    // //
-    // // 并排模式会渲染相同的Sprite/Geometry`N`次, `N` = [Transform2D].len().
-    // //
-    // // 支持并排模式:
-    // // [Transform2D] + Sprite/Geometry + ...
-    // let tris: Instance<Transform2D> = vec![
-    //     Transform2D::with_position(0.0, 8.0),
-    //     Transform2D::with_position(4.0, 8.0),
-    // ];
-    // cmd.push((tris, Geometry::with_default_style(GeometryType::Triangle)));
+    // N-N mode.
+    cmd.push((
+        vec![
+            Transform2D::new(0.0, 96.0, 0.0, 16.0, 16.0),
+            Transform2D::new(32.0, 96.0, 0.0, 16.0, 16.0),
+        ],
+        vec![
+            Geometry::new_circle(Vector2::new(0.0, 0.0), 16.0, 0),
+            Geometry::new_circle(Vector2::new(16.0, 12.0), 24.0, 0),
+        ],
+    ));
 }
 
 #[system(for_each)]

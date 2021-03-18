@@ -5,7 +5,10 @@ use renderers::{GeneralRenderer, SpriteRenderer};
 use crate::{
     app::{AppStage, AppStageBuilder},
     components::{
-        camera::Camera2D, geometry::Geometry, sprite::Sprite, transform::Transform2D, Instance,
+        camera::Camera2D,
+        sprite::Sprite,
+        transform::Transform2D,
+        Instance,
     },
     legion::{IntoQuery, Resources, World},
     misc::color::Rgba,
@@ -26,9 +29,7 @@ pub(crate) fn create_app_stage_render(Window { window }: &Window) -> AppStage {
 
         let mut query_camera2d = <(&Transform2D, &Camera2D)>::query();
         let mut query_sprites = <(&Transform2D, &Sprite)>::query();
-        let mut query_sprites_instanced = <(&Vec<Transform2D>, &Sprite)>::query();
-
-        let mut query_geometries = <&Instance<(Transform2D, Geometry)>>::query();
+        let mut query_sprites_instanced = <(&Instance<Transform2D>, &Sprite)>::query();
 
         r2ds.set_swap_chain_size(width, height);
 
@@ -40,17 +41,17 @@ pub(crate) fn create_app_stage_render(Window { window }: &Window) -> AppStage {
 
         r2ds.begin_draw();
 
+        // TODO: move query to `Render2D`.
         for (transform2d, sprite) in query_sprites.iter(world) {
             r2ds.draw_sprite_in_world_space(transform2d, sprite);
         }
 
+        // TODO: move query to `Render2D`.
         for (transform2ds, sprite) in query_sprites_instanced.iter(world) {
             r2ds.draw_sprites_in_world_space(transform2ds, sprite);
         }
 
-        for src in query_geometries.iter(world) {
-            r2ds.draw_geometries_in_world_space(src);
-        }
+        r2ds.draw_geometry(world);
 
         r2ds.finish_draw();
     };
@@ -262,12 +263,12 @@ impl Render2D {
         );
     }
 
-    pub fn draw_geometries_in_world_space(&mut self, src: &[(Transform2D, Geometry)]) {
+    pub fn draw_geometry(&mut self, world: &mut World) {
         let viewport = self.calculate_adapted_viewport();
 
-        self.general_renderer.render_geometry_serial(
+        self.general_renderer.render_geometry(
             &mut self.gpu,
-            src,
+            world,
             &self.mx_view,
             &self.mx_projection,
             &viewport,

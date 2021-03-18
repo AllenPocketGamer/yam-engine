@@ -1,10 +1,14 @@
 use super::Gpu;
 
 use crate::{
-    components::transform::Transform2D,
+    components::{
+        geometry::{Assembly, Geometry},
+        transform::Transform2D,
+    },
+    legion::{IntoQuery, World},
     misc::color::Rgba,
     nalgebra::{Matrix4, Vector4},
-    Geometry,
+    Instance,
 };
 
 use wgpu::util::DeviceExt;
@@ -24,9 +28,14 @@ const QUAD_INDEX: [u16; 6] = [
     2, 3, 0, // Face CDA
 ];
 
-const STATIC_INSTANCE_BUF_SIZE: wgpu::BufferAddress = 1 << 27;
-const DYNAMIC_INSTANCE_BUF_SIZE: wgpu::BufferAddress = 1 << 27;
-const STAGING_BUF_SIZE: wgpu::BufferAddress = 1 << 27;
+const MB: wgpu::BufferAddress = 1 << 20;
+
+// 最多支持4_000_000个索引对， 2_000_000个Transform2D数, 2_000_000个Geometry数.
+const TRANSFORM2D_BUF_SIZE: wgpu::BufferAddress = 2 * size_of::<Transform2D>() as u64 * MB;
+const GEOMETRY_BUF_SIZE: wgpu::BufferAddress = 2 * size_of::<Geometry>() as u64 * MB;
+const INDEX_PAIR_BUF_SIZE: wgpu::BufferAddress = 4 * size_of::<(u16, u16)>() as u64 * MB;
+
+const STAGING_BUF_SIZE: wgpu::BufferAddress = 128 * MB;
 
 pub(super) struct SpriteRenderer {
     // To store four vertex data(quad)
@@ -308,16 +317,38 @@ impl SpriteRenderer {
     }
 }
 
+/// Renderer which renders `Sprite` and `Geometry` in the best performance.
+///
+/// **NOTE: In the experimental stage now!**
 pub struct GeneralRenderer {
     vertex_buf: wgpu::Buffer,
     index_buf: wgpu::Buffer,
-    // Size: 256mb = 128mb(static) + 128mb(dynamic)
+    // Store index data(transform2d index and geometry index).
+    //
+    // Default Size: `INDEX_PAIR_BUF_SIZE`
     instance_buf: wgpu::Buffer,
-    // Size: 128mb
+    // Store `Transform2D` data and `Geometry` data.
+    //
+    // Default size: `TRANSFORM2D_BUF_SIZE + GEOMETRY_BUF_SIZE`.
+    storage_buf: wgpu::Buffer,
+    /// Transfer data from m-mem to v-mem.
+    ///
+    /// Default size: `STAGING_BUF_SIZE`.
+    ///
+    /// Default layout:
+    ///
+    /// 1. Geometry memory layout:
+    ///  * 0-48MB: transform2ds
+    ///  * 49-112MB: geometries
+    ///  * 113-128MB: index pairs
     staging_buf: wgpu::Buffer,
 
-    pipeline: wgpu::RenderPipeline,
-    // bind_group: wgpu::BindGroup,
+    // For `Geometry` rendering.
+    geometry_bind_group: wgpu::BindGroup,
+    geometry_pipeline: wgpu::RenderPipeline,
+    // TODO: For `Sprite` rendering.
+    // sprite_bind_group: wgpu::BindGroup,
+    // sprite_pipeline: wgpu::RenderPipeline,
 }
 
 impl GeneralRenderer {
@@ -343,8 +374,15 @@ impl GeneralRenderer {
 
         let instance_buf = device.create_buffer(&wgpu::BufferDescriptor {
             label: Some("instance buffer"),
-            size: STATIC_INSTANCE_BUF_SIZE + DYNAMIC_INSTANCE_BUF_SIZE,
+            size: INDEX_PAIR_BUF_SIZE,
             usage: wgpu::BufferUsage::VERTEX | wgpu::BufferUsage::COPY_DST,
+            mapped_at_creation: false,
+        });
+
+        let storage_buf = device.create_buffer(&wgpu::BufferDescriptor {
+            label: Some("storage buffer"),
+            size: TRANSFORM2D_BUF_SIZE + GEOMETRY_BUF_SIZE,
+            usage: wgpu::BufferUsage::STORAGE | wgpu::BufferUsage::COPY_DST,
             mapped_at_creation: false,
         });
 
@@ -355,9 +393,58 @@ impl GeneralRenderer {
             mapped_at_creation: false,
         });
 
+        let bind_group_layout = device.create_bind_group_layout(&wgpu::BindGroupLayoutDescriptor {
+            label: Some("geometry bind group layout"),
+            entries: &[
+                wgpu::BindGroupLayoutEntry {
+                    binding: 0,
+                    visibility: wgpu::ShaderStage::VERTEX,
+                    ty: wgpu::BindingType::Buffer {
+                        ty: wgpu::BufferBindingType::Storage { read_only: true },
+                        has_dynamic_offset: false,
+                        min_binding_size: None,
+                    },
+                    count: None,
+                },
+                wgpu::BindGroupLayoutEntry {
+                    binding: 1,
+                    visibility: wgpu::ShaderStage::VERTEX | wgpu::ShaderStage::FRAGMENT,
+                    ty: wgpu::BindingType::Buffer {
+                        ty: wgpu::BufferBindingType::Storage { read_only: true },
+                        has_dynamic_offset: false,
+                        min_binding_size: None,
+                    },
+                    count: None,
+                },
+            ],
+        });
+
+        let geometry_bind_group = device.create_bind_group(&wgpu::BindGroupDescriptor {
+            label: Some("geometry bind group"),
+            layout: &bind_group_layout,
+            entries: &[
+                wgpu::BindGroupEntry {
+                    binding: 0,
+                    resource: wgpu::BindingResource::Buffer {
+                        buffer: &storage_buf,
+                        offset: 0,
+                        size: wgpu::BufferSize::new(TRANSFORM2D_BUF_SIZE),
+                    },
+                },
+                wgpu::BindGroupEntry {
+                    binding: 1,
+                    resource: wgpu::BindingResource::Buffer {
+                        buffer: &storage_buf,
+                        offset: TRANSFORM2D_BUF_SIZE,
+                        size: wgpu::BufferSize::new(GEOMETRY_BUF_SIZE),
+                    },
+                },
+            ],
+        });
+
         let pipeline_layout = device.create_pipeline_layout(&wgpu::PipelineLayoutDescriptor {
             label: Some("geometry pipeline layout"),
-            bind_group_layouts: &[],
+            bind_group_layouts: &[&bind_group_layout],
             push_constant_ranges: &[wgpu::PushConstantRange {
                 stages: wgpu::ShaderStage::VERTEX,
                 range: 0..2 * 4 * 16, // view transformation + projection
@@ -376,7 +463,7 @@ impl GeneralRenderer {
             flags: wgpu::ShaderFlags::VALIDATION,
         });
 
-        let pipeline = device.create_render_pipeline(&wgpu::RenderPipelineDescriptor {
+        let geometry_pipeline = device.create_render_pipeline(&wgpu::RenderPipelineDescriptor {
             label: Some("geometry pipeline"),
             layout: Some(&pipeline_layout),
             vertex: wgpu::VertexState {
@@ -389,9 +476,9 @@ impl GeneralRenderer {
                         attributes: &wgpu::vertex_attr_array![0 => Float4],
                     },
                     wgpu::VertexBufferLayout {
-                        array_stride: size_of::<(Transform2D, Geometry)>() as wgpu::BufferAddress,
+                        array_stride: size_of::<(u16, u16)>() as wgpu::BufferAddress,
                         step_mode: wgpu::InputStepMode::Instance,
-                        attributes: &wgpu::vertex_attr_array![1 => Float2, 2 => Float2, 3 => Float2, 4 => Uchar4, 5 => Uchar4Norm, 6 => Uchar4Norm, 7 => Float, 8 => Float4]
+                        attributes: &wgpu::vertex_attr_array![1 => Ushort2],
                     },
                 ],
             },
@@ -413,12 +500,15 @@ impl GeneralRenderer {
             vertex_buf,
             index_buf,
             instance_buf,
+            storage_buf,
             staging_buf,
-            pipeline,
+
+            geometry_bind_group,
+            geometry_pipeline,
         }
     }
 
-    pub(super) fn render_geometry_serial(
+    pub(super) fn render_geometry(
         &mut self,
         Gpu {
             device,
@@ -426,47 +516,24 @@ impl GeneralRenderer {
             frame,
             ..
         }: &mut Gpu,
-        src: &[(Transform2D, Geometry)],
+        world: &mut World,
         mx_view: &Matrix4<f32>,
-        mx_projection: &Matrix4<f32>,
-        viewport: &(f32, f32, f32, f32, f32, f32),
+        mx_proj: &Matrix4<f32>,
+        vp: &(f32, f32, f32, f32, f32, f32),
     ) {
-        let instance_size = size_of::<(Transform2D, Geometry)>();
-        let max_copy_count = STAGING_BUF_SIZE as usize / instance_size;
-
-        let instance_count = std::cmp::min(max_copy_count, src.len());
-        let copy_size = instance_count * instance_size;
-
-        let staging_slice = self.staging_buf.slice(0..copy_size as wgpu::BufferAddress);
-        let future = staging_slice.map_async(wgpu::MapMode::Write);
-        device.poll(wgpu::Maintain::Wait);
-        futures::executor::block_on(future).expect("ERR: transfer data from m-mem to v-mem.");
-
-        staging_slice
-            .get_mapped_range_mut()
-            .copy_from_slice(unsafe {
-                use std::slice;
-
-                slice::from_raw_parts(src.as_ptr() as *const u8, copy_size)
-            });
-        self.staging_buf.unmap();
-
         let frame = frame
             .as_ref()
             .expect("ERR: Not call begin_draw on Render2DService.");
 
         let mut encoder = device.create_command_encoder(&wgpu::CommandEncoderDescriptor {
-            label: Some("sprite encoder"),
+            label: Some("general encoder"),
         });
 
-        encoder.copy_buffer_to_buffer(
-            &self.staging_buf,
-            0,
-            &self.instance_buf,
-            STATIC_INSTANCE_BUF_SIZE,
-            copy_size as wgpu::BufferAddress,
-        );
+        // NOTE: Collect `Transform2D` and `Geometry` data from `World`,
+        //  then transfer to the v-mem of video card.
+        let instance_count = self.transfer_geometry_datas(device, &mut encoder, world);
 
+        encoder.insert_debug_marker("render geometry");
         {
             let mut rpass = encoder.begin_render_pass(&wgpu::RenderPassDescriptor {
                 label: Some("geometry render pass"),
@@ -483,21 +550,7 @@ impl GeneralRenderer {
 
             rpass.push_debug_group("prepare render data.");
 
-            rpass.set_viewport(
-                viewport.0, viewport.1, viewport.2, viewport.3, viewport.4, viewport.5,
-            );
-
-            rpass.set_pipeline(&self.pipeline);
-            rpass.set_vertex_buffer(0, self.vertex_buf.slice(..));
-            rpass.set_vertex_buffer(
-                1,
-                self.instance_buf.slice(
-                    STATIC_INSTANCE_BUF_SIZE
-                        ..STATIC_INSTANCE_BUF_SIZE + copy_size as wgpu::BufferAddress,
-                ),
-            );
-            rpass.set_index_buffer(self.index_buf.slice(..), wgpu::IndexFormat::Uint16);
-
+            rpass.set_viewport(vp.0, vp.1, vp.2, vp.3, vp.4, vp.5);
             // Set view transformation matrix + projection matrix
             rpass.set_push_constants(
                 wgpu::ShaderStage::VERTEX,
@@ -506,30 +559,160 @@ impl GeneralRenderer {
             );
             rpass.set_push_constants(
                 wgpu::ShaderStage::VERTEX,
-                4 * 16,
-                bytemuck::cast_slice(mx_projection.as_slice()),
+                64,
+                bytemuck::cast_slice(mx_proj.as_slice()),
             );
+
+            rpass.set_pipeline(&self.geometry_pipeline);
+            rpass.set_vertex_buffer(0, self.vertex_buf.slice(..));
+            rpass.set_index_buffer(self.index_buf.slice(..), wgpu::IndexFormat::Uint16);
+            rpass.set_vertex_buffer(1, self.instance_buf.slice(0..instance_count as u64));
+            rpass.set_bind_group(0, &self.geometry_bind_group, &[]);
 
             rpass.pop_debug_group();
 
-            rpass.insert_debug_marker("draw");
             rpass.draw_indexed(0..6, 0, 0..instance_count as u32);
         }
 
         queue.submit(Some(encoder.finish()));
     }
 
-    // pub(super) fn render_geometry_parall(
-    //     &mut self,
-    //     Gpu {
-    //         device,
-    //         queue,
-    //         frame,
-    //         ..
-    //     }: &mut Gpu,
-    //     mx_view: &Matrix4<f32>,
-    //     mx_projection: &Matrix4<f32>,
-    //     viewport: &(f32, f32, f32, f32, f32, f32),
-    // ) {
-    // }
+    /// Return instance count.
+    fn transfer_geometry_datas(
+        &mut self,
+        device: &wgpu::Device,
+        encoder: &mut wgpu::CommandEncoder,
+        world: &World,
+    ) -> usize {
+        let (t_st, t_ed) = (0, TRANSFORM2D_BUF_SIZE);
+        let (g_st, g_ed) = (t_ed, t_ed + GEOMETRY_BUF_SIZE);
+        let (i_st, i_ed) = (g_ed, g_ed + INDEX_PAIR_BUF_SIZE);
+
+        let t_bs = self.staging_buf.slice(t_st..t_ed);
+        let g_bs = self.staging_buf.slice(g_st..g_ed);
+        let i_bs = self.staging_buf.slice(i_st..i_ed);
+
+        let t_ft = t_bs.map_async(wgpu::MapMode::Write);
+        let g_ft = g_bs.map_async(wgpu::MapMode::Write);
+        let i_ft = i_bs.map_async(wgpu::MapMode::Write);
+
+        device.poll(wgpu::Maintain::Wait);
+        futures::executor::block_on(t_ft).expect("ERR: map transform2d buffer slice.");
+        futures::executor::block_on(g_ft).expect("ERR: map geometry buffer slice.");
+        futures::executor::block_on(i_ft).expect("ERR: map index pair buffer slice.");
+
+        let mut q01 = <(&Transform2D, &Geometry)>::query();
+        let mut q02 = <(&Transform2D, &Assembly)>::query();
+        let mut q03 = <(&Instance<Transform2D>, &Geometry)>::query();
+        let mut q04 = <(&Instance<Transform2D>, &Assembly)>::query();
+
+        let (t_slice, g_slice, i_slice) = unsafe {
+            let t_mp = t_bs.get_mapped_range_mut().as_mut_ptr() as *mut Transform2D;
+            let g_mp = g_bs.get_mapped_range_mut().as_mut_ptr() as *mut Geometry;
+            let i_mp = i_bs.get_mapped_range_mut().as_mut_ptr() as *mut (u16, u16);
+
+            let t_len = TRANSFORM2D_BUF_SIZE as usize / size_of::<Transform2D>();
+            let g_len = GEOMETRY_BUF_SIZE as usize / size_of::<Transform2D>();
+            let i_len = INDEX_PAIR_BUF_SIZE as usize / size_of::<(u16, u16)>();
+
+            (
+                std::slice::from_raw_parts_mut(t_mp, t_len),
+                std::slice::from_raw_parts_mut(g_mp, g_len),
+                std::slice::from_raw_parts_mut(i_mp, i_len),
+            )
+        };
+
+        let mut t_index: usize = 0;
+        let mut g_index: usize = 0;
+        let mut i_index: usize = 0;
+
+        unsafe {
+            q01.for_each(world, |(t, g)| {
+                *t_slice.get_unchecked_mut(t_index) = *t;
+                *g_slice.get_unchecked_mut(g_index) = *g;
+                *i_slice.get_unchecked_mut(i_index) = (t_index as u16, g_index as u16);
+
+                t_index += 1;
+                g_index += 1;
+                i_index += 1;
+            });
+
+            q02.for_each(world, |(t, gs)| {
+                *t_slice.get_unchecked_mut(t_index) = *t;
+
+                let g_len = gs.len();
+
+                let g_part = &mut g_slice[g_index..g_index + g_len];
+                g_part.copy_from_slice(gs);
+
+                for _ in 0..g_len {
+                    *i_slice.get_unchecked_mut(i_index) = (t_index as u16, g_index as u16);
+
+                    g_index += 1;
+                    i_index += 1;
+                }
+
+                t_index += 1;
+            });
+
+            q03.for_each(world, |(ts, g)| {
+                let t_len = ts.len();
+
+                let t_part = &mut t_slice[t_index..t_index + t_len];
+                t_part.copy_from_slice(ts);
+
+                *g_slice.get_unchecked_mut(g_index) = *g;
+
+                for _ in 0..t_len {
+                    *i_slice.get_unchecked_mut(i_index) = (t_index as u16, g_index as u16);
+
+                    t_index += 1;
+                    i_index += 1;
+                }
+
+                g_index += 1;
+            });
+
+            q04.for_each(world, |(ts, gs)| {
+                let t_len = ts.len();
+                let g_len = gs.len();
+
+                let t_part = &mut t_slice[t_index..t_index + t_len];
+                let g_part = &mut g_slice[g_index..g_index + g_len];
+
+                t_part.copy_from_slice(ts);
+                g_part.copy_from_slice(gs);
+
+                for _ in 0..t_len {
+                    for _ in 0..g_len {
+                        *i_slice.get_unchecked_mut(i_index) = (t_index as u16, g_index as u16);
+
+                        g_index += 1;
+                        i_index += 1;
+                    }
+
+                    t_index += 1;
+                }
+            });
+        }
+
+        self.staging_buf.unmap();
+
+        let t_count = t_index + 1;
+        let g_count = g_index + 1;
+        let i_count = i_index + 1;
+
+        let t_size = (t_count * size_of::<Transform2D>()) as wgpu::BufferAddress;
+        let g_size = (g_count * size_of::<Geometry>()) as wgpu::BufferAddress;
+        let i_size = (i_count * size_of::<(u16, u16)>()) as wgpu::BufferAddress;
+
+        // Copy transform2d data from staging to storage.
+        encoder.copy_buffer_to_buffer(&self.staging_buf, t_st, &self.storage_buf, t_st, t_size);
+        // Copy geometry data from staging to storage.
+        encoder.copy_buffer_to_buffer(&self.staging_buf, g_st, &self.storage_buf, g_ed, g_size);
+        // Copy index pair data from staging to instance.
+        encoder.copy_buffer_to_buffer(&self.staging_buf, i_st, &self.instance_buf, 0, i_size);
+
+        i_count
+    }
 }

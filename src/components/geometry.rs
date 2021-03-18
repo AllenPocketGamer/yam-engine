@@ -2,6 +2,8 @@ use crate::{misc::color::Rgba, nalgebra::Vector2};
 
 use std::fmt;
 
+pub type Assembly = Vec<Geometry>;
+
 /// Geometry representation, 32 bytes.
 #[rustfmt::skip]
 #[repr(C, packed(4))]
@@ -23,7 +25,7 @@ pub struct Geometry {
 }
 
 impl Geometry {
-    pub fn new_circle(
+    pub fn circle_with_style(
         centra: Vector2<f32>,
         radius: f32,
         order: u8,
@@ -50,20 +52,20 @@ impl Geometry {
         }
     }
 
-    pub fn circle_default_style(centra: Vector2<f32>, radius: f32, order: u8) -> Self {
-        Self::new_circle(
+    pub fn new_circle(centra: Vector2<f32>, radius: f32, order: u8) -> Self {
+        Self::circle_with_style(
             centra,
             radius,
             order,
             BorderType::None,
-            Rgba::BLACK,
+            Rgba::WHITE,
             0.1,
             InnerType::Solid,
             Rgba::WHITE,
         )
     }
 
-    pub fn new_line(
+    pub fn line_with_style(
         st: Vector2<f32>,
         ed: Vector2<f32>,
         order: u8,
@@ -87,7 +89,11 @@ impl Geometry {
         }
     }
 
-    pub fn new_equilateral_triangle(
+    pub fn new_line(st: Vector2<f32>, ed: Vector2<f32>, order: u8) -> Self {
+        Self::line_with_style(st, ed, order, BorderType::Solid, Rgba::WHITE, 0.1)
+    }
+
+    pub fn triangle_with_style(
         centra: Vector2<f32>,
         radius: f32,
         angle: f32,
@@ -115,7 +121,21 @@ impl Geometry {
         }
     }
 
-    pub fn new_square(
+    pub fn new_triangle(centra: Vector2<f32>, radius: f32, angle: f32, order: u8) -> Self {
+        Self::triangle_with_style(
+            centra,
+            radius,
+            angle,
+            order,
+            BorderType::None,
+            Rgba::WHITE,
+            0.1,
+            InnerType::Solid,
+            Rgba::WHITE,
+        )
+    }
+
+    pub fn square_with_style(
         centra: Vector2<f32>,
         radius: f32,
         angle: f32,
@@ -141,6 +161,20 @@ impl Geometry {
                 centra_radius_angle: (centra, radius, angle),
             },
         }
+    }
+
+    pub fn new_square(centra: Vector2<f32>, radius: f32, angle: f32, order: u8) -> Self {
+        Self::square_with_style(
+            centra,
+            radius,
+            angle,
+            order,
+            BorderType::None,
+            Rgba::WHITE,
+            0.1,
+            InnerType::Solid,
+            Rgba::WHITE,
+        )
     }
 }
 
