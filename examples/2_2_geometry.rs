@@ -30,6 +30,10 @@ fn init_entities(cmd: &mut CommandBuffer, #[resource] window: &Window) {
         Transform2D::new(32.0, 0.0, 0.0, 16.0, 16.0),
         Geometry::new_circle(Vector2::new(0.0, 0.0), 16.0, 0),
     ));
+    cmd.push((
+        Transform2D::new(64.0, 0.0, 0.0, 16.0, 16.0),
+        Geometry::new_circle(Vector2::new(0.0, 0.0), 16.0, 0),
+    ));
 
     // 1-N mode.
     cmd.push((

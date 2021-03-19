@@ -15,27 +15,32 @@ use wgpu::util::DeviceExt;
 
 use std::mem::size_of;
 
-// Quad vertex in world coordinate
+// Quad vertex in world coordinate.
+#[cfg_attr(rustfmt, rustfmt_skip)]
 const QUAD_VERTEX: [f32; 16] = [
-    -0.5, 0.5, 0.0, 1.0, // left-top, point A
-    0.5, 0.5, 0.0, 1.0, // right-top, point B
-    0.5, -0.5, 0.0, 1.0, // right-bottom, point C
-    -0.5, -0.5, 0.0, 1.0, // left-bottom, point D
+    -0.5, 0.5, 0.0, 1.0,    // left-top, point A
+    0.5, 0.5, 0.0, 1.0,     // right-top, point B
+    0.5, -0.5, 0.0, 1.0,    // right-bottom, point C
+    -0.5, -0.5, 0.0, 1.0,   // left-bottom, point D
 ];
 
+// Quad vertex index.
+#[cfg_attr(rustfmt, rustfmt_skip)]
 const QUAD_INDEX: [u16; 6] = [
-    0, 1, 2, // Face ABC
-    2, 3, 0, // Face CDA
+    0, 1, 2,                // Face ABC
+    2, 3, 0,                // Face CDA
 ];
 
-const MB: wgpu::BufferAddress = 1 << 20;
+#[rustfmt::skip] const MILLION:                 usize = 1 << 20;
 
-// 最多支持4_000_000个索引对， 2_000_000个Transform2D数, 2_000_000个Geometry数.
-const TRANSFORM2D_BUF_SIZE: wgpu::BufferAddress = 2 * size_of::<Transform2D>() as u64 * MB;
-const GEOMETRY_BUF_SIZE: wgpu::BufferAddress = 2 * size_of::<Geometry>() as u64 * MB;
-const INDEX_PAIR_BUF_SIZE: wgpu::BufferAddress = 4 * size_of::<(u16, u16)>() as u64 * MB;
+#[rustfmt::skip] const MAX_TRANSFORM2D_COUNT:   usize = 2 * MILLION;
+#[rustfmt::skip] const MAX_GEOMETRY_COUNT:      usize = 2 * MILLION;
+#[rustfmt::skip] const MAX_INDEX_PAIR_COUNT:    usize = 4 * MILLION;
 
-const STAGING_BUF_SIZE: wgpu::BufferAddress = 128 * MB;
+#[rustfmt::skip] const TRANSFORM2D_BUF_SIZE:    u64 = (size_of::<Transform2D>() * MAX_TRANSFORM2D_COUNT) as u64;
+#[rustfmt::skip] const GEOMETRY_BUF_SIZE:       u64 = (size_of::<Geometry>() * MAX_GEOMETRY_COUNT) as u64;
+#[rustfmt::skip] const INDEX_PAIR_BUF_SIZE:     u64 = (size_of::<(u16, u16)>() * MAX_INDEX_PAIR_COUNT) as u64;
+#[rustfmt::skip] const STAGING_BUF_SIZE:        u64 = (128 * MILLION) as u64;
 
 pub(super) struct SpriteRenderer {
     // To store four vertex data(quad)
@@ -225,7 +230,7 @@ impl SpriteRenderer {
         let buf_slice = self.staging_buf.slice(0..instance_data_size);
         let future = buf_slice.map_async(wgpu::MapMode::Write);
         device.poll(wgpu::Maintain::Wait);
-        futures::executor::block_on(future).expect("ERR: transfer data from m-mem to v-mem.");
+        futures::executor::block_on(future).expect("ERR: map m-mem to v-mem.");
 
         // TODO: 拷贝操作会idle处理器, 造成性能浪费; 可以尝试使用DMA技术来进行memcpy, 但有可能造成数据不一致;
         //   可以用unsafe来绕过rust的安全检查, 但可能会有UB; 所以这是一个安全和性能间的权衡问题;
@@ -529,9 +534,7 @@ impl GeneralRenderer {
             label: Some("general encoder"),
         });
 
-        // NOTE: Collect `Transform2D` and `Geometry` data from `World`,
-        //  then transfer to the v-mem of video card.
-        let instance_count = self.transfer_geometry_datas(device, &mut encoder, world);
+        let (i_count, i_buf_size) = self.copy_data_to_gpu(device, &mut encoder, world);
 
         encoder.insert_debug_marker("render geometry");
         {
@@ -550,6 +553,7 @@ impl GeneralRenderer {
 
             rpass.push_debug_group("prepare render data.");
 
+            rpass.set_pipeline(&self.geometry_pipeline);
             rpass.set_viewport(vp.0, vp.1, vp.2, vp.3, vp.4, vp.5);
             // Set view transformation matrix + projection matrix
             rpass.set_push_constants(
@@ -562,57 +566,59 @@ impl GeneralRenderer {
                 64,
                 bytemuck::cast_slice(mx_proj.as_slice()),
             );
-
-            rpass.set_pipeline(&self.geometry_pipeline);
             rpass.set_vertex_buffer(0, self.vertex_buf.slice(..));
             rpass.set_index_buffer(self.index_buf.slice(..), wgpu::IndexFormat::Uint16);
-            rpass.set_vertex_buffer(1, self.instance_buf.slice(0..instance_count as u64));
+            rpass.set_vertex_buffer(1, self.instance_buf.slice(0..i_buf_size));
             rpass.set_bind_group(0, &self.geometry_bind_group, &[]);
 
             rpass.pop_debug_group();
 
-            rpass.draw_indexed(0..6, 0, 0..instance_count as u32);
+            rpass.draw_indexed(0..6, 0, 0..i_count as u32);
         }
 
         queue.submit(Some(encoder.finish()));
     }
 
-    /// Return instance count.
-    fn transfer_geometry_datas(
+    /// Collect `Transform2D`, `Geometry` and calculate `Index Pair`, then
+    /// copy them to the memory of video card.
+    /// 
+    /// Return instance count and instance size.
+    ///
+    /// #Panics
+    ///
+    /// Panic if
+    ///     1. The number of `Transform2D` exceeds the limit: `MAX_TRANSFORM2D_COUNT`.
+    ///     2. The number of `Geometry` exceeds the limit: `MAX_GEOMETRY_COUNT`.
+    ///     3. The number of `Index Pair` exceeds the limit: `MAX_INDEX_PAIR_COUNT`.
+    fn copy_data_to_gpu(
         &mut self,
         device: &wgpu::Device,
         encoder: &mut wgpu::CommandEncoder,
         world: &World,
-    ) -> usize {
-        let (t_st, t_ed) = (0, TRANSFORM2D_BUF_SIZE);
-        let (g_st, g_ed) = (t_ed, t_ed + GEOMETRY_BUF_SIZE);
-        let (i_st, i_ed) = (g_ed, g_ed + INDEX_PAIR_BUF_SIZE);
+    ) -> (usize, wgpu::BufferAddress) {
+        let t_st = 0;
+        let g_st = TRANSFORM2D_BUF_SIZE;
+        let i_st = TRANSFORM2D_BUF_SIZE + GEOMETRY_BUF_SIZE;
 
-        let t_bs = self.staging_buf.slice(t_st..t_ed);
-        let g_bs = self.staging_buf.slice(g_st..g_ed);
-        let i_bs = self.staging_buf.slice(i_st..i_ed);
+        let s_bs = self.staging_buf.slice(..);
 
-        let t_ft = t_bs.map_async(wgpu::MapMode::Write);
-        let g_ft = g_bs.map_async(wgpu::MapMode::Write);
-        let i_ft = i_bs.map_async(wgpu::MapMode::Write);
+        // Mapping main-memory to video-memory.
+        {
+            let s_ft = s_bs.map_async(wgpu::MapMode::Write);
+            device.poll(wgpu::Maintain::Wait);
+            futures::executor::block_on(s_ft).expect("ERR: map m-mem to v-mem.");
+        }
 
-        device.poll(wgpu::Maintain::Wait);
-        futures::executor::block_on(t_ft).expect("ERR: map transform2d buffer slice.");
-        futures::executor::block_on(g_ft).expect("ERR: map geometry buffer slice.");
-        futures::executor::block_on(i_ft).expect("ERR: map index pair buffer slice.");
-
-        let mut q01 = <(&Transform2D, &Geometry)>::query();
-        let mut q02 = <(&Transform2D, &Assembly)>::query();
-        let mut q03 = <(&Instance<Transform2D>, &Geometry)>::query();
-        let mut q04 = <(&Instance<Transform2D>, &Assembly)>::query();
-
+        // Get `Transform2D` slice, `Geometry` slice, and `Index Pair` slice on the mapped buffer.
         let (t_slice, g_slice, i_slice) = unsafe {
-            let t_mp = t_bs.get_mapped_range_mut().as_mut_ptr() as *mut Transform2D;
-            let g_mp = g_bs.get_mapped_range_mut().as_mut_ptr() as *mut Geometry;
-            let i_mp = i_bs.get_mapped_range_mut().as_mut_ptr() as *mut (u16, u16);
+            let s_mp = s_bs.get_mapped_range_mut().as_mut_ptr();
+
+            let t_mp = s_mp.offset(t_st as isize) as *mut Transform2D;
+            let g_mp = s_mp.offset(g_st as isize) as *mut Geometry;
+            let i_mp = s_mp.offset(i_st as isize) as *mut (u16, u16);
 
             let t_len = TRANSFORM2D_BUF_SIZE as usize / size_of::<Transform2D>();
-            let g_len = GEOMETRY_BUF_SIZE as usize / size_of::<Transform2D>();
+            let g_len = GEOMETRY_BUF_SIZE as usize / size_of::<Geometry>();
             let i_len = INDEX_PAIR_BUF_SIZE as usize / size_of::<(u16, u16)>();
 
             (
@@ -622,97 +628,121 @@ impl GeneralRenderer {
             )
         };
 
-        let mut t_index: usize = 0;
-        let mut g_index: usize = 0;
-        let mut i_index: usize = 0;
+        let mut t_count: usize = 0;
+        let mut g_count: usize = 0;
+        let mut i_count: usize = 0;
 
+        // Copy `Transform2D` and `Geometry` data from `World` to the buffer which is mapped to staging_buf.
         unsafe {
-            q01.for_each(world, |(t, g)| {
-                *t_slice.get_unchecked_mut(t_index) = *t;
-                *g_slice.get_unchecked_mut(g_index) = *g;
-                *i_slice.get_unchecked_mut(i_index) = (t_index as u16, g_index as u16);
+            let mut q01 = <(&Transform2D, &Geometry)>::query();
+            let mut q02 = <(&Transform2D, &Assembly)>::query();
+            let mut q03 = <(&Instance<Transform2D>, &Geometry)>::query();
+            let mut q04 = <(&Instance<Transform2D>, &Assembly)>::query();
 
-                t_index += 1;
-                g_index += 1;
-                i_index += 1;
+            q01.for_each(world, |(t, g)| {
+                *t_slice.get_unchecked_mut(t_count) = *t;
+                *g_slice.get_unchecked_mut(g_count) = *g;
+                *i_slice.get_unchecked_mut(i_count) = (t_count as u16, g_count as u16);
+
+                t_count += 1;
+                g_count += 1;
+                i_count += 1;
             });
 
             q02.for_each(world, |(t, gs)| {
-                *t_slice.get_unchecked_mut(t_index) = *t;
+                *t_slice.get_unchecked_mut(t_count) = *t;
 
                 let g_len = gs.len();
 
-                let g_part = &mut g_slice[g_index..g_index + g_len];
+                let g_part = &mut g_slice[g_count..g_count + g_len];
                 g_part.copy_from_slice(gs);
 
                 for _ in 0..g_len {
-                    *i_slice.get_unchecked_mut(i_index) = (t_index as u16, g_index as u16);
+                    *i_slice.get_unchecked_mut(i_count) = (t_count as u16, g_count as u16);
 
-                    g_index += 1;
-                    i_index += 1;
+                    g_count += 1;
+                    i_count += 1;
                 }
 
-                t_index += 1;
+                t_count += 1;
             });
 
             q03.for_each(world, |(ts, g)| {
                 let t_len = ts.len();
 
-                let t_part = &mut t_slice[t_index..t_index + t_len];
+                let t_part = &mut t_slice[t_count..t_count + t_len];
                 t_part.copy_from_slice(ts);
 
-                *g_slice.get_unchecked_mut(g_index) = *g;
+                *g_slice.get_unchecked_mut(g_count) = *g;
 
                 for _ in 0..t_len {
-                    *i_slice.get_unchecked_mut(i_index) = (t_index as u16, g_index as u16);
+                    *i_slice.get_unchecked_mut(i_count) = (t_count as u16, g_count as u16);
 
-                    t_index += 1;
-                    i_index += 1;
+                    t_count += 1;
+                    i_count += 1;
                 }
 
-                g_index += 1;
+                g_count += 1;
             });
 
             q04.for_each(world, |(ts, gs)| {
                 let t_len = ts.len();
                 let g_len = gs.len();
 
-                let t_part = &mut t_slice[t_index..t_index + t_len];
-                let g_part = &mut g_slice[g_index..g_index + g_len];
+                let t_part = &mut t_slice[t_count..t_count + t_len];
+                let g_part = &mut g_slice[g_count..g_count + g_len];
 
                 t_part.copy_from_slice(ts);
                 g_part.copy_from_slice(gs);
 
-                for _ in 0..t_len {
-                    for _ in 0..g_len {
-                        *i_slice.get_unchecked_mut(i_index) = (t_index as u16, g_index as u16);
+                for t in 0..t_len {
+                    for g in 0..g_len {
+                        *i_slice.get_unchecked_mut(i_count) =
+                            ((t_count + t) as u16, (g_count + g) as u16);
 
-                        g_index += 1;
-                        i_index += 1;
+                        i_count += 1;
                     }
-
-                    t_index += 1;
                 }
+
+                t_count += t_len;
+                g_count += g_len;
             });
+
+            if t_count > MAX_TRANSFORM2D_COUNT {
+                panic!(
+                    "ERR: The number of Transform2D exceeds the limit: {}",
+                    MAX_TRANSFORM2D_COUNT
+                );
+            }
+
+            if g_count > MAX_GEOMETRY_COUNT {
+                panic!(
+                    "ERR: The number of Geometry exceeds the limit: {}",
+                    MAX_GEOMETRY_COUNT
+                );
+            }
+
+            if i_count > MAX_INDEX_PAIR_COUNT {
+                panic!(
+                    "ERR: The number of Index_Pair exceeds the limit: {}",
+                    MAX_INDEX_PAIR_COUNT
+                );
+            }
         }
 
         self.staging_buf.unmap();
 
-        let t_count = t_index + 1;
-        let g_count = g_index + 1;
-        let i_count = i_index + 1;
-
-        let t_size = (t_count * size_of::<Transform2D>()) as wgpu::BufferAddress;
-        let g_size = (g_count * size_of::<Geometry>()) as wgpu::BufferAddress;
-        let i_size = (i_count * size_of::<(u16, u16)>()) as wgpu::BufferAddress;
+        let t_buf_size = (t_count * size_of::<Transform2D>()) as wgpu::BufferAddress;
+        let g_buf_size = (g_count * size_of::<Geometry>()) as wgpu::BufferAddress;
+        let i_buf_size = (i_count * size_of::<(u16, u16)>()) as wgpu::BufferAddress;
 
         // Copy transform2d data from staging to storage.
-        encoder.copy_buffer_to_buffer(&self.staging_buf, t_st, &self.storage_buf, t_st, t_size);
+        encoder.copy_buffer_to_buffer(&self.staging_buf, t_st, &self.storage_buf, 0, t_buf_size);
         // Copy geometry data from staging to storage.
-        encoder.copy_buffer_to_buffer(&self.staging_buf, g_st, &self.storage_buf, g_ed, g_size);
+        encoder.copy_buffer_to_buffer(&self.staging_buf, g_st, &self.storage_buf, g_st, g_buf_size);
         // Copy index pair data from staging to instance.
-        encoder.copy_buffer_to_buffer(&self.staging_buf, i_st, &self.instance_buf, 0, i_size);
+        encoder.copy_buffer_to_buffer(&self.staging_buf, i_st, &self.instance_buf, 0, i_buf_size);
 
-        i_count
+        (i_count, i_buf_size)
     }
 }
