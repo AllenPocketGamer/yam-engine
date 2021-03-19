@@ -1,4 +1,7 @@
-use crate::{misc::color::Rgba, nalgebra::Vector2};
+use crate::{
+    misc::color::{Hex, Rgba},
+    nalgebra::Vector2,
+};
 
 use std::fmt;
 
@@ -9,15 +12,15 @@ pub type Assembly = Vec<Geometry>;
 #[repr(C, packed(4))]
 #[derive(Debug, Clone, Copy)]
 pub struct Geometry {
-    // type info
-    pub gtype: GeometryType,    // 1 bytes
-    pub btype: BorderType,      // 1 bytes
-    pub itype: InnerType,       // 1 bytes
-    pub order: u8,              // 1 bytes
+    // 0-7bit   : geometry type
+    // 8-15bit  : border type
+    // 16-23bit : inner type
+    // 24-31bit : order
+    pub types: u32,             // 4bytes
 
     // decor info
-    pub bcolor: Rgba,           // 4 bytes, border color
-    pub icolor: Rgba,           // 4 bytes, inner color
+    pub bcolor: Hex,            // 4 bytes, border color
+    pub icolor: Hex,            // 4 bytes, inner color
     pub thickness: f32,         // 4 bytes, border thickness
 
     // extra info about transformation
@@ -25,6 +28,15 @@ pub struct Geometry {
 }
 
 impl Geometry {
+    const fn zip(gtype: GeometryType, btype: BorderType, itype: InnerType, order: u8) -> u32 {
+        let gtype = gtype as u32;
+        let btype = btype as u32;
+        let itype = itype as u32;
+        let order = order as u32;
+
+        (gtype << 24) + (btype << 16) + (itype << 8) + order
+    }
+
     pub fn circle_with_style(
         centra: Vector2<f32>,
         radius: f32,
@@ -37,13 +49,10 @@ impl Geometry {
         icolor: Rgba,
     ) -> Self {
         Self {
-            gtype: GeometryType::Circle,
-            btype,
-            itype,
-            order,
+            types: Self::zip(GeometryType::Circle, btype, itype, order),
 
-            bcolor,
-            icolor,
+            bcolor: bcolor.to_hex(),
+            icolor: icolor.to_hex(),
             thickness,
 
             extra: Extra {
@@ -74,13 +83,10 @@ impl Geometry {
         thickness: f32,
     ) -> Self {
         Self {
-            gtype: GeometryType::Line,
-            btype,
-            itype: InnerType::None,
-            order,
+            types: Self::zip(GeometryType::Line, btype, InnerType::None, order),
 
-            bcolor,
-            icolor: Rgba::BLACK,
+            bcolor: bcolor.to_hex(),
+            icolor: Rgba::BLACK.to_hex(),
             thickness,
 
             extra: Extra {
@@ -106,13 +112,10 @@ impl Geometry {
         icolor: Rgba,
     ) -> Self {
         Self {
-            gtype: GeometryType::ETriangle,
-            btype,
-            itype,
-            order,
+            types: Self::zip(GeometryType::ETriangle, btype, itype, order),
 
-            bcolor,
-            icolor,
+            bcolor: bcolor.to_hex(),
+            icolor: icolor.to_hex(),
             thickness,
 
             extra: Extra {
@@ -148,13 +151,10 @@ impl Geometry {
         icolor: Rgba,
     ) -> Self {
         Self {
-            gtype: GeometryType::Square,
-            btype,
-            itype,
-            order,
+            types: Self::zip(GeometryType::Square, btype, itype, order),
 
-            bcolor,
-            icolor,
+            bcolor: bcolor.to_hex(),
+            icolor: icolor.to_hex(),
             thickness,
 
             extra: Extra {

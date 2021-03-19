@@ -40,7 +40,7 @@ const QUAD_INDEX: [u16; 6] = [
 #[rustfmt::skip] const TRANSFORM2D_BUF_SIZE:    u64 = (size_of::<Transform2D>() * MAX_TRANSFORM2D_COUNT) as u64;
 #[rustfmt::skip] const GEOMETRY_BUF_SIZE:       u64 = (size_of::<Geometry>() * MAX_GEOMETRY_COUNT) as u64;
 #[rustfmt::skip] const INDEX_PAIR_BUF_SIZE:     u64 = (size_of::<(u16, u16)>() * MAX_INDEX_PAIR_COUNT) as u64;
-#[rustfmt::skip] const STAGING_BUF_SIZE:        u64 = (128 * MILLION) as u64;
+#[rustfmt::skip] const STAGING_BUF_SIZE:        u64 = TRANSFORM2D_BUF_SIZE + GEOMETRY_BUF_SIZE + INDEX_PAIR_BUF_SIZE;
 
 pub(super) struct SpriteRenderer {
     // To store four vertex data(quad)
