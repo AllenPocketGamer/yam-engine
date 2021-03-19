@@ -13,10 +13,13 @@ const mat4 MX_CORRECTION = mat4(
     0.0, 0.0, 0.5, 1.0  // column 3
 );
 
+// std430 layout        // offset   align   size
+//
+// align: 8, size: 24
 struct Transform2D {
-    vec2 position;
-    vec2 complex;
-    vec2 scale;
+    vec2 position;      // 0        8       8
+    vec2 complex;       // 8        8       8
+    vec2 scale;         // 16       8       8
 };
 
 mat4 to_mx_model(Transform2D t) {
@@ -28,13 +31,15 @@ mat4 to_mx_model(Transform2D t) {
     );
 }
 
-// TODO: 对齐有问题, 得仔细调试
+// std430 layout        // offset   align   size
+//
+// align: 16, size: 32
 struct Geometry {
-    uint types;
-    uint b_color_hex;
-    uint i_color_hex;
-    float thickness;
-    float[4] extra;
+    uint types;         // 0        4       4
+    uint b_color_hex;   // 4        4       4
+    uint i_color_hex;   // 8        4       4
+    float thickness;    // 12       4       4
+    float[4] extra;     // 16       4       16
 };
 
 // vertex
