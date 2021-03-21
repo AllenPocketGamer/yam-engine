@@ -64,11 +64,6 @@ mat4 to_matrix(vec2 centra, float radius, float angle) {
     return to_matrix(centra, complex, scale);
 }
 
-// vertex
-layout(location = 0) in vec4 v_pos;
-// index.0: transform index; index.1: geometry index.
-layout(location = 1) in uvec2 index;
-
 layout(push_constant) uniform CONSTANTS {
     // Transform point from `World` space to `Eye` space.
     mat4 MX_VIEW;
@@ -77,6 +72,11 @@ layout(push_constant) uniform CONSTANTS {
     // Transform point from `NDC` to `Screen` space.
     mat4 MX_VIEWPORT;
 };
+
+// vertex
+layout(location = 0) in vec4 v_pos;
+// index.0: transform index; index.1: geometry index.
+layout(location = 1) in uvec2 index;
 
 layout(std430, binding = 0) buffer Transform2DArray {
     Transform2D t_arr[];
@@ -96,7 +96,11 @@ void main() {
     Transform2D t = t_arr[t_index];
     Geometry g = g_arr[g_index];
 
-    uint gtype = unzip_types(g.types).x;
+    uvec4 types = unzip_types(g.types);
+    uint gtype = types.x;
+    uint btype = types.y;
+    uint itype = types.z;
+    uint order = types.w;
 
     mat4 mx_model = to_matrix(t) * to_matrix(g.extra.xy, g.extra.z, g.extra.w);
 
@@ -107,5 +111,5 @@ void main() {
 
     v_tmp = vec4(centra_wp, radius_wp, gtype);
 
-    gl_Position = MX_PROJECTION * MX_VIEW * mx_model * v_pos;
+    gl_Position = MX_PROJECTION * MX_VIEW * mx_model * vec4(v_pos.xy, order, v_pos.w);
 }
