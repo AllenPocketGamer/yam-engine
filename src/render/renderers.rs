@@ -134,7 +134,7 @@ impl SpriteRenderer {
             bind_group_layouts: &[&bind_group_layout],
             push_constant_ranges: &[wgpu::PushConstantRange {
                 stages: wgpu::ShaderStage::VERTEX,
-                range: 0..2 * 4 * 16,
+                range: 0..2 * 64, // view matrix + projection
             }],
         });
 
@@ -450,22 +450,28 @@ impl GeneralRenderer {
         let pipeline_layout = device.create_pipeline_layout(&wgpu::PipelineLayoutDescriptor {
             label: Some("geometry pipeline layout"),
             bind_group_layouts: &[&bind_group_layout],
-            push_constant_ranges: &[wgpu::PushConstantRange {
-                stages: wgpu::ShaderStage::VERTEX,
-                range: 0..2 * 4 * 16, // view transformation + projection
-            }],
+            push_constant_ranges: &[
+                wgpu::PushConstantRange {
+                    stages: wgpu::ShaderStage::FRAGMENT,
+                    range: 0..144,  // viewport(x, y, w, h) + view transformation + projection
+                },
+                wgpu::PushConstantRange {
+                    stages: wgpu::ShaderStage::VERTEX,
+                    range: 0..144, // viewport(x, y, w, h) + view transformation + projection
+                },
+            ],
         });
 
         let vert_shader = device.create_shader_module(&wgpu::ShaderModuleDescriptor {
-            label: Some("sprite vertex shader"),
+            label: Some("geometry vertex shader"),
             source: wgpu::util::make_spirv(include_bytes!("geometry_shader.vert.spv")),
             flags: wgpu::ShaderFlags::empty(),
         });
 
         let frag_shader = device.create_shader_module(&wgpu::ShaderModuleDescriptor {
-            label: Some("sprite fragment shader"),
+            label: Some("geometry fragment shader"),
             source: wgpu::util::make_spirv(include_bytes!("geometry_shader.frag.spv")),
-            flags: wgpu::ShaderFlags::VALIDATION,
+            flags: wgpu::ShaderFlags::empty(),
         });
 
         let geometry_pipeline = device.create_render_pipeline(&wgpu::RenderPipelineDescriptor {
@@ -557,13 +563,18 @@ impl GeneralRenderer {
             rpass.set_viewport(vp.0, vp.1, vp.2, vp.3, vp.4, vp.5);
             // Set view transformation matrix + projection matrix
             rpass.set_push_constants(
-                wgpu::ShaderStage::VERTEX,
+                wgpu::ShaderStage::VERTEX | wgpu::ShaderStage::FRAGMENT,
                 0,
+                bytemuck::cast_slice(&[vp.0, vp.1, vp.2, vp.3]),
+            );
+            rpass.set_push_constants(
+                wgpu::ShaderStage::VERTEX | wgpu::ShaderStage::FRAGMENT,
+                16,
                 bytemuck::cast_slice(mx_view.as_slice()),
             );
             rpass.set_push_constants(
-                wgpu::ShaderStage::VERTEX,
-                64,
+                wgpu::ShaderStage::VERTEX | wgpu::ShaderStage::FRAGMENT,
+                80,
                 bytemuck::cast_slice(mx_proj.as_slice()),
             );
             rpass.set_vertex_buffer(0, self.vertex_buf.slice(..));
@@ -581,7 +592,7 @@ impl GeneralRenderer {
 
     /// Collect `Transform2D`, `Geometry` and calculate `Index Pair`, then
     /// copy them to the memory of video card.
-    /// 
+    ///
     /// Return instance count and instance size.
     ///
     /// #Panics

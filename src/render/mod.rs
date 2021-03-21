@@ -4,12 +4,7 @@ use renderers::{GeneralRenderer, SpriteRenderer};
 
 use crate::{
     app::{AppStage, AppStageBuilder},
-    components::{
-        camera::Camera2D,
-        sprite::Sprite,
-        transform::Transform2D,
-        Instance,
-    },
+    components::{camera::Camera2D, sprite::Sprite, transform::Transform2D, Instance},
     legion::{IntoQuery, Resources, World},
     misc::color::Rgba,
     nalgebra::Matrix4,
@@ -214,7 +209,15 @@ impl Render2D {
     }
 
     pub fn set_projection(&mut self, camera2d: &Camera2D) {
-        self.mx_projection = camera2d.to_orthographic_homogeneous()
+        #[cfg_attr(rustfmt, rustfmt_skip)]
+        let opengl_to_wgpu_matrix: Matrix4<f32> = Matrix4::new(
+            1.0, 0.0, 0.0, 0.0,
+            0.0, 1.0, 0.0, 0.0,
+            0.0, 0.0, 0.5, 0.5,
+            0.0, 0.0, 0.0, 1.0,
+        );
+
+        self.mx_projection = opengl_to_wgpu_matrix * camera2d.to_orthographic_homogeneous()
     }
 
     #[allow(dead_code)]
