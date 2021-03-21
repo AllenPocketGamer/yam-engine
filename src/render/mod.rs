@@ -144,7 +144,7 @@ impl Gpu {
     }
 }
 
-pub struct Render2D {
+struct Render2D {
     gpu: Gpu,
     sprite_renderer: SpriteRenderer,
     general_renderer: GeneralRenderer,
@@ -267,7 +267,8 @@ impl Render2D {
     }
 
     pub fn draw_geometry(&mut self, world: &mut World) {
-        let viewport = self.calculate_adapted_viewport();
+        let (width, height) = self.swap_chain_size();
+        let viewport = Viewport::new_in_screen(width as f32, height as f32, self.aspect_ratio);
 
         self.general_renderer.render_geometry(
             &mut self.gpu,
@@ -311,6 +312,8 @@ impl Render2D {
         }
     }
 
+    // NOTE: Deprecated next update!
+    //
     // return (x, y, width, height, min_depth, max_depth)
     fn calculate_adapted_viewport(&self) -> (f32, f32, f32, f32, f32, f32) {
         let (screen_width, screen_height) = self.swap_chain_size();
@@ -330,5 +333,63 @@ impl Render2D {
 
             (x, y, width, height, 0.0, 1.0)
         }
+    }
+}
+
+#[derive(Debug, Clone, Copy)]
+struct Viewport {
+    pub x: f32,
+    pub y: f32,
+
+    pub width: f32,
+    pub height: f32,
+
+    pub min_depth: f32,
+    pub max_depth: f32,
+}
+
+impl Viewport {
+    pub fn new_in_screen(screen_width: f32, screen_height: f32, aspect_ratio: f32) -> Self {
+        let screen_ratio = screen_width / screen_height;
+
+        let (x, y, width, height) = if aspect_ratio <= screen_ratio {
+            (
+                (screen_width - aspect_ratio * screen_height) / 2.0,
+                0f32,
+                aspect_ratio * screen_height,
+                screen_height,
+            )
+        } else {
+            (
+                0f32,
+                (screen_height - screen_width / aspect_ratio) / 2.0,
+                screen_width,
+                screen_width / aspect_ratio,
+            )
+        };
+
+        Self {
+            x,
+            y,
+            width,
+            height,
+            min_depth: 0.0,
+            max_depth: 1.0,
+        }
+    }
+
+    /// Transform point from NDC to screen space
+    ///
+    /// x_ss = (x_ndc + 1) / 2 * width + vp.x        , x_ndc ∈ [-1, 1]
+    /// y_ss = (1 - y_ndc) / 2 * height + vp.z       , y_ndc ∈ [-1, 1]
+    /// z_ss = (far - near) * z_ndc + near           , z_ndc ∈ [+0, 1]
+    pub fn to_homogeneous_3d(&self) -> Matrix4<f32> {
+        #[cfg_attr(rustfmt, rustfmt_skip)]
+        Matrix4::new(
+            0.5 * self.width,   0.0,                0.0,                                0.5 * self.width + self.x,
+            0.0,                -0.5 * self.height, 0.0,                                0.5 * self.height + self.y,
+            0.0,                0.0,                self.max_depth - self.min_depth,    self.min_depth,
+            0.0,                0.0,                0.0,                                1.0,
+        )
     }
 }

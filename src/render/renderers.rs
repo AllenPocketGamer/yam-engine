@@ -1,4 +1,4 @@
-use super::Gpu;
+use super::{Gpu, Viewport};
 
 use crate::{
     components::{
@@ -453,11 +453,11 @@ impl GeneralRenderer {
             push_constant_ranges: &[
                 wgpu::PushConstantRange {
                     stages: wgpu::ShaderStage::FRAGMENT,
-                    range: 0..144,  // viewport(x, y, w, h) + view transformation + projection
+                    range: 0..192, // view matrix + projection matrix + viewport matrix.
                 },
                 wgpu::PushConstantRange {
                     stages: wgpu::ShaderStage::VERTEX,
-                    range: 0..144, // viewport(x, y, w, h) + view transformation + projection
+                    range: 0..192, // view matrix + projection matrix + viewport matrix.
                 },
             ],
         });
@@ -530,7 +530,7 @@ impl GeneralRenderer {
         world: &mut World,
         mx_view: &Matrix4<f32>,
         mx_proj: &Matrix4<f32>,
-        vp: &(f32, f32, f32, f32, f32, f32),
+        vp: &Viewport,
     ) {
         let frame = frame
             .as_ref()
@@ -560,22 +560,22 @@ impl GeneralRenderer {
             rpass.push_debug_group("prepare render data.");
 
             rpass.set_pipeline(&self.geometry_pipeline);
-            rpass.set_viewport(vp.0, vp.1, vp.2, vp.3, vp.4, vp.5);
-            // Set view transformation matrix + projection matrix
+            rpass.set_viewport(vp.x, vp.y, vp.width, vp.height, vp.min_depth, vp.max_depth);
+
             rpass.set_push_constants(
                 wgpu::ShaderStage::VERTEX | wgpu::ShaderStage::FRAGMENT,
                 0,
-                bytemuck::cast_slice(&[vp.0, vp.1, vp.2, vp.3]),
-            );
-            rpass.set_push_constants(
-                wgpu::ShaderStage::VERTEX | wgpu::ShaderStage::FRAGMENT,
-                16,
                 bytemuck::cast_slice(mx_view.as_slice()),
             );
             rpass.set_push_constants(
                 wgpu::ShaderStage::VERTEX | wgpu::ShaderStage::FRAGMENT,
-                80,
+                64,
                 bytemuck::cast_slice(mx_proj.as_slice()),
+            );
+            rpass.set_push_constants(
+                wgpu::ShaderStage::VERTEX | wgpu::ShaderStage::FRAGMENT,
+                128,
+                bytemuck::cast_slice(vp.to_homogeneous_3d().as_slice()),
             );
             rpass.set_vertex_buffer(0, self.vertex_buf.slice(..));
             rpass.set_index_buffer(self.index_buf.slice(..), wgpu::IndexFormat::Uint16);

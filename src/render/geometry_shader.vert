@@ -70,9 +70,12 @@ layout(location = 0) in vec4 v_pos;
 layout(location = 1) in uvec2 index;
 
 layout(push_constant) uniform CONSTANTS {
-    vec4 VIEWPORT;  // (x, y, w, h)
+    // Transform point from `World` space to `Eye` space.
     mat4 MX_VIEW;
+    // Transform point from `Eye` space to `NDC`.
     mat4 MX_PROJECTION;
+    // Transform point from `NDC` to `Screen` space.
+    mat4 MX_VIEWPORT;
 };
 
 layout(std430, binding = 0) buffer Transform2DArray {
