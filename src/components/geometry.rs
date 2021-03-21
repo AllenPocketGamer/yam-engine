@@ -24,7 +24,7 @@ pub struct Geometry {
     pub thickness: f32,         // 4 bytes, border thickness
 
     // extra info about transformation
-    pub extra: Extra,           // 16 bytes
+    pub extras: Extra,          // 16 bytes
 }
 
 impl Geometry {
@@ -55,7 +55,7 @@ impl Geometry {
             icolor: icolor.to_hex(),
             thickness,
 
-            extra: Extra {
+            extras: Extra {
                 centra_radius_angle: (centra, radius, 0.0),
             },
         }
@@ -89,7 +89,7 @@ impl Geometry {
             icolor: Rgba::BLACK.to_hex(),
             thickness,
 
-            extra: Extra {
+            extras: Extra {
                 point_point: (st, ed),
             },
         }
@@ -118,7 +118,7 @@ impl Geometry {
             icolor: icolor.to_hex(),
             thickness,
 
-            extra: Extra {
+            extras: Extra {
                 centra_radius_angle: (centra, radius, angle),
             },
         }
@@ -157,7 +157,7 @@ impl Geometry {
             icolor: icolor.to_hex(),
             thickness,
 
-            extra: Extra {
+            extras: Extra {
                 centra_radius_angle: (centra, radius, angle),
             },
         }
