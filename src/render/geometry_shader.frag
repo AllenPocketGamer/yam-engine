@@ -73,6 +73,7 @@ bool sample_circle(vec2 pos, vec2 centra, float radius) {
 void main() {
     uint gtype = types.x;
     
+    // 巨量分支, 看能不能优化掉.
     if(gtype == GT_CIRCLE) {
         if(sample_circle(gl_FragCoord.xy, centra, extras.x)) {
             o_Target = icolor;

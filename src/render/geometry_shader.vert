@@ -41,11 +41,6 @@ layout(push_constant) uniform CONSTANTS {
     mat4 MX_VIEWPORT;
 };
 
-// vertex
-layout(location = 0) in vec4 v_pos;
-// index.0: transform index; index.1: geometry index.
-layout(location = 1) in uvec2 index;
-
 readonly layout(std430, binding = 0) buffer Transform2DArray {
     Transform2D t_arr[];
 };
@@ -53,6 +48,13 @@ readonly layout(std430, binding = 0) buffer Transform2DArray {
 readonly layout(std430, binding = 1) buffer GeometryArray {
     Geometry g_arr[];
 };
+
+// NOTE: IN VARIABLES
+
+// vertex
+layout(location = 0) in vec4 v_pos;
+// index.0: transform index; index.1: geometry index.
+layout(location = 1) in uvec2 index;
 
 // NOTE: OUT VARIABLES
 
