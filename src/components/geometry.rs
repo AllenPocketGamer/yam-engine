@@ -37,9 +37,33 @@ impl Geometry {
         (gtype << 24) + (btype << 16) + (itype << 8) + order
     }
 
+    pub fn new(
+        gtype: GeometryType,
+        extras: Extra,
+
+        btype: BorderType,
+        bcolor: Rgba,
+        thickness: f32,
+
+        itype: InnerType,
+        icolor: Rgba,
+        order: u8,
+    ) -> Self {
+        Self {
+            types: Self::zip(gtype, btype, itype, order),
+
+            thickness,
+            bcolor: bcolor.to_hex(),
+            icolor: icolor.to_hex(),
+
+            extras,
+        }
+    }
+
     pub fn circle_with_style(
         centra: Vector2<f32>,
-        radius: f32,
+        length: f32,
+        angle: f32,
         order: u8,
 
         btype: BorderType,
@@ -56,15 +80,16 @@ impl Geometry {
             thickness,
 
             extras: Extra {
-                centra_radius_angle: (centra, radius, 0.0),
+                cla: (centra, length, angle),
             },
         }
     }
 
-    pub fn new_circle(centra: Vector2<f32>, radius: f32, order: u8) -> Self {
+    pub fn new_circle(centra: Vector2<f32>, length: f32, angle: f32, order: u8) -> Self {
         Self::circle_with_style(
             centra,
-            radius,
+            length,
+            angle,
             order,
             BorderType::None,
             Rgba::WHITE,
@@ -90,7 +115,7 @@ impl Geometry {
             thickness,
 
             extras: Extra {
-                point_point: (st, ed),
+                p2p: (st, ed),
             },
         }
     }
@@ -101,7 +126,7 @@ impl Geometry {
 
     pub fn triangle_with_style(
         centra: Vector2<f32>,
-        radius: f32,
+        length: f32,
         angle: f32,
         order: u8,
 
@@ -119,15 +144,15 @@ impl Geometry {
             thickness,
 
             extras: Extra {
-                centra_radius_angle: (centra, radius, angle),
+                cla: (centra, length, angle),
             },
         }
     }
 
-    pub fn new_triangle(centra: Vector2<f32>, radius: f32, angle: f32, order: u8) -> Self {
+    pub fn new_triangle(centra: Vector2<f32>, length: f32, angle: f32, order: u8) -> Self {
         Self::triangle_with_style(
             centra,
-            radius,
+            length,
             angle,
             order,
             BorderType::None,
@@ -140,7 +165,7 @@ impl Geometry {
 
     pub fn square_with_style(
         centra: Vector2<f32>,
-        radius: f32,
+        length: f32,
         angle: f32,
         order: u8,
 
@@ -158,15 +183,54 @@ impl Geometry {
             thickness,
 
             extras: Extra {
-                centra_radius_angle: (centra, radius, angle),
+                cla: (centra, length, angle),
             },
         }
     }
 
-    pub fn new_square(centra: Vector2<f32>, radius: f32, angle: f32, order: u8) -> Self {
+    pub fn new_square(centra: Vector2<f32>, length: f32, angle: f32, order: u8) -> Self {
         Self::square_with_style(
             centra,
-            radius,
+            length,
+            angle,
+            order,
+            BorderType::None,
+            Rgba::WHITE,
+            0.1,
+            InnerType::Solid,
+            Rgba::WHITE,
+        )
+    }
+
+    pub fn pentagon_with_style(
+        centra: Vector2<f32>,
+        length: f32,
+        angle: f32,
+        order: u8,
+
+        btype: BorderType,
+        bcolor: Rgba,
+        thickness: f32,
+        itype: InnerType,
+        icolor: Rgba,
+    ) -> Self {
+        Self {
+            types: Self::zip(GeometryType::Pentagon, btype, itype, order),
+
+            bcolor: bcolor.to_hex(),
+            icolor: icolor.to_hex(),
+            thickness,
+
+            extras: Extra {
+                cla: (centra, length, angle),
+            },
+        }
+    }
+
+    pub fn new_pentagon(centra: Vector2<f32>, length: f32, angle: f32, order: u8) -> Self {
+        Self::pentagon_with_style(
+            centra,
+            length,
             angle,
             order,
             BorderType::None,
@@ -178,13 +242,30 @@ impl Geometry {
     }
 }
 
+// TODO: 太丑了, 尝试改改吧!
 #[repr(C, packed(4))]
 #[derive(Clone, Copy)]
 pub union Extra {
-    // centra(Vector2<f32>) + radius(f32) + angle(around centra)(f32),
-    centra_radius_angle: (Vector2<f32>, f32, f32),
+    // centra(Vector2<f32>) + length(f32) + angle(around centra)(f32),
+    //
+    // length represent the side length of quad.
+    pub cla: (Vector2<f32>, f32, f32),
     // point_a(Vector2<f32>) + point_b(Vector2<f32>)
-    point_point: (Vector2<f32>, Vector2<f32>),
+    pub p2p: (Vector2<f32>, Vector2<f32>),
+}
+
+impl Extra {
+    pub fn new_cla(centra: Vector2<f32>, side_length: f32, angle: f32) -> Self {
+        Self {
+            cla: (centra, side_length, angle)
+        }
+    }
+
+    pub fn new_pp(pa: Vector2<f32>, pb: Vector2<f32>) -> Self {
+        Self {
+            p2p: (pa, pb)
+        }
+    }
 }
 
 impl fmt::Debug for Extra {
@@ -201,10 +282,12 @@ pub enum GeometryType {
     Line,
     ETriangle, // ⯅
     Square,    // □
-               // Pentagon, // ⬟
-               // Hexagon,  // ⎔
-               // FpStar,   // 🟊
-               // SpStar,   // 🟌
+    Pentagon,  // ⬟
+    Hexagon,   // ⎔
+    Octogon,
+    Hexagram,
+    StarFive,
+    Heart,
 }
 
 #[repr(u8)]

@@ -1,13 +1,5 @@
 #version 450
 
-// NOTE: CONSTANTS AREA
-
-// Geometry Type Enum
-const uint CIRCLE = 0;
-const uint LINE = 1;
-const uint ETRIANGLE = 2;
-const uint SQUARE = 3;
-
 // NOTE: STRUCTS AREA
 
 // std430 layout        // offset   align   size
@@ -58,29 +50,16 @@ layout(location = 1) in uvec2 index;
 
 // NOTE: OUT VARIABLES
 
+// The border thickness in world space.
+layout(location = 0) out float thickness;
 // GeometryType + BorderType + InnerType.
-layout(location = 0) out uvec3 types;
-// Why not calculate `centra` and `extras` in fragment shader?
-//
-// Of course you can calculate `centra` and `extras` in fragment shader.
-//
-// look likes:
-//  centra_ss = MX_PROJECTION * MX_VIEW * mx_transform2d * mx_geometry * vec4(0, 0, 0, 1); 
-//  ...
-//
-// BUT, it will damage the performance(Especially when it has to render tons of geometry)!
-//
-// Because of `centra` and `extras` are uniform in warp, so i place the calculation code
-// in vertex shader. 
-//
-// (IN SCREEN SPACE) the centra point of the quad.
-layout(location = 1) out vec2 centra;
-// (IN SCREEN SPACE) radius + thickness / radius + another
-layout(location = 2) out vec2 extras;
+layout(location = 1) out uvec3 types;
 // Geometry border color.
-layout(location = 3) out vec4 bcolor;
+layout(location = 2) out vec4 bcolor;
 // Geometry inner color.
-layout(location = 4) out vec4 icolor;
+layout(location = 3) out vec4 icolor;
+// Matrix that transforms point from screen space to local space.
+layout(location = 4) out mat4 mx_s2l;
 
 // NOTE: FUNCTIONS AREA
 
@@ -97,9 +76,9 @@ mat4 to_matrix(Transform2D t) {
     return to_matrix(t.position, t.complex, t.scale);
 }
 
-mat4 to_matrix(vec2 centra, float radius, float angle) {
-    vec2 complex = vec2(cos(angle), sin(angle));
-    vec2 scale = radius * vec2(2.0, 2.0);
+mat4 to_matrix(vec2 centra, float slength, float angle) {
+    vec2 complex = vec2(cos(radians(angle)), sin(radians(angle)));
+    vec2 scale = vec2(slength, slength);
 
     return to_matrix(centra, complex, scale);
 }
@@ -141,12 +120,8 @@ void main() {
     mat4 mx_to_scrn = MX_VIEWPORT * mx_to_clip;
 
     types = types_with_order.xyz;
-    centra = (mx_to_scrn * vec4(0.0, 0.0, 0.0, 1.0)).xy;
-    
-    float radius = length(mx_to_scrn * vec4(0.5, 0.0, 0.0, 0.0));
-    float thickness = length(mx_to_scrn * vec4(g.thickness, 0.0, 0.0, 0.0));
-    extras = vec2(radius, thickness);
-    
+    mx_s2l = inverse(mx_to_scrn);
+    thickness = g.thickness;
     bcolor = hex_to_color(g.bcolor);
     icolor = hex_to_color(g.icolor);
 

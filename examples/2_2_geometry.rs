@@ -22,88 +22,124 @@ fn init_entities(cmd: &mut CommandBuffer, #[resource] window: &Window) {
     // Push camera entity to `World`.
     cmd.push((Transform2D::default(), Camera2D::new(width, height)));
 
-    let orange_circle = Geometry::circle_with_style(
-        Vector2::new(0.0, 0.0),
-        8.0,
-        0,
-        BorderType::Solid,
-        Rgba::WHITE,
-        0.1,
-        InnerType::Solid,
-        Rgba::ORANGE,
-    );
-    let chartreuse_etriangle = Geometry::triangle_with_style(
-        Vector2::new(0.0, 0.0),
-        8.0,
-        0.0,
-        0,
-        BorderType::Solid,
-        Rgba::WHITE,
-        0.1,
-        InnerType::Solid,
-        Rgba::CHARTREUSE,
-    );
-    let spring_square = Geometry::square_with_style(
-        Vector2::new(0.0, 0.0),
-        8.0,
-        0.0,
-        0,
-        BorderType::Solid,
-        Rgba::WHITE,
-        0.1,
-        InnerType::Solid,
-        Rgba::SPRING,
-    );
-    let azure_circle = Geometry::circle_with_style(
-        Vector2::new(0.0, 0.0),
-        8.0,
-        0,
-        BorderType::Solid,
-        Rgba::WHITE,
-        0.1,
-        InnerType::Solid,
-        Rgba::AZURE,
-    );
-
     // 1-1 mode.
-    cmd.push((Transform2D::new(0.0, 0.0, 0.0, 1.0, 1.0), orange_circle));
     cmd.push((
-        Transform2D::new(32.0, 0.0, 0.0, 1.0, 1.0),
-        chartreuse_etriangle,
-    ));
-    cmd.push((
-        Transform2D::new(64.0, 0.0, 0.0, 1.0, 1.0),
-        spring_square,
-    ));
-
-    // 1-N mode.
-    cmd.push((
-        Transform2D::new(0.0, 32.0, 0.0, 1.0, 1.0),
-        vec![
-            azure_circle,
-            chartreuse_etriangle,
-        ],
+        Transform2D::default(),
+        Geometry::new(
+            GeometryType::Square,
+            Extra::new_cla(Vector2::new(0.0, 0.0), 256.0, 0.0),
+            BorderType::Solid,
+            Rgba::WHITE,
+            0.1,
+            InnerType::Solid,
+            Rgba::ORANGE,
+            0,
+        ),
     ));
 
-    // N-1 mode.
+    // Triangle
     cmd.push((
-        vec![
-            Transform2D::new(0.0, 64.0, 0.0, 1.0, 1.0),
-            Transform2D::new(32.0, 64.0, 0.0, 1.0, 1.0),
-        ],
-        spring_square,
+        Transform2D::default(),
+        Geometry::new(
+            GeometryType::ETriangle,
+            Extra::new_cla(Vector2::new(-96.0, 0.0), 16.0, 0.0),
+            BorderType::Solid,
+            Rgba::WHITE,
+            0.1,
+            InnerType::Solid,
+            Rgba::MAGENTA,
+            0,
+        ),
     ));
 
-    // N-N mode.
+    // Pentagon
     cmd.push((
-        vec![
-            Transform2D::new(0.0, 96.0, 0.0, 1.0, 1.0),
-            Transform2D::new(32.0, 96.0, 0.0, 1.0, 1.0),
-        ],
-        vec![
-            orange_circle,
-            Geometry::new_circle(Vector2::new(16.0, 16.0), 8.0, 0),
-        ],
+        Transform2D::default(),
+        Geometry::new(
+            GeometryType::Pentagon,
+            Extra::new_cla(Vector2::new(-64.0, 0.0), 16.0, 0.0),
+            BorderType::Solid,
+            Rgba::WHITE,
+            0.1,
+            InnerType::Solid,
+            Rgba::MAGENTA,
+            0,
+        ),
+    ));
+
+    // Hexagon
+    cmd.push((
+        Transform2D::default(),
+        Geometry::new(
+            GeometryType::Hexagon,
+            Extra::new_cla(Vector2::new(-32.0, 0.0), 16.0, 0.0),
+            BorderType::Solid,
+            Rgba::WHITE,
+            0.1,
+            InnerType::Solid,
+            Rgba::MAGENTA,
+            0,
+        ),
+    ));
+
+    // Octogon
+    cmd.push((
+        Transform2D::default(),
+        Geometry::new(
+            GeometryType::Octogon,
+            Extra::new_cla(Vector2::new(0.0, 0.0), 16.0, 0.0),
+            BorderType::Solid,
+            Rgba::WHITE,
+            0.1,
+            InnerType::Solid,
+            Rgba::MAGENTA,
+            0,
+        ),
+    ));
+
+    // Hexagram
+    cmd.push((
+        Transform2D::default(),
+        Geometry::new(
+            GeometryType::Hexagram,
+            Extra::new_cla(Vector2::new(32.0, 0.0), 16.0, 0.0),
+            BorderType::Solid,
+            Rgba::WHITE,
+            0.1,
+            InnerType::Solid,
+            Rgba::MAGENTA,
+            0,
+        ),
+    ));
+
+    // StarFive
+    cmd.push((
+        Transform2D::default(),
+        Geometry::new(
+            GeometryType::StarFive,
+            Extra::new_cla(Vector2::new(64.0, 0.0), 16.0, 0.0),
+            BorderType::Solid,
+            Rgba::WHITE,
+            0.1,
+            InnerType::Solid,
+            Rgba::MAGENTA,
+            0,
+        ),
+    ));
+
+    // Heart
+    cmd.push((
+        Transform2D::default(),
+        Geometry::new(
+            GeometryType::Heart,
+            Extra::new_cla(Vector2::new(96.0, 0.0), 16.0, 0.0),
+            BorderType::Solid,
+            Rgba::WHITE,
+            0.1,
+            InnerType::Solid,
+            Rgba::MAGENTA,
+            0,
+        ),
     ));
 }
 
@@ -130,6 +166,7 @@ fn control_camera(transform: &mut Transform2D, #[resource] input: &Input) {
 #[filter(component::<Geometry>())]
 fn control_geometry_tmp(
     transform: &mut Transform2D,
+    geometry: &mut Geometry,
     #[resource] input: &Input,
     #[resource] time: &Time,
 ) {
@@ -146,4 +183,8 @@ fn control_geometry_tmp(
     } else if input.keyboard.pressed(KeyCode::W) {
         transform.position.y += TSPEED * time.delta().as_secs_f32();
     }
+
+    // unsafe {
+    //     geometry.extras.cla.2 += time.delta().as_secs_f32() * 30.0;
+    // }
 }
