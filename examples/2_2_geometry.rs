@@ -37,6 +37,20 @@ fn init_entities(cmd: &mut CommandBuffer, #[resource] window: &Window) {
         ),
     ));
 
+    cmd.push((
+        Transform2D::default(),
+        Geometry::new(
+            GeometryType::Circle,
+            Extra::new_cla(Vector2::new(0.0, 0.0), 200.0, 0.0),
+            BorderType::Solid,
+            Rgba::WHITE,
+            0.1,
+            InnerType::Solid,
+            Rgba::CHARTREUSE,
+            0,
+        ),
+    ));
+
     // Triangle
     cmd.push((
         Transform2D::default(),
@@ -184,7 +198,7 @@ fn control_geometry_tmp(
         transform.position.y += TSPEED * time.delta().as_secs_f32();
     }
 
-    // unsafe {
-    //     geometry.extras.cla.2 += time.delta().as_secs_f32() * 30.0;
-    // }
+    unsafe {
+        geometry.extras.cla.2 += time.delta().as_secs_f32() * 30.0;
+    }
 }
