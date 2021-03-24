@@ -14,7 +14,7 @@ impl Transform2D {
     pub fn new(tx: f32, ty: f32, angle: f32, sx: f32, sy: f32) -> Self {
         Self {
             position: Vector2::new(tx, ty),
-            rotation: UnitComplex::new(angle),
+            rotation: UnitComplex::new(f32::to_radians(angle)),
             scale: Vector2::new(sx, sy),
         }
     }
@@ -30,7 +30,7 @@ impl Transform2D {
     pub fn with_rotation(angle: f32) -> Self {
         Self {
             position: Vector2::new(0.0, 0.0),
-            rotation: UnitComplex::new(angle),
+            rotation: UnitComplex::new(f32::to_radians(angle)),
             scale: Vector2::new(1.0, 1.0),
         }
     }
@@ -44,15 +44,15 @@ impl Transform2D {
     }
 
     pub fn angle(&self) -> f32 {
-        self.rotation.angle()
+        f32::to_degrees(self.rotation.angle())
     }
 
     pub fn set_angle(&mut self, angle: f32) {
-        self.rotation = UnitComplex::new(angle);
+        self.rotation = UnitComplex::new(f32::to_radians(angle));
     }
 
     pub fn rotate(&mut self, delta_angle: f32) {
-        self.rotation *= UnitComplex::new(delta_angle);
+        self.rotation *= UnitComplex::new(f32::to_radians(delta_angle));
     }
 
     pub fn heading(&self) -> Vector2<f32> {
