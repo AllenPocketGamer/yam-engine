@@ -22,7 +22,7 @@ fn init_entities(cmd: &mut CommandBuffer, #[resource] window: &Window) {
     // Push camera entity to `World`.
     cmd.push((Transform2D::default(), Camera2D::new(width, height)));
 
-    // 1-1 mode.
+    // Square
     cmd.push((
         Transform2D::default(),
         Geometry::new(
@@ -32,11 +32,13 @@ fn init_entities(cmd: &mut CommandBuffer, #[resource] window: &Window) {
             Rgba::WHITE,
             0.1,
             InnerType::Solid,
-            Rgba::ORANGE,
+            Rgba::RED,
             0,
         ),
+        Marker {},
     ));
 
+    // Circle
     cmd.push((
         Transform2D::default(),
         Geometry::new(
@@ -46,9 +48,10 @@ fn init_entities(cmd: &mut CommandBuffer, #[resource] window: &Window) {
             Rgba::WHITE,
             0.1,
             InnerType::Solid,
-            Rgba::CHARTREUSE,
+            Rgba::ORANGE,
             0,
         ),
+        Marker {},
     ));
 
     // Triangle
@@ -61,7 +64,7 @@ fn init_entities(cmd: &mut CommandBuffer, #[resource] window: &Window) {
             Rgba::WHITE,
             0.1,
             InnerType::Solid,
-            Rgba::MAGENTA,
+            Rgba::YELLOW,
             0,
         ),
     ));
@@ -76,7 +79,7 @@ fn init_entities(cmd: &mut CommandBuffer, #[resource] window: &Window) {
             Rgba::WHITE,
             0.1,
             InnerType::Solid,
-            Rgba::MAGENTA,
+            Rgba::CHARTREUSE,
             0,
         ),
     ));
@@ -91,7 +94,7 @@ fn init_entities(cmd: &mut CommandBuffer, #[resource] window: &Window) {
             Rgba::WHITE,
             0.1,
             InnerType::Solid,
-            Rgba::MAGENTA,
+            Rgba::GREEN,
             0,
         ),
     ));
@@ -106,7 +109,7 @@ fn init_entities(cmd: &mut CommandBuffer, #[resource] window: &Window) {
             Rgba::WHITE,
             0.1,
             InnerType::Solid,
-            Rgba::MAGENTA,
+            Rgba::SPRING,
             0,
         ),
     ));
@@ -121,7 +124,7 @@ fn init_entities(cmd: &mut CommandBuffer, #[resource] window: &Window) {
             Rgba::WHITE,
             0.1,
             InnerType::Solid,
-            Rgba::MAGENTA,
+            Rgba::CYAN,
             0,
         ),
     ));
@@ -136,7 +139,7 @@ fn init_entities(cmd: &mut CommandBuffer, #[resource] window: &Window) {
             Rgba::WHITE,
             0.1,
             InnerType::Solid,
-            Rgba::MAGENTA,
+            Rgba::AZURE,
             0,
         ),
     ));
@@ -151,7 +154,7 @@ fn init_entities(cmd: &mut CommandBuffer, #[resource] window: &Window) {
             Rgba::WHITE,
             0.1,
             InnerType::Solid,
-            Rgba::MAGENTA,
+            Rgba::ROSE,
             0,
         ),
     ));
@@ -177,7 +180,7 @@ fn control_camera(transform: &mut Transform2D, #[resource] input: &Input) {
 }
 
 #[system(for_each)]
-#[filter(component::<Geometry>())]
+#[filter(component::<Geometry>() & !component::<Marker>())]
 fn control_geometry_tmp(
     transform: &mut Transform2D,
     geometry: &mut Geometry,
@@ -198,7 +201,14 @@ fn control_geometry_tmp(
         transform.position.y += TSPEED * time.delta().as_secs_f32();
     }
 
+    let angle = time.delta().as_secs_f32() * 30.0;
+    transform.rotate(angle);
     unsafe {
-        geometry.extras.cla.2 += time.delta().as_secs_f32() * 30.0;
+        let past = time.time().as_secs_f32();
+        
+        geometry.extras.cla.0.y = 32.0 * f32::sin(geometry.extras.cla.0.x + 4.0 * past);
+        geometry.extras.cla.2 += angle;
     }
 }
+
+struct Marker;
