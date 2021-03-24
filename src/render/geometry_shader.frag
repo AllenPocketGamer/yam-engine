@@ -46,11 +46,11 @@ struct Geometry {
 // NOTE: BUFFERS AREA
 
 layout(push_constant) uniform CONSTANTS {
-    // Transform point from `World` space to `Eye` space.
+    // Transform point from `world space` to `eye space`.
     mat4 MX_VIEW;
-    // Transform point from `Eye` space to `NDC`.
+    // Transform point from `eye space` to `NDC`.
     mat4 MX_PROJECTION;
-    // Transform point from `NDC` to `Screen` space.
+    // Transform point from `NDC` to `screen space`.
     mat4 MX_VIEWPORT;
 };
 
@@ -64,7 +64,7 @@ flat layout(location = 0) in float thickness;
 flat layout(location = 1) in uvec3 types;
 flat layout(location = 2) in vec4 bcolor;
 flat layout(location = 3) in vec4 icolor;
-flat layout(location = 4) in mat4 mx_s2l;
+flat layout(location = 4) in mat4 mx_l2w;
 
 // NOTE: OUT VARIABLES
 
@@ -191,42 +191,50 @@ float sdf_heart(vec2 pos, float sl) {
 }
 
 void main() {
+    // Transform points from `screen space` to `world space`.
+    mat4 mx_s2w = inverse(MX_VIEWPORT * MX_PROJECTION * MX_VIEW);
+    // Transform points from `screen space` to `local space`.
+    mat4 mx_s2l = inverse(mx_l2w) * mx_s2w;
+    
     uint gtype = types.x;
+    uint btype = types.y;
+    uint itype = types.z;
+    vec2 pos_w = (mx_s2w * gl_FragCoord).xy;
     vec2 pos_l = (mx_s2l * gl_FragCoord).xy;
     
     switch(gtype) {
         case GT_CIRCLE:
             o_Target = sign(sdf_circle(pos_l, 1.0)) * icolor;
-            break;
+            return;
         case GT_LINE:
             o_Target = icolor;
-            break;
+            return;
         case GT_ETRIANGLE:
             o_Target = sign(sdf_etriangle(pos_l, 1.0)) * icolor;
-            break;
+            return;
         case GT_SQUARE:
             o_Target = sign(sdf_square(pos_l, 1.0)) * icolor;
-            break;
+            return;
         case GT_PENTAGON:
             o_Target = sign(sdf_pentagon(pos_l, 1.0)) * icolor;
-            break;
+            return;
         case GT_HEXAGON:
             o_Target = sign(sdf_hexagon(pos_l, 1.0)) * icolor;
-            break;
+            return;
         case GT_OCTOGON:
             o_Target = sign(sdf_octogon(pos_l, 1.0)) * icolor;
-            break;
+            return;
         case GT_HEXAGRAM:
             o_Target = sign(sdf_hexagram(pos_l, 1.0)) * icolor;
-            break;
+            return;
         case GT_STARFIVE:
             o_Target = sign(sdf_starfive(pos_l, 1.0)) * icolor;
-            break;
+            return;
         case GT_HEART:
             o_Target = sign(sdf_heart(pos_l, 1.0)) * icolor;
-            break;
+            return;
         default:
             o_Target = vec4(1.0, 0.0, 1.0, 1.0);
-            break;
+            return;
     }
 }

@@ -25,11 +25,11 @@ struct Geometry {
 // NOTE: BUFFERS AREA
 
 layout(push_constant) uniform CONSTANTS {
-    // Transform point from `World` space to `Eye` space.
+    // Transform point from `world space` to `eye space`.
     mat4 MX_VIEW;
-    // Transform point from `Eye` space to `NDC`.
+    // Transform point from `eye space` to `NDC`.
     mat4 MX_PROJECTION;
-    // Transform point from `NDC` to `Screen` space.
+    // Transform point from `NDC` to `screen space`.
     mat4 MX_VIEWPORT;
 };
 
@@ -58,8 +58,8 @@ layout(location = 1) out uvec3 types;
 layout(location = 2) out vec4 bcolor;
 // Geometry inner color.
 layout(location = 3) out vec4 icolor;
-// Matrix that transforms point from screen space to local space.
-layout(location = 4) out mat4 mx_s2l;
+// Matrix that transforms point from local space to world space.
+layout(location = 4) out mat4 mx_l2w;
 
 // NOTE: FUNCTIONS AREA
 
@@ -77,7 +77,8 @@ mat4 to_matrix(Transform2D t) {
 }
 
 mat4 to_matrix(vec2 centra, float slength, float angle) {
-    vec2 complex = vec2(cos(radians(angle)), sin(radians(angle)));
+    float rad = radians(angle);
+    vec2 complex = vec2(cos(rad), sin(rad));
     vec2 scale = vec2(slength, slength);
 
     return to_matrix(centra, complex, scale);
@@ -112,15 +113,17 @@ void main() {
     // Place order to v_pos.z as depth.
     uint order = types_with_order.w;
 
+    // Transform point from `local space` to `world space`.
+    mat4 mx_to_world = to_matrix(t) * to_matrix(g.extras.xy, g.extras.z, g.extras.w);
     // Transform point from `local space` to `clip space/NDC`.
     //
     // Because the camera is orthographic, so the `clip space` is the same as `NDC`.
-    mat4 mx_to_clip = MX_PROJECTION * MX_VIEW * to_matrix(t) * to_matrix(g.extras.xy, g.extras.z, g.extras.w);
+    mat4 mx_to_clip = MX_PROJECTION * MX_VIEW * mx_to_world;
     // Transform point from `local space` to `screen space`.
     mat4 mx_to_scrn = MX_VIEWPORT * mx_to_clip;
 
     types = types_with_order.xyz;
-    mx_s2l = inverse(mx_to_scrn);
+    mx_l2w = mx_to_world;
     thickness = g.thickness;
     bcolor = hex_to_color(g.bcolor);
     icolor = hex_to_color(g.icolor);
