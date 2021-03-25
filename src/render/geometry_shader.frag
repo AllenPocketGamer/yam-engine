@@ -2,6 +2,8 @@
 
 // NOTE: CONSTANTS AREA
 
+const float PI = 3.1415926;
+
 // GeometryType
 const uint GT_CIRCLE    = 0;
 const uint GT_LINE      = 1;
@@ -163,8 +165,8 @@ float sdf_hexagram(vec2 pos, float sl) {
 float sdf_starfive(vec2 pos, float sl) {
     const float d = 0.5 * sl;
     
-    const float an = 3.141593 / float(5);
-    const float en = 3.141593 / 3.0;
+    const float an = PI / float(5);
+    const float en = PI / 3.0;
     const vec2 acs = vec2(cos(an), sin(an));
     const vec2 ecs = vec2(cos(en), sin(en));
 
@@ -190,6 +192,76 @@ float sdf_heart(vec2 pos, float sl) {
     return sqrt(min(dot2(pos - vec2(0.00, 1.00)), dot2(pos - 0.5 * max(pos.x + pos.y, 0.0)))) * sign(-pos.x + pos.y);
 }
 
+vec2[9] sample_points(vec2 pos_l) {
+    float w = dFdx(pos_l).x;
+    float h = dFdy(pos_l).y;
+
+    vec2 st = pos_l - 0.5 * vec2(w, h);
+
+    return vec2[9](
+        st + vec2(0.0, 0.0), st + vec2(0.5 * w, 0.0), st + vec2(w, 0.0),
+        st + vec2(0.0, 0.5 * h), st + vec2(0.5 * w, 0.5 * h), st + vec2(w, 0.5 * h),
+        st + vec2(0.0, h), st + vec2(0.5 * w, h), st + vec2(w, h)
+    );
+}
+
+vec4 tex_circle(vec2 pos) {
+    const float TMP_THICKNESS = 0.02;
+    
+    vec4 result = vec4(0.0, 0.0, 0.0, 0.0);
+    float d = sdf_circle(pos, 1.0);
+    
+    switch(types.z) {
+        case IT_NONE:
+            break;
+        case IT_SOLID:
+            result = sign(d) * icolor;
+            break;
+        case IT_DITHER:
+            result = sign(d) * icolor;
+            break;
+        case IT_DYN_DITHER:
+            result = sign(d) * icolor;
+            break;
+        default:
+            break;
+    }
+
+    switch(types.y) {
+        case BT_NONE:
+            break;
+        case BT_SOLID:
+            result = abs(d) < sign(d) * TMP_THICKNESS ? bcolor : result;
+            break;
+        case BT_DASH:
+            float rad = 0.5 * (1.0 - sign(pos.x)) * sign(pos.y) * PI + sign(pos.x) * asin(pos.y / length(pos));
+            float sins = sin(16 * rad) + 0.618;
+            d -= 0.5 * TMP_THICKNESS;
+            // result = abs(d) < 0.5 * TMP_THICKNESS ? bcolor : result;
+            result = abs(d) < 0.5 * TMP_THICKNESS ? (sins > 0 ? bcolor : sign(d) * result) : result;
+            break;
+        case BT_DYN_DASH:
+            result = abs(d) < sign(d) * TMP_THICKNESS ? bcolor : result;
+            break;
+        case BT_NAVI:
+            result = abs(d) < sign(d) * TMP_THICKNESS ? bcolor : result;
+            break;
+        case BT_DYN_NAVI:
+            result = abs(d) < sign(d) * TMP_THICKNESS ? bcolor : result;
+            break;
+        case BT_WARN:
+            result = abs(d) < sign(d) * TMP_THICKNESS ? bcolor : result;
+            break;
+        case BT_DYN_WARN:
+            result = abs(d) < sign(d) * TMP_THICKNESS ? bcolor : result;
+            break;
+        default:
+            break;
+    }
+
+    return result;
+}
+
 void main() {
     // Transform points from `screen space` to `world space`.
     mat4 mx_s2w = inverse(MX_VIEWPORT * MX_PROJECTION * MX_VIEW);
@@ -199,12 +271,13 @@ void main() {
     uint gtype = types.x;
     uint btype = types.y;
     uint itype = types.z;
-    vec2 pos_w = (mx_s2w * gl_FragCoord).xy;
+    // vec2 pos_w = (mx_s2w * gl_FragCoord).xy;
     vec2 pos_l = (mx_s2l * gl_FragCoord).xy;
+    vec2[9] pos_ls = sample_points(pos_l);
     
     switch(gtype) {
         case GT_CIRCLE:
-            o_Target = sign(sdf_circle(pos_l, 1.0)) * icolor;
+            o_Target = tex_circle(pos_l);
             return;
         case GT_LINE:
             o_Target = icolor;

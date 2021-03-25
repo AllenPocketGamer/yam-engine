@@ -122,11 +122,11 @@ void main() {
     // Transform point from `local space` to `screen space`.
     mat4 mx_to_scrn = MX_VIEWPORT * mx_to_clip;
 
-    types = types_with_order.xyz;
-    mx_l2w = mx_to_world;
     thickness = g.thickness;
+    types = types_with_order.xyz;
     bcolor = hex_to_color(g.bcolor);
     icolor = hex_to_color(g.icolor);
+    mx_l2w = mx_to_world;
 
     gl_Position = mx_to_clip * vec4(v_pos.xy, float(order) - 255.0, v_pos.w);
 }

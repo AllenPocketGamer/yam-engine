@@ -44,120 +44,122 @@ fn init_entities(cmd: &mut CommandBuffer, #[resource] window: &Window) {
         Geometry::new(
             GeometryType::Circle,
             Extra::new_cla(Vector2::new(0.0, 0.0), 200.0, 0.0),
-            BorderType::Solid,
-            Rgba::WHITE,
+            BorderType::Dash,
+            Rgba::CYAN,
             0.1,
             InnerType::Solid,
-            Rgba::ORANGE,
-            1,
+            Rgba::AZURE,
+            100,
         ),
         Marker {},
     ));
 
-    // Triangle
-    cmd.push((
-        Transform2D::default(),
-        Geometry::new(
-            GeometryType::ETriangle,
-            Extra::new_cla(Vector2::new(-96.0, 0.0), 16.0, 0.0),
-            BorderType::Solid,
-            Rgba::WHITE,
-            0.1,
-            InnerType::Solid,
-            Rgba::YELLOW,
-            254,
-        ),
-    ));
+    // let storder: u8 = 10;
+    
+    // // Triangle
+    // cmd.push((
+    //     Transform2D::default(),
+    //     Geometry::new(
+    //         GeometryType::ETriangle,
+    //         Extra::new_cla(Vector2::new(-96.0, 0.0), 16.0, 0.0),
+    //         BorderType::Solid,
+    //         Rgba::WHITE,
+    //         0.1,
+    //         InnerType::Solid,
+    //         Rgba::YELLOW,
+    //         storder,
+    //     ),
+    // ));
 
-    // Pentagon
-    cmd.push((
-        Transform2D::default(),
-        Geometry::new(
-            GeometryType::Pentagon,
-            Extra::new_cla(Vector2::new(-64.0, 0.0), 24.0, 0.0),
-            BorderType::Solid,
-            Rgba::WHITE,
-            0.1,
-            InnerType::Solid,
-            Rgba::CHARTREUSE,
-            253,
-        ),
-    ));
+    // // Pentagon
+    // cmd.push((
+    //     Transform2D::default(),
+    //     Geometry::new(
+    //         GeometryType::Pentagon,
+    //         Extra::new_cla(Vector2::new(-64.0, 0.0), 24.0, 0.0),
+    //         BorderType::Solid,
+    //         Rgba::WHITE,
+    //         0.1,
+    //         InnerType::Solid,
+    //         Rgba::CHARTREUSE,
+    //         storder + 1,
+    //     ),
+    // ));
 
-    // Hexagon
-    cmd.push((
-        Transform2D::default(),
-        Geometry::new(
-            GeometryType::Hexagon,
-            Extra::new_cla(Vector2::new(-32.0, 0.0), 32.0, 0.0),
-            BorderType::Solid,
-            Rgba::WHITE,
-            0.1,
-            InnerType::Solid,
-            Rgba::GREEN,
-            252,
-        ),
-    ));
+    // // Hexagon
+    // cmd.push((
+    //     Transform2D::default(),
+    //     Geometry::new(
+    //         GeometryType::Hexagon,
+    //         Extra::new_cla(Vector2::new(-32.0, 0.0), 32.0, 0.0),
+    //         BorderType::Solid,
+    //         Rgba::WHITE,
+    //         0.1,
+    //         InnerType::Solid,
+    //         Rgba::GREEN,
+    //         storder + 2,
+    //     ),
+    // ));
 
-    // Octogon
-    cmd.push((
-        Transform2D::default(),
-        Geometry::new(
-            GeometryType::Octogon,
-            Extra::new_cla(Vector2::new(0.0, 0.0), 40.0, 0.0),
-            BorderType::Solid,
-            Rgba::WHITE,
-            0.1,
-            InnerType::Solid,
-            Rgba::SPRING,
-            251,
-        ),
-    ));
+    // // Octogon
+    // cmd.push((
+    //     Transform2D::default(),
+    //     Geometry::new(
+    //         GeometryType::Octogon,
+    //         Extra::new_cla(Vector2::new(0.0, 0.0), 40.0, 0.0),
+    //         BorderType::Solid,
+    //         Rgba::WHITE,
+    //         0.1,
+    //         InnerType::Solid,
+    //         Rgba::SPRING,
+    //         storder + 3,
+    //     ),
+    // ));
 
-    // Hexagram
-    cmd.push((
-        Transform2D::default(),
-        Geometry::new(
-            GeometryType::Hexagram,
-            Extra::new_cla(Vector2::new(32.0, 0.0), 48.0, 0.0),
-            BorderType::Solid,
-            Rgba::WHITE,
-            0.1,
-            InnerType::Solid,
-            Rgba::CYAN,
-            250,
-        ),
-    ));
+    // // Hexagram
+    // cmd.push((
+    //     Transform2D::default(),
+    //     Geometry::new(
+    //         GeometryType::Hexagram,
+    //         Extra::new_cla(Vector2::new(32.0, 0.0), 48.0, 0.0),
+    //         BorderType::Solid,
+    //         Rgba::WHITE,
+    //         0.1,
+    //         InnerType::Solid,
+    //         Rgba::CYAN,
+    //         storder + 4,
+    //     ),
+    // ));
 
-    // StarFive
-    cmd.push((
-        Transform2D::default(),
-        Geometry::new(
-            GeometryType::StarFive,
-            Extra::new_cla(Vector2::new(64.0, 0.0), 56.0, 0.0),
-            BorderType::Solid,
-            Rgba::WHITE,
-            0.1,
-            InnerType::Solid,
-            Rgba::AZURE,
-            249,
-        ),
-    ));
+    // // StarFive
+    // cmd.push((
+    //     Transform2D::default(),
+    //     Geometry::new(
+    //         GeometryType::StarFive,
+    //         Extra::new_cla(Vector2::new(64.0, 0.0), 56.0, 0.0),
+    //         BorderType::Solid,
+    //         Rgba::WHITE,
+    //         0.1,
+    //         InnerType::Solid,
+    //         Rgba::AZURE,
+    //         storder + 5,
+    //     ),
+    // ));
 
-    // Heart
-    cmd.push((
-        Transform2D::default(),
-        Geometry::new(
-            GeometryType::Heart,
-            Extra::new_cla(Vector2::new(96.0, 0.0), 64.0, 0.0),
-            BorderType::Solid,
-            Rgba::WHITE,
-            0.1,
-            InnerType::Solid,
-            Rgba::ROSE,
-            248,
-        ),
-    ));
+    // // Heart
+    // cmd.push((
+    //     Transform2D::default(),
+    //     Geometry::new(
+    //         GeometryType::Heart,
+    //         Extra::new_cla(Vector2::new(96.0, 0.0), 64.0, 0.0),
+    //         BorderType::Solid,
+    //         Rgba::WHITE,
+    //         0.1,
+    //         InnerType::Solid,
+    //         Rgba::ROSE,
+    //         storder + 6,
+    //     ),
+    // ));
 }
 
 #[system(for_each)]
@@ -201,14 +203,14 @@ fn control_geometry_tmp(
         transform.position.y += TSPEED * time.delta().as_secs_f32();
     }
 
-    let angle = time.delta().as_secs_f32() * 30.0;
-    transform.rotate(angle);
-    unsafe {
-        let past = time.time().as_secs_f32();
+    // let angle = time.delta().as_secs_f32() * 30.0;
+    // transform.rotate(angle);
+    // unsafe {
+    //     let past = time.time().as_secs_f32();
         
-        geometry.extras.cla.0.y = 32.0 * f32::sin(geometry.extras.cla.0.x + 4.0 * past);
-        geometry.extras.cla.2 += angle;
-    }
+    //     geometry.extras.cla.0.y = 32.0 * f32::sin(geometry.extras.cla.0.x + 4.0 * past);
+    //     geometry.extras.cla.2 += angle;
+    // }
 }
 
 struct Marker;
