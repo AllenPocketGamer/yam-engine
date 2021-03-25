@@ -24,7 +24,7 @@ impl Camera2D {
             -half_height,
             half_height,
             0.0,
-            255.0,
+            256.0,
         )
     }
 

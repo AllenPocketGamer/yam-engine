@@ -49,7 +49,7 @@ fn init_entities(cmd: &mut CommandBuffer, #[resource] window: &Window) {
             0.1,
             InnerType::Solid,
             Rgba::ORANGE,
-            0,
+            1,
         ),
         Marker {},
     ));
@@ -65,7 +65,7 @@ fn init_entities(cmd: &mut CommandBuffer, #[resource] window: &Window) {
             0.1,
             InnerType::Solid,
             Rgba::YELLOW,
-            0,
+            254,
         ),
     ));
 
@@ -74,13 +74,13 @@ fn init_entities(cmd: &mut CommandBuffer, #[resource] window: &Window) {
         Transform2D::default(),
         Geometry::new(
             GeometryType::Pentagon,
-            Extra::new_cla(Vector2::new(-64.0, 0.0), 16.0, 0.0),
+            Extra::new_cla(Vector2::new(-64.0, 0.0), 24.0, 0.0),
             BorderType::Solid,
             Rgba::WHITE,
             0.1,
             InnerType::Solid,
             Rgba::CHARTREUSE,
-            0,
+            253,
         ),
     ));
 
@@ -89,13 +89,13 @@ fn init_entities(cmd: &mut CommandBuffer, #[resource] window: &Window) {
         Transform2D::default(),
         Geometry::new(
             GeometryType::Hexagon,
-            Extra::new_cla(Vector2::new(-32.0, 0.0), 16.0, 0.0),
+            Extra::new_cla(Vector2::new(-32.0, 0.0), 32.0, 0.0),
             BorderType::Solid,
             Rgba::WHITE,
             0.1,
             InnerType::Solid,
             Rgba::GREEN,
-            0,
+            252,
         ),
     ));
 
@@ -104,13 +104,13 @@ fn init_entities(cmd: &mut CommandBuffer, #[resource] window: &Window) {
         Transform2D::default(),
         Geometry::new(
             GeometryType::Octogon,
-            Extra::new_cla(Vector2::new(0.0, 0.0), 16.0, 0.0),
+            Extra::new_cla(Vector2::new(0.0, 0.0), 40.0, 0.0),
             BorderType::Solid,
             Rgba::WHITE,
             0.1,
             InnerType::Solid,
             Rgba::SPRING,
-            0,
+            251,
         ),
     ));
 
@@ -119,13 +119,13 @@ fn init_entities(cmd: &mut CommandBuffer, #[resource] window: &Window) {
         Transform2D::default(),
         Geometry::new(
             GeometryType::Hexagram,
-            Extra::new_cla(Vector2::new(32.0, 0.0), 16.0, 0.0),
+            Extra::new_cla(Vector2::new(32.0, 0.0), 48.0, 0.0),
             BorderType::Solid,
             Rgba::WHITE,
             0.1,
             InnerType::Solid,
             Rgba::CYAN,
-            0,
+            250,
         ),
     ));
 
@@ -134,13 +134,13 @@ fn init_entities(cmd: &mut CommandBuffer, #[resource] window: &Window) {
         Transform2D::default(),
         Geometry::new(
             GeometryType::StarFive,
-            Extra::new_cla(Vector2::new(64.0, 0.0), 16.0, 0.0),
+            Extra::new_cla(Vector2::new(64.0, 0.0), 56.0, 0.0),
             BorderType::Solid,
             Rgba::WHITE,
             0.1,
             InnerType::Solid,
             Rgba::AZURE,
-            0,
+            249,
         ),
     ));
 
@@ -149,13 +149,13 @@ fn init_entities(cmd: &mut CommandBuffer, #[resource] window: &Window) {
         Transform2D::default(),
         Geometry::new(
             GeometryType::Heart,
-            Extra::new_cla(Vector2::new(96.0, 0.0), 16.0, 0.0),
+            Extra::new_cla(Vector2::new(96.0, 0.0), 64.0, 0.0),
             BorderType::Solid,
             Rgba::WHITE,
             0.1,
             InnerType::Solid,
             Rgba::ROSE,
-            0,
+            248,
         ),
     ));
 }

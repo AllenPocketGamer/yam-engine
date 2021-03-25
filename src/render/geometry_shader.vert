@@ -128,5 +128,5 @@ void main() {
     bcolor = hex_to_color(g.bcolor);
     icolor = hex_to_color(g.icolor);
 
-    gl_Position = mx_to_clip * vec4(v_pos.xy, order, v_pos.w);
+    gl_Position = mx_to_clip * vec4(v_pos.xy, float(order) - 255.0, v_pos.w);
 }

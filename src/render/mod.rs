@@ -182,13 +182,13 @@ impl Render2D {
     }
 
     pub fn set_swap_chain_size(&mut self, width: u32, height: u32) {
-        self.gpu.sc_desc.width = width;
-        self.gpu.sc_desc.height = height;
+        if self.gpu.sc_desc.width != width || self.gpu.sc_desc.height != height {
+            self.gpu.sc_desc.width = width;
+            self.gpu.sc_desc.height = height;
 
-        self.gpu.swap_chain = self
-            .gpu
-            .device
-            .create_swap_chain(&self.gpu.surface, &self.gpu.sc_desc);
+            self.gpu.swap_chain = self.gpu.device.create_swap_chain(&self.gpu.surface, &self.gpu.sc_desc);
+            self.general_renderer.resize(&self.gpu);
+        }
     }
 
     #[allow(dead_code)]

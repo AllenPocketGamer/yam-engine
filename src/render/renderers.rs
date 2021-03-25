@@ -348,6 +348,9 @@ pub struct GeneralRenderer {
     ///  * 113-128MB: index pairs
     staging_buf: wgpu::Buffer,
 
+    // The depth texture.
+    depth_texture: Texture,
+
     // For `Geometry` rendering.
     geometry_bind_group: wgpu::BindGroup,
     geometry_pipeline: wgpu::RenderPipeline,
@@ -362,8 +365,9 @@ impl GeneralRenderer {
             surface,
             adapter,
             device,
+            sc_desc,
             ..
-        }: &mut Gpu,
+        }: &Gpu,
     ) -> Self {
         let vertex_buf = device.create_buffer_init(&wgpu::util::BufferInitDescriptor {
             label: Some("vertex buffer"),
@@ -397,6 +401,8 @@ impl GeneralRenderer {
             usage: wgpu::BufferUsage::MAP_WRITE | wgpu::BufferUsage::COPY_SRC,
             mapped_at_creation: false,
         });
+
+        let depth_texture = Texture::create_depth_texture(device, sc_desc);
 
         let bind_group_layout = device.create_bind_group_layout(&wgpu::BindGroupLayoutDescriptor {
             label: Some("geometry bind group layout"),
@@ -503,7 +509,14 @@ impl GeneralRenderer {
                 cull_mode: wgpu::CullMode::None,
                 ..Default::default()
             },
-            depth_stencil: None,
+            depth_stencil: Some(wgpu::DepthStencilState {
+                format: wgpu::TextureFormat::Depth32Float,
+                depth_write_enabled: true,
+                depth_compare: wgpu::CompareFunction::Less,
+                stencil: wgpu::StencilState::default(),
+                bias: wgpu::DepthBiasState::default(),
+                clamp_depth: device.features().contains(wgpu::Features::DEPTH_CLAMPING),
+            }),
             multisample: Default::default(),
         });
 
@@ -514,9 +527,20 @@ impl GeneralRenderer {
             storage_buf,
             staging_buf,
 
+            depth_texture,
+
             geometry_bind_group,
             geometry_pipeline,
         }
+    }
+
+    pub(super) fn resize(
+        &mut self,
+        Gpu {
+            device, sc_desc, ..
+        }: &Gpu,
+    ) {
+        self.depth_texture = Texture::create_depth_texture(device, sc_desc);
     }
 
     pub(super) fn render_geometry(
@@ -526,7 +550,7 @@ impl GeneralRenderer {
             queue,
             frame,
             ..
-        }: &mut Gpu,
+        }: &Gpu,
         world: &mut World,
         mx_view: &Matrix4<f32>,
         mx_proj: &Matrix4<f32>,
@@ -554,7 +578,14 @@ impl GeneralRenderer {
                         store: true,
                     },
                 }],
-                depth_stencil_attachment: None,
+                depth_stencil_attachment: Some(wgpu::RenderPassDepthStencilAttachmentDescriptor {
+                    attachment: &self.depth_texture.view,
+                    depth_ops: Some(wgpu::Operations {
+                        load: wgpu::LoadOp::Clear(1.0),
+                        store: false,
+                    }),
+                    stencil_ops: None,
+                }),
             });
 
             rpass.push_debug_group("prepare render data.");
@@ -755,5 +786,52 @@ impl GeneralRenderer {
         encoder.copy_buffer_to_buffer(&self.staging_buf, i_st, &self.instance_buf, 0, i_buf_size);
 
         (i_count, i_buf_size)
+    }
+}
+
+struct Texture {
+    #[allow(dead_code)]
+    texture: wgpu::Texture,
+    view: wgpu::TextureView,
+    #[allow(dead_code)]
+    sampler: wgpu::Sampler,
+}
+
+impl Texture {
+    fn create_depth_texture(device: &wgpu::Device, sc_desc: &wgpu::SwapChainDescriptor) -> Self {
+        let texture = device.create_texture(&wgpu::TextureDescriptor {
+            label: Some("depth texture"),
+            size: wgpu::Extent3d {
+                width: sc_desc.width,
+                height: sc_desc.height,
+                depth: 1,
+            },
+            mip_level_count: 1,
+            sample_count: 1,
+            dimension: wgpu::TextureDimension::D2,
+            format: wgpu::TextureFormat::Depth32Float,
+            usage: wgpu::TextureUsage::RENDER_ATTACHMENT | wgpu::TextureUsage::SAMPLED,
+        });
+
+        let view = texture.create_view(&wgpu::TextureViewDescriptor::default());
+
+        let sampler = device.create_sampler(&wgpu::SamplerDescriptor {
+            address_mode_u: wgpu::AddressMode::ClampToEdge,
+            address_mode_v: wgpu::AddressMode::ClampToEdge,
+            address_mode_w: wgpu::AddressMode::ClampToEdge,
+            mag_filter: wgpu::FilterMode::Linear,
+            min_filter: wgpu::FilterMode::Linear,
+            mipmap_filter: wgpu::FilterMode::Nearest,
+            compare: Some(wgpu::CompareFunction::LessEqual),
+            lod_min_clamp: -100.0,
+            lod_max_clamp: 100.0,
+            ..Default::default()
+        });
+
+        Self {
+            texture,
+            view,
+            sampler,
+        }
     }
 }
