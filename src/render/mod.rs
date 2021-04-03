@@ -11,8 +11,11 @@ use crate::{
     window::Window,
 };
 
+use std::time::Instant;
+
 pub(crate) fn create_app_stage_render(Window { window }: &Window) -> AppStage {
     let mut r2ds = Render2D::new(window);
+    let mut timestamp = Instant::now();
 
     let render_process = move |world: &mut World, resources: &mut Resources| {
         let (width, height) = {
@@ -32,6 +35,16 @@ pub(crate) fn create_app_stage_render(Window { window }: &Window) -> AppStage {
             r2ds.set_view_transformation(transform2d);
             r2ds.set_projection(camera2d);
             r2ds.set_viewport_aspect_ratio(camera2d.aspect_ratio());
+        }
+
+        // NOTE: 临时性代码: 热更新shaders.
+        //
+        // 这应该只在yam开发时启用, 在被别的库链接时关闭!
+        // 但现在不知道怎么做, 反正先把shader写完再说.
+        let now = Instant::now();
+        if (now - timestamp).as_millis() > 330 {
+            r2ds.recompile_shader();
+            timestamp = now;
         }
 
         r2ds.begin_draw();
@@ -152,6 +165,10 @@ struct Render2D {
     aspect_ratio: f32,
     mx_view: Matrix4<f32>,
     mx_projection: Matrix4<f32>,
+
+    // NOTE: 临时性数据, 用于决定是否更新shader
+    vhash: u64,
+    fhash: u64,
 }
 
 impl Render2D {
@@ -174,6 +191,10 @@ impl Render2D {
                 .try_inverse()
                 .unwrap(),
             mx_projection: default_camera2d.to_orthographic_homogeneous(),
+
+            // NOTE: 临时性数据
+            vhash: 0,
+            fhash: 0,
         }
     }
 
@@ -186,7 +207,10 @@ impl Render2D {
             self.gpu.sc_desc.width = width;
             self.gpu.sc_desc.height = height;
 
-            self.gpu.swap_chain = self.gpu.device.create_swap_chain(&self.gpu.surface, &self.gpu.sc_desc);
+            self.gpu.swap_chain = self
+                .gpu
+                .device
+                .create_swap_chain(&self.gpu.surface, &self.gpu.sc_desc);
             self.general_renderer.resize(&self.gpu);
         }
     }
@@ -309,6 +333,92 @@ impl Render2D {
             self.gpu.frame.take();
         } else {
             panic!("ERR: Drawing has ended already.")
+        }
+    }
+
+    // NOTE: 临时性代码
+    pub fn recompile_shader(&mut self) {
+        // 1. 定时检查shader, 若有改变, 记录hash, 进入下一步
+        // 2. 编译所有shader(因为现在只有两个)
+        //  通过: 将编译后的字节码传入general_renderer
+        //  失败: 打印错误, 返回等待下一次更新
+        use shaderc::*;
+        use std::collections::hash_map::DefaultHasher;
+        use std::fs::read_to_string;
+        use std::hash::{Hash, Hasher};
+
+        let current_dir = std::env::current_dir().unwrap();
+        let geometry_vert_path = current_dir.join("src\\render\\geometry_shader.vert");
+        let geometry_frag_path = current_dir.join("src\\render\\geometry_shader.frag");
+
+        let vcontent: String;
+        let fcontent: String;
+
+        if let Ok(content) = read_to_string(&geometry_vert_path) {
+            vcontent = content;
+        } else {
+            println!(
+                "WARN: Cannot get geometry vertex shader in {}.",
+                geometry_vert_path.display()
+            );
+            return;
+        }
+        if let Ok(content) = read_to_string(&geometry_frag_path) {
+            fcontent = content;
+        } else {
+            println!(
+                "WARN: Cannot get geometry fragment shader in {}.",
+                geometry_frag_path.display()
+            );
+            return;
+        }
+
+        let mut dh = DefaultHasher::new();
+
+        vcontent.hash(&mut dh);
+        let vhash = dh.finish();
+        fcontent.hash(&mut dh);
+        let fhash = dh.finish();
+
+        if self.vhash == vhash && self.fhash == fhash {
+            return;
+        }
+
+        self.vhash = vhash;
+        self.fhash = fhash;
+
+        if let Some(mut compiler) = Compiler::new() {
+            let vs = compiler.compile_into_spirv(
+                &vcontent,
+                ShaderKind::Vertex,
+                geometry_vert_path.to_str().unwrap(),
+                "main",
+                None,
+            );
+            let fs = compiler.compile_into_spirv(
+                &&fcontent,
+                ShaderKind::Fragment,
+                geometry_frag_path.to_str().unwrap(),
+                "main",
+                None,
+            );
+
+            if let Err(err) = vs {
+                println!("{}", err);
+                return;
+            }
+            if let Err(err) = fs {
+                println!("{}", err);
+                return;
+            }
+
+            self.general_renderer.recompile_shader(
+                &self.gpu,
+                vs.unwrap().as_binary_u8(),
+                fs.unwrap().as_binary_u8(),
+            );
+        } else {
+            println!("WARN: Fail to create shader compiler.");
         }
     }
 

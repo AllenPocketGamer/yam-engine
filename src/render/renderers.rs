@@ -353,6 +353,7 @@ pub struct GeneralRenderer {
 
     // For `Geometry` rendering.
     geometry_bind_group: wgpu::BindGroup,
+    geometry_pipeline_layout: wgpu::PipelineLayout,
     geometry_pipeline: wgpu::RenderPipeline,
     // TODO: For `Sprite` rendering.
     // sprite_bind_group: wgpu::BindGroup,
@@ -453,20 +454,21 @@ impl GeneralRenderer {
             ],
         });
 
-        let pipeline_layout = device.create_pipeline_layout(&wgpu::PipelineLayoutDescriptor {
-            label: Some("geometry pipeline layout"),
-            bind_group_layouts: &[&bind_group_layout],
-            push_constant_ranges: &[
-                wgpu::PushConstantRange {
-                    stages: wgpu::ShaderStage::FRAGMENT,
-                    range: 0..192, // view matrix + projection matrix + viewport matrix.
-                },
-                wgpu::PushConstantRange {
-                    stages: wgpu::ShaderStage::VERTEX,
-                    range: 0..192, // view matrix + projection matrix + viewport matrix.
-                },
-            ],
-        });
+        let geometry_pipeline_layout =
+            device.create_pipeline_layout(&wgpu::PipelineLayoutDescriptor {
+                label: Some("geometry pipeline layout"),
+                bind_group_layouts: &[&bind_group_layout],
+                push_constant_ranges: &[
+                    wgpu::PushConstantRange {
+                        stages: wgpu::ShaderStage::FRAGMENT,
+                        range: 0..192, // view matrix + projection matrix + viewport matrix.
+                    },
+                    wgpu::PushConstantRange {
+                        stages: wgpu::ShaderStage::VERTEX,
+                        range: 0..192, // view matrix + projection matrix + viewport matrix.
+                    },
+                ],
+            });
 
         let vert_shader = device.create_shader_module(&wgpu::ShaderModuleDescriptor {
             label: Some("geometry vertex shader"),
@@ -482,7 +484,7 @@ impl GeneralRenderer {
 
         let geometry_pipeline = device.create_render_pipeline(&wgpu::RenderPipelineDescriptor {
             label: Some("geometry pipeline"),
-            layout: Some(&pipeline_layout),
+            layout: Some(&geometry_pipeline_layout),
             vertex: wgpu::VertexState {
                 module: &vert_shader,
                 entry_point: "main",
@@ -530,6 +532,7 @@ impl GeneralRenderer {
             depth_texture,
 
             geometry_bind_group,
+            geometry_pipeline_layout,
             geometry_pipeline,
         }
     }
@@ -541,6 +544,70 @@ impl GeneralRenderer {
         }: &Gpu,
     ) {
         self.depth_texture = Texture::create_depth_texture(device, sc_desc);
+    }
+
+    pub(super) fn recompile_shader(
+        &mut self,
+        Gpu {
+            device,
+            adapter,
+            surface,
+            ..
+        }: &Gpu,
+        vert: &[u8],
+        frag: &[u8],
+    ) {
+        let vert_shader = device.create_shader_module(&wgpu::ShaderModuleDescriptor {
+            label: Some("geometry vertex shader"),
+            source: wgpu::util::make_spirv(vert),
+            flags: wgpu::ShaderFlags::empty(),
+        });
+
+        let frag_shader = device.create_shader_module(&wgpu::ShaderModuleDescriptor {
+            label: Some("geometry fragment shader"),
+            source: wgpu::util::make_spirv(frag),
+            flags: wgpu::ShaderFlags::empty(),
+        });
+
+        self.geometry_pipeline = device.create_render_pipeline(&wgpu::RenderPipelineDescriptor {
+            label: Some("geometry pipeline"),
+            layout: Some(&self.geometry_pipeline_layout),
+            vertex: wgpu::VertexState {
+                module: &vert_shader,
+                entry_point: "main",
+                buffers: &[
+                    wgpu::VertexBufferLayout {
+                        array_stride: size_of::<Vector4<f32>>() as wgpu::BufferAddress,
+                        step_mode: wgpu::InputStepMode::Vertex,
+                        attributes: &wgpu::vertex_attr_array![0 => Float4],
+                    },
+                    wgpu::VertexBufferLayout {
+                        array_stride: size_of::<(u16, u16)>() as wgpu::BufferAddress,
+                        step_mode: wgpu::InputStepMode::Instance,
+                        attributes: &wgpu::vertex_attr_array![1 => Ushort2],
+                    },
+                ],
+            },
+            fragment: Some(wgpu::FragmentState {
+                module: &frag_shader,
+                entry_point: "main",
+                targets: &[adapter.get_swap_chain_preferred_format(&surface).into()],
+            }),
+            primitive: wgpu::PrimitiveState {
+                front_face: wgpu::FrontFace::Ccw,
+                cull_mode: wgpu::CullMode::None,
+                ..Default::default()
+            },
+            depth_stencil: Some(wgpu::DepthStencilState {
+                format: wgpu::TextureFormat::Depth32Float,
+                depth_write_enabled: true,
+                depth_compare: wgpu::CompareFunction::Less,
+                stencil: wgpu::StencilState::default(),
+                bias: wgpu::DepthBiasState::default(),
+                clamp_depth: device.features().contains(wgpu::Features::DEPTH_CLAMPING),
+            }),
+            multisample: Default::default(),
+        });
     }
 
     pub(super) fn render_geometry(
@@ -574,7 +641,7 @@ impl GeneralRenderer {
                     attachment: &(frame.output.view),
                     resolve_target: None,
                     ops: wgpu::Operations {
-                        load: wgpu::LoadOp::Clear(wgpu::Color::BLACK),
+                        load: wgpu::LoadOp::Clear(wgpu::Color::GREEN),
                         store: true,
                     },
                 }],
