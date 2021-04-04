@@ -18,6 +18,8 @@ struct Geometry {
     uint datas;         // 0        4       4
     uint bcolor;        // 4        4       4
     uint icolor;        // 8        4       4
+    // Positive represents thickness in `screen space`,
+    // Negative represents thickness in `local space`.
     float thickness;    // 12       4       4
     vec4 extras;        // 16       4       16
 };
@@ -50,9 +52,9 @@ layout(location = 1) in uvec2 index;
 
 // NOTE: OUT VARIABLES
 
-// The border thickness in world space.
-layout(location = 0) out float thickness;
-// GeometryType + BorderType + InnerType.
+// The border thickness in `geometry space`.
+layout(location = 0) out float th_g;
+// GeometryType + BorderDecoration + InnerDecoration.
 layout(location = 1) out uvec3 datas;
 // Geometry border color.
 layout(location = 2) out vec4 bcolor;
@@ -115,12 +117,14 @@ void main() {
     // Place order to v_pos.z as depth.
     uint order = datas_with_order.w;
 
-    thickness = g.thickness;
     datas = datas_with_order.xyz;
     bcolor = hex_to_color(g.bcolor);
     icolor = hex_to_color(g.icolor);
     mx_g2l = to_matrix(g.extras.xy, g.extras.z, g.extras.w);
     mx_l2w = to_matrix(t);
+
+    const mat4 matrix = g.thickness >= 0 ? MX_VIEWPORT * MX_PROJECTION * MX_VIEW * mx_l2w * mx_g2l : mx_g2l;
+    th_g = abs(g.thickness) / length(matrix * vec4(normalize(v_pos.xy), 0.0, 0.0));
 
     gl_Position = MX_PROJECTION * MX_VIEW * mx_l2w * mx_g2l * vec4(v_pos.xy, float(order) - 255.0, v_pos.w);
 }

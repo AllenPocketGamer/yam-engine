@@ -12,10 +12,6 @@ const float DASH_EMPTY = 0.3;
 // Anti-aliasing pixel count.
 const float BLUR = 1.0;
 
-// TEMP
-const float TEMP_THICKNESS = 0.02;
-const float TEMP_HT = 0.5 * TEMP_THICKNESS;
-
 // GeometryType
 const uint GT_CIRCLE        = 0;
 const uint GT_ETRIANGLE     = 1;
@@ -27,30 +23,17 @@ const uint GT_HEXAGRAM      = 6;
 const uint GT_STARFIVE      = 7;
 const uint GT_HEART         = 8;
 
-// BorderType
-const uint BT_NONE          = 0;
-const uint BT_SOLID         = 1;
-const uint BT_DASH          = 2;
-const uint BT_DYN_DASH      = 3;
+// BorderDecoration
+const uint BD_NONE          = 0;
+const uint BD_SOLID         = 1;
+const uint BD_DASH          = 2;
+const uint BD_DYN_DASH      = 3;
 
-// InnerType
-const uint IT_NONE          = 0;
-const uint IT_SOLID         = 1;
-const uint IT_DITHER        = 2;
-const uint IT_DYN_DITHER    = 3;
-
-// NOTE: STRUCTS AREA
-
-// std430 layout        // offset   align   size
-//
-// align: 16, size: 32
-struct Geometry {
-    uint types;         // 0        4       4
-    uint bcolor;        // 4        4       4
-    uint icolor;        // 8        4       4
-    float thickness;    // 12       4       4
-    vec4 extras;        // 16       4       16
-};
+// InnerDecoration
+const uint ID_NONE          = 0;
+const uint ID_SOLID         = 1;
+const uint ID_DITHER        = 2;
+const uint ID_DYN_DITHER    = 3;
 
 // NOTE: BUFFERS AREA
 
@@ -63,13 +46,9 @@ layout(push_constant) uniform CONSTANTS {
     mat4 MX_VIEWPORT;
 };
 
-layout(std430, binding = 1) buffer GeometryArray {
-    Geometry g_arr[];
-};
-
 // NOTE: IN VARIABLES
 
-flat layout(location = 0) in float thickness;
+layout(location = 0) in float th_g;
 flat layout(location = 1) in uvec3 types;
 flat layout(location = 2) in vec4 bcolor;
 flat layout(location = 3) in vec4 icolor;
@@ -212,13 +191,14 @@ float sdf_heart(vec2 pos, float sl) {
 float get_circle_dash(
     const vec2 pg,
     const float blur_g,
+    const float hth_g,
     const float time
 ) {
     // radius in `geometry space`.
     const float rad = atan(pg.y, pg.x);
     // [-PI, PI] --map-> [-1, 1]. 
     const float maped = rad / PI;
-    const float count = 2.0 * ceil(0.5 * PI / (DASH_PROPORTION * TEMP_THICKNESS));
+    const float count = 2.0 * ceil(0.25 * PI / (DASH_PROPORTION * hth_g));
 
     // blur_r是blur_g在dash弧度长上的占比.
     const float blur_r = blur_g * count / PI;
@@ -240,16 +220,16 @@ vec2 get_inner(
     float decoration = 0.0;
 
     switch(ideco) {
-        case IT_NONE:
+        case ID_NONE:
             break;
-        case IT_SOLID:
+        case ID_SOLID:
             inner = smoothstep(-blur_g, blur_g, sdf - hth_g);
             decoration = 1.0;
             break;
-        case IT_DITHER:
+        case ID_DITHER:
             // TODO
             break;
-        case IT_DYN_DITHER:
+        case ID_DYN_DITHER:
             // TODO
             break;
         default:
@@ -272,19 +252,19 @@ vec2 get_border(
     float decoration = 0.0;
     
     switch(bdeco) {
-        case BT_NONE:
+        case BD_NONE:
             break;
-        case BT_SOLID:
+        case BD_SOLID:
             border = 1.0 - smoothstep(hth_g - blur_g, hth_g + blur_g, abs(sdf - hth_g));
             decoration = 1.0;
             break;
-        case BT_DASH:
+        case BD_DASH:
             border = 1.0 - smoothstep(hth_g - blur_g, hth_g + blur_g, abs(sdf - hth_g));
-            decoration = get_circle_dash(pg, blur_g, 0.0);
+            decoration = get_circle_dash(pg, blur_g, hth_g, 0.0);
             break;
-        case BT_DYN_DASH:
+        case BD_DYN_DASH:
             border = 1.0 - smoothstep(hth_g - blur_g, hth_g + blur_g, abs(sdf - hth_g));
-            decoration = get_circle_dash(pg, blur_g, time);
+            decoration = get_circle_dash(pg, blur_g, hth_g, time);
             break;
         default:
             break;
@@ -316,6 +296,9 @@ void main() {
 
     // blur factor in `geometry space`.
     const float blur_g = BLUR * length(mx_s2g * c2p_norm_s);
+
+    // half thickness in `geometry space`.
+    const float hth_g = 0.5 * th_g;
 
     const uint gtype = types.x;
     const uint bdeco = types.y;
@@ -355,7 +338,7 @@ void main() {
             break;
     }
 
-    const vec2 inner = get_inner(ideco, pg.xy, sdf, blur_g, TEMP_HT, 0.0);
-    const vec2 border = get_border(bdeco, pg.xy, sdf, blur_g, TEMP_HT, 0.0);
+    const vec2 inner = get_inner(ideco, pg.xy, sdf, blur_g, hth_g, 0.0);
+    const vec2 border = get_border(bdeco, pg.xy, sdf, blur_g, hth_g, 0.0);
     o_Target = mix(inner.x * icolor, border.y * bcolor, border.x);
 }
