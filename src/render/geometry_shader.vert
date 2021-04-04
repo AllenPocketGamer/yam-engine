@@ -15,7 +15,7 @@ struct Transform2D {
 //
 // align: 16, size: 32
 struct Geometry {
-    uint types;         // 0        4       4
+    uint datas;         // 0        4       4
     uint bcolor;        // 4        4       4
     uint icolor;        // 8        4       4
     float thickness;    // 12       4       4
@@ -53,7 +53,7 @@ layout(location = 1) in uvec2 index;
 // The border thickness in world space.
 layout(location = 0) out float thickness;
 // GeometryType + BorderType + InnerType.
-layout(location = 1) out uvec3 types;
+layout(location = 1) out uvec3 datas;
 // Geometry border color.
 layout(location = 2) out vec4 bcolor;
 // Geometry inner color.
@@ -95,13 +95,13 @@ vec4 hex_to_color(uint hex) {
     return vec4(r, g, b, a) / 255.0;
 }
 
-uvec4 unzip_types(uint types) {
-    uint gtype = types >> 24;
-    uint btype = types >> 16 & 0xFF;
-    uint itype = types >> 8 & 0xFF;
-    uint order = types & 0xFF;
+uvec4 unzip_datas(uint datas) {
+    uint gtype = datas >> 24;
+    uint bdeco = datas >> 16 & 0xFF;
+    uint ideco = datas >> 8 & 0xFF;
+    uint order = datas & 0xFF;
 
-    return uvec4(gtype, btype, itype, order);
+    return uvec4(gtype, bdeco, ideco, order);
 }
 
 void main() {
@@ -111,12 +111,12 @@ void main() {
     Transform2D t = t_arr[t_index];
     Geometry g = g_arr[g_index];
 
-    uvec4 types_with_order = unzip_types(g.types);
+    uvec4 datas_with_order = unzip_datas(g.datas);
     // Place order to v_pos.z as depth.
-    uint order = types_with_order.w;
+    uint order = datas_with_order.w;
 
     thickness = g.thickness;
-    types = types_with_order.xyz;
+    datas = datas_with_order.xyz;
     bcolor = hex_to_color(g.bcolor);
     icolor = hex_to_color(g.icolor);
     mx_g2l = to_matrix(g.extras.xy, g.extras.z, g.extras.w);

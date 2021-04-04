@@ -18,25 +18,20 @@ const float TEMP_HT = 0.5 * TEMP_THICKNESS;
 
 // GeometryType
 const uint GT_CIRCLE        = 0;
-const uint GT_LINE          = 1;
-const uint GT_ETRIANGLE     = 2;
-const uint GT_SQUARE        = 3;
-const uint GT_PENTAGON      = 4;
-const uint GT_HEXAGON       = 5;
-const uint GT_OCTOGON       = 6;
-const uint GT_HEXAGRAM      = 7;
-const uint GT_STARFIVE      = 8;
-const uint GT_HEART         = 9;
+const uint GT_ETRIANGLE     = 1;
+const uint GT_SQUARE        = 2;
+const uint GT_PENTAGON      = 3;
+const uint GT_HEXAGON       = 4;
+const uint GT_OCTOGON       = 5;
+const uint GT_HEXAGRAM      = 6;
+const uint GT_STARFIVE      = 7;
+const uint GT_HEART         = 8;
 
 // BorderType
 const uint BT_NONE          = 0;
 const uint BT_SOLID         = 1;
 const uint BT_DASH          = 2;
 const uint BT_DYN_DASH      = 3;
-const uint BT_NAVI          = 4;
-const uint BT_DYN_NAVI      = 5;
-const uint BT_WARN          = 6;
-const uint BT_DYN_WARN      = 7;
 
 // InnerType
 const uint IT_NONE          = 0;
@@ -234,7 +229,7 @@ float get_circle_dash(
 
 // Returns vec2(inner, decoration).
 vec2 get_inner(
-    const uint itype,
+    const uint ideco,
     const vec2 pg,
     const float sdf,
     const float blur_g,
@@ -244,7 +239,7 @@ vec2 get_inner(
     float inner = 0.0;
     float decoration = 0.0;
 
-    switch(itype) {
+    switch(ideco) {
         case IT_NONE:
             break;
         case IT_SOLID:
@@ -266,7 +261,7 @@ vec2 get_inner(
 
 // Returns vec2(border, decoration).
 vec2 get_border(
-    const uint btype,
+    const uint bdeco,
     const vec2 pg,
     const float sdf,
     const float blur_g,
@@ -276,7 +271,7 @@ vec2 get_border(
     float border = 0.0;
     float decoration = 0.0;
     
-    switch(btype) {
+    switch(bdeco) {
         case BT_NONE:
             break;
         case BT_SOLID:
@@ -290,18 +285,6 @@ vec2 get_border(
         case BT_DYN_DASH:
             border = 1.0 - smoothstep(hth_g - blur_g, hth_g + blur_g, abs(sdf - hth_g));
             decoration = get_circle_dash(pg, blur_g, time);
-            break;
-        case BT_NAVI:
-            // TODO
-            break;
-        case BT_DYN_NAVI:
-            // TODO
-            break;
-        case BT_WARN:
-            // TODO
-            break;
-        case BT_DYN_WARN:
-            // TODO
             break;
         default:
             break;
@@ -335,17 +318,14 @@ void main() {
     const float blur_g = BLUR * length(mx_s2g * c2p_norm_s);
 
     const uint gtype = types.x;
-    const uint btype = types.y;
-    const uint itype = types.z;
+    const uint bdeco = types.y;
+    const uint ideco = types.z;
     
     float sdf;
 
     switch(gtype) {
         case GT_CIRCLE:
             sdf = sdf_circle(pg.xy, 1.0);
-            break;
-        case GT_LINE:
-            o_Target = icolor;
             break;
         case GT_ETRIANGLE:
             sdf = sdf_etriangle(pg.xy, 1.0);
@@ -375,7 +355,7 @@ void main() {
             break;
     }
 
-    const vec2 inner = get_inner(itype, pg.xy, sdf, blur_g, TEMP_HT, 0.0);
-    const vec2 border = get_border(btype, pg.xy, sdf, blur_g, TEMP_HT, 0.0);
+    const vec2 inner = get_inner(ideco, pg.xy, sdf, blur_g, TEMP_HT, 0.0);
+    const vec2 border = get_border(bdeco, pg.xy, sdf, blur_g, TEMP_HT, 0.0);
     o_Target = mix(inner.x * icolor, border.y * bcolor, border.x);
 }

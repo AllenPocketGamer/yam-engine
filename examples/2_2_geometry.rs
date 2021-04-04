@@ -22,142 +22,150 @@ fn init_entities(cmd: &mut CommandBuffer, #[resource] window: &Window) {
     // Push camera entity to `World`.
     cmd.push((Transform2D::default(), Camera2D::new(width, height)));
 
-    // Circle
     cmd.push((
         Transform2D::with_position(-256.0, -256.0),
-        Geometry::new(
-            GeometryType::Circle,
-            Extra::new_cla(Vector2::new(0.0, 0.0), 0.0, 128.0),
-            BorderType::Dash,
+        Geometry2D::new(
+            Geometry2DType::Circle,
+            BorderDecoration::Dash,
             Rgba::SOFT_BLACK,
             0.1,
-            InnerType::Solid,
+            InnerDecoration::Solid,
             Rgba::ORANGE,
             100,
+            Vector2::new(0.0, 0.0),
+            0.0,
+            128.0,
         ),
     ));
 
-    // Triangle
     cmd.push((
         Transform2D::with_position(-96.0, -256.0),
-        Geometry::new(
-            GeometryType::ETriangle,
-            Extra::new_cla(Vector2::new(-0.0, 0.0), 0.0, 128.0),
-            BorderType::Dash,
+        Geometry2D::new(
+            Geometry2DType::ETriangle,
+            BorderDecoration::Dash,
             Rgba::SOFT_BLACK,
             0.1,
-            InnerType::Solid,
+            InnerDecoration::Solid,
             Rgba::YELLOW,
             100,
+            Vector2::new(0.0, 0.0),
+            0.0,
+            128.0,
         ),
     ));
 
-    // Square
     cmd.push((
         Transform2D::with_position(64.0, -256.0),
-        Geometry::new(
-            GeometryType::Square,
-            Extra::new_cla(Vector2::new(0.0, 0.0), 0.0, 128.0),
-            BorderType::Dash,
+        Geometry2D::new(
+            Geometry2DType::Square,
+            BorderDecoration::Dash,
             Rgba::SOFT_BLACK,
             0.1,
-            InnerType::Solid,
+            InnerDecoration::Solid,
             Rgba::CHARTREUSE,
             100,
+            Vector2::new(0.0, 0.0),
+            0.0,
+            128.0,
         ),
-        Marker {},
     ));
 
-
-    // Pentagon
     cmd.push((
         Transform2D::with_position(-256.0, -96.0),
-        Geometry::new(
-            GeometryType::Pentagon,
-            Extra::new_cla(Vector2::new(0.0, 0.0), 0.0, 128.0),
-            BorderType::Dash,
+        Geometry2D::new(
+            Geometry2DType::Pentagon,
+            BorderDecoration::Dash,
             Rgba::SOFT_BLACK,
             0.1,
-            InnerType::Solid,
+            InnerDecoration::Solid,
             Rgba::SPRING,
             100,
+            Vector2::new(0.0, 0.0),
+            0.0,
+            128.0,
         ),
     ));
-
-    // Hexagon
+    
     cmd.push((
         Transform2D::with_position(-96.0, -96.0),
-        Geometry::new(
-            GeometryType::Hexagon,
-            Extra::new_cla(Vector2::new(0.0, 0.0), 0.0, 128.0),
-            BorderType::Dash,
+        Geometry2D::new(
+            Geometry2DType::Hexagon,
+            BorderDecoration::Dash,
             Rgba::SOFT_BLACK,
             0.1,
-            InnerType::Solid,
-            Rgba::AZURE,
-            100,
-        ),
-    ));
-
-    // Octogon
-    cmd.push((
-        Transform2D::with_position(64.0, -96.0),
-        Geometry::new(
-            GeometryType::Octogon,
-            Extra::new_cla(Vector2::new(0.0, 0.0), 0.0, 128.0),
-            BorderType::Dash,
-            Rgba::SOFT_BLACK,
-            0.1,
-            InnerType::Solid,
+            InnerDecoration::Solid,
             Rgba::CYAN,
             100,
+            Vector2::new(0.0, 0.0),
+            0.0,
+            128.0,
         ),
     ));
 
-    // Hexagram
+    cmd.push((
+        Transform2D::with_position(64.0, -96.0),
+        Geometry2D::new(
+            Geometry2DType::Octogon,
+            BorderDecoration::Dash,
+            Rgba::SOFT_BLACK,
+            0.1,
+            InnerDecoration::Solid,
+            Rgba::AZURE,
+            100,
+            Vector2::new(0.0, 0.0),
+            0.0,
+            128.0,
+        ),
+    ));
+
     cmd.push((
         Transform2D::with_position(-256.0, 64.0),
-        Geometry::new(
-            GeometryType::Hexagram,
-            Extra::new_cla(Vector2::new(0.0, 0.0), 0.0, 128.0),
-            BorderType::Dash,
+        Geometry2D::new(
+            Geometry2DType::Hexagram,
+            BorderDecoration::Dash,
             Rgba::SOFT_BLACK,
             0.1,
-            InnerType::Solid,
-            Rgba::MAGENTA,
-            100,
-        ),
-    ));
-
-    // StarFive
-    cmd.push((
-        Transform2D::with_position(-96.0, 64.0),
-        Geometry::new(
-            GeometryType::StarFive,
-            Extra::new_cla(Vector2::new(0.0, 0.0), 0.0, 128.0),
-            BorderType::Dash,
-            Rgba::SOFT_BLACK,
-            0.1,
-            InnerType::Solid,
+            InnerDecoration::Solid,
             Rgba::VIOLET,
             100,
+            Vector2::new(0.0, 0.0),
+            0.0,
+            128.0,
+        ),
+    ));
+    
+    cmd.push((
+        Transform2D::with_position(-96.0, 64.0),
+        Geometry2D::new(
+            Geometry2DType::StarFive,
+            BorderDecoration::Dash,
+            Rgba::SOFT_BLACK,
+            0.1,
+            InnerDecoration::Solid,
+            Rgba::MAGENTA,
+            100,
+            Vector2::new(0.0, 0.0),
+            0.0,
+            128.0,
         ),
     ));
 
-    // Heart
     cmd.push((
         Transform2D::with_position(64.0, 64.0),
-        Geometry::new(
-            GeometryType::Heart,
-            Extra::new_cla(Vector2::new(0.0, 0.0), 0.0, 128.0),
-            BorderType::Dash,
+        Geometry2D::new(
+            Geometry2DType::Heart,
+            BorderDecoration::Dash,
             Rgba::SOFT_BLACK,
             0.1,
-            InnerType::Solid,
+            InnerDecoration::Solid,
             Rgba::ROSE,
             100,
+            Vector2::new(0.0, 0.0),
+            0.0,
+            128.0,
         ),
     ));
+
 }
 
 #[system(for_each)]
@@ -180,10 +188,10 @@ fn control_camera(transform: &mut Transform2D, #[resource] input: &Input) {
 }
 
 #[system(for_each)]
-#[filter(component::<Geometry>() & !component::<Marker>())]
+#[filter(component::<Geometry2D>() & !component::<Marker>())]
 fn control_geometry_tmp(
     transform: &mut Transform2D,
-    geometry: &mut Geometry,
+    geometry: &mut Geometry2D,
     #[resource] input: &Input,
     #[resource] time: &Time,
 ) {

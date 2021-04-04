@@ -3,283 +3,131 @@ use crate::{
     nalgebra::Vector2,
 };
 
-use std::fmt;
+pub type Assembly = Vec<Geometry2D>;
 
-pub type Assembly = Vec<Geometry>;
-
-/// Geometry representation, 32 bytes.
+/// (32bytes)Geometry2D representation.
 #[rustfmt::skip]
 #[repr(C, packed(4))]
 #[derive(Debug, Clone, Copy)]
-pub struct Geometry {
-    // 0-7bit   : geometry type
-    // 8-15bit  : border type
-    // 16-23bit : inner type
-    // 24-31bit : order
-    pub types: u32,             // 4bytes
+pub struct Geometry2D {
+    /// 0-7bit   : geometry type
+    ///
+    /// 8-15bit  : border type
+    ///
+    /// 16-23bit : inner type
+    ///
+    /// 24-31bit : order
+    datas: u32,
 
-    // decor info
-    pub bcolor: Hex,            // 4 bytes, border color
-    pub icolor: Hex,            // 4 bytes, inner color
-    pub thickness: f32,         // 4 bytes, border thickness
+    /// (4bytes)The border color.
+    pub bcolor: Hex,
+    /// (4bytes)The inner color.
+    pub icolor: Hex,
+    /// (4bytes)Positive represents thickness in `screen space`,
+    /// Negative represents thickness in `local space`.
+    pub thickness: f32,
 
-    // extra info about transformation
-    pub extras: Extra,          // 16 bytes
+    /// (8bytes)The quad centra in `local space`.
+    pub position: Vector2<f32>,
+    /// (4bytes)The quad angle in `local space`.
+    pub angle: f32,
+    /// (4bytes)The quad side length in `local space`.
+    pub size: f32,
 }
 
-impl Geometry {
-    const fn zip(gtype: GeometryType, btype: BorderType, itype: InnerType, order: u8) -> u32 {
+impl Geometry2D {
+    const fn zip(
+        gtype: Geometry2DType,
+        bdeco: BorderDecoration,
+        ideco: InnerDecoration,
+        order: u8,
+    ) -> u32 {
         let gtype = gtype as u32;
-        let btype = btype as u32;
-        let itype = itype as u32;
+        let bdeco = bdeco as u32;
+        let ideco = ideco as u32;
         let order = order as u32;
 
-        (gtype << 24) + (btype << 16) + (itype << 8) + order
+        (gtype << 24) + (bdeco << 16) + (ideco << 8) + order
     }
 
-    pub fn new(
-        gtype: GeometryType,
-        extras: Extra,
+    const fn zip_u8(gtype: u8, bdeco: u8, ideco: u8, order: u8) -> u32 {
+        ((gtype as u32) << 24) + ((bdeco as u32) << 16) + ((ideco as u32) << 8) + order as u32
+    }
 
-        btype: BorderType,
+    const fn unzip(datas: u32) -> [u8; 4] {
+        let gtype = (datas >> 24) as u8;
+        let bdeco = (datas >> 16 & 0xFF) as u8;
+        let ideco = (datas >> 8 & 0xFF) as u8;
+        let order = (datas & 0xFF) as u8;
+
+        [gtype, bdeco, ideco, order]
+    }
+
+    pub const fn new(
+        gtype: Geometry2DType,
+        bdeco: BorderDecoration,
         bcolor: Rgba,
         thickness: f32,
-
-        itype: InnerType,
+        ideco: InnerDecoration,
         icolor: Rgba,
         order: u8,
-    ) -> Self {
-        Self {
-            types: Self::zip(gtype, btype, itype, order),
-
-            thickness,
-            bcolor: bcolor.to_hex(),
-            icolor: icolor.to_hex(),
-
-            extras,
-        }
-    }
-
-    pub fn circle_with_style(
-        centra: Vector2<f32>,
-        length: f32,
+        position: Vector2<f32>,
         angle: f32,
-        order: u8,
-
-        btype: BorderType,
-        bcolor: Rgba,
-        thickness: f32,
-        itype: InnerType,
-        icolor: Rgba,
+        size: f32,
     ) -> Self {
         Self {
-            types: Self::zip(GeometryType::Circle, btype, itype, order),
-
+            datas: Self::zip(gtype, bdeco, ideco, order),
+            thickness,
             bcolor: bcolor.to_hex(),
             icolor: icolor.to_hex(),
-            thickness,
 
-            extras: Extra {
-                cla: (centra, length, angle),
-            },
-        }
-    }
-
-    pub fn new_circle(centra: Vector2<f32>, length: f32, angle: f32, order: u8) -> Self {
-        Self::circle_with_style(
-            centra,
-            length,
+            position,
             angle,
-            order,
-            BorderType::None,
-            Rgba::WHITE,
-            0.1,
-            InnerType::Solid,
-            Rgba::WHITE,
-        )
-    }
-
-    pub fn line_with_style(
-        st: Vector2<f32>,
-        ed: Vector2<f32>,
-        order: u8,
-        btype: BorderType,
-        bcolor: Rgba,
-        thickness: f32,
-    ) -> Self {
-        Self {
-            types: Self::zip(GeometryType::Line, btype, InnerType::None, order),
-
-            bcolor: bcolor.to_hex(),
-            icolor: Rgba::BLACK.to_hex(),
-            thickness,
-
-            extras: Extra {
-                p2p: (st, ed),
-            },
+            size,
         }
     }
 
-    pub fn new_line(st: Vector2<f32>, ed: Vector2<f32>, order: u8) -> Self {
-        Self::line_with_style(st, ed, order, BorderType::Solid, Rgba::WHITE, 0.1)
+    pub fn geometry_type(&self) -> Geometry2DType {
+        unsafe { std::mem::transmute(Self::unzip(self.datas)[0]) }
     }
 
-    pub fn triangle_with_style(
-        centra: Vector2<f32>,
-        length: f32,
-        angle: f32,
-        order: u8,
-
-        btype: BorderType,
-        bcolor: Rgba,
-        thickness: f32,
-        itype: InnerType,
-        icolor: Rgba,
-    ) -> Self {
-        Self {
-            types: Self::zip(GeometryType::ETriangle, btype, itype, order),
-
-            bcolor: bcolor.to_hex(),
-            icolor: icolor.to_hex(),
-            thickness,
-
-            extras: Extra {
-                cla: (centra, length, angle),
-            },
-        }
+    pub fn border_decoration(&self) -> BorderDecoration {
+        unsafe { std::mem::transmute(Self::unzip(self.datas)[1]) }
     }
 
-    pub fn new_triangle(centra: Vector2<f32>, length: f32, angle: f32, order: u8) -> Self {
-        Self::triangle_with_style(
-            centra,
-            length,
-            angle,
-            order,
-            BorderType::None,
-            Rgba::WHITE,
-            0.1,
-            InnerType::Solid,
-            Rgba::WHITE,
-        )
+    pub fn inner_decoration(&self) -> InnerDecoration {
+        unsafe { std::mem::transmute(Self::unzip(self.datas)[2]) }
     }
 
-    pub fn square_with_style(
-        centra: Vector2<f32>,
-        length: f32,
-        angle: f32,
-        order: u8,
-
-        btype: BorderType,
-        bcolor: Rgba,
-        thickness: f32,
-        itype: InnerType,
-        icolor: Rgba,
-    ) -> Self {
-        Self {
-            types: Self::zip(GeometryType::Square, btype, itype, order),
-
-            bcolor: bcolor.to_hex(),
-            icolor: icolor.to_hex(),
-            thickness,
-
-            extras: Extra {
-                cla: (centra, length, angle),
-            },
-        }
+    pub fn order(&self) -> u8 {
+        Self::unzip(self.datas)[3]
     }
 
-    pub fn new_square(centra: Vector2<f32>, length: f32, angle: f32, order: u8) -> Self {
-        Self::square_with_style(
-            centra,
-            length,
-            angle,
-            order,
-            BorderType::None,
-            Rgba::WHITE,
-            0.1,
-            InnerType::Solid,
-            Rgba::WHITE,
-        )
+    pub fn set_geometry_type(&mut self, gtype: Geometry2DType) {
+        let datas = Self::unzip(self.datas);
+        self.datas = Self::zip_u8(gtype as u8, datas[1], datas[2], datas[3]);
     }
 
-    pub fn pentagon_with_style(
-        centra: Vector2<f32>,
-        length: f32,
-        angle: f32,
-        order: u8,
-
-        btype: BorderType,
-        bcolor: Rgba,
-        thickness: f32,
-        itype: InnerType,
-        icolor: Rgba,
-    ) -> Self {
-        Self {
-            types: Self::zip(GeometryType::Pentagon, btype, itype, order),
-
-            bcolor: bcolor.to_hex(),
-            icolor: icolor.to_hex(),
-            thickness,
-
-            extras: Extra {
-                cla: (centra, length, angle),
-            },
-        }
+    pub fn set_border_decoration(&mut self, bdeco: BorderDecoration) {
+        let datas = Self::unzip(self.datas);
+        self.datas = Self::zip_u8(datas[0], bdeco as u8, datas[2], datas[3]);
     }
 
-    pub fn new_pentagon(centra: Vector2<f32>, length: f32, angle: f32, order: u8) -> Self {
-        Self::pentagon_with_style(
-            centra,
-            length,
-            angle,
-            order,
-            BorderType::None,
-            Rgba::WHITE,
-            0.1,
-            InnerType::Solid,
-            Rgba::WHITE,
-        )
-    }
-}
-
-// TODO: 太丑了, 尝试改改吧!
-#[repr(C, packed(4))]
-#[derive(Clone, Copy)]
-pub union Extra {
-    // centra(Vector2<f32>) + length(f32) + angle(around centra)(f32),
-    //
-    // length represent the side length of quad.
-    pub cla: (Vector2<f32>, f32, f32),
-    // point_a(Vector2<f32>) + point_b(Vector2<f32>)
-    pub p2p: (Vector2<f32>, Vector2<f32>),
-}
-
-impl Extra {
-    pub fn new_cla(centra: Vector2<f32>, angle: f32, side_length: f32) -> Self {
-        Self {
-            cla: (centra, angle, side_length)
-        }
+    pub fn set_inner_decoration(&mut self, ideco: InnerDecoration) {
+        let datas = Self::unzip(self.datas);
+        self.datas = Self::zip_u8(datas[0], datas[1], ideco as u8, datas[3]);
     }
 
-    pub fn new_pp(pa: Vector2<f32>, pb: Vector2<f32>) -> Self {
-        Self {
-            p2p: (pa, pb)
-        }
-    }
-}
-
-impl fmt::Debug for Extra {
-    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
-        write!(f, "no impl now!")
+    pub fn set_order(&mut self, order: u8) {
+        let datas = Self::unzip(self.datas);
+        self.datas = Self::zip_u8(datas[0], datas[1], datas[2], order);
     }
 }
 
 #[repr(u8)]
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub enum GeometryType {
+pub enum Geometry2DType {
     Circle = 0,
-
-    Line,
     ETriangle, // ⯅
     Square,    // □
     Pentagon,  // ⬟
@@ -292,20 +140,16 @@ pub enum GeometryType {
 
 #[repr(u8)]
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub enum BorderType {
+pub enum BorderDecoration {
     None = 0,
     Solid,   // ────
     Dash,    // ----
     DynDash, // ----     (will move)
-    Navi,    // ▸▸▸▸
-    DynNavi, // ▸▸▸▸    (will move)
-    Warn,    // ////
-    DynWarn, // ////     (will move)
 }
 
 #[repr(u8)]
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub enum InnerType {
+pub enum InnerDecoration {
     None = 0,
     Solid,     // ██
     Dither,    // ▒▒
@@ -319,19 +163,16 @@ mod test {
 
     #[test]
     fn test_type_layout() {
-        assert_eq!(align_of::<Geometry>(), 4);
-        assert_eq!(size_of::<Geometry>(), 32);
+        assert_eq!(align_of::<Geometry2D>(), 4);
+        assert_eq!(size_of::<Geometry2D>(), 32);
 
-        assert_eq!(align_of::<Extra>(), 4);
-        assert_eq!(size_of::<Extra>(), 16);
+        assert_eq!(align_of::<Geometry2DType>(), 1);
+        assert_eq!(size_of::<Geometry2DType>(), 1);
 
-        assert_eq!(align_of::<GeometryType>(), 1);
-        assert_eq!(size_of::<GeometryType>(), 1);
+        assert_eq!(align_of::<InnerDecoration>(), 1);
+        assert_eq!(size_of::<InnerDecoration>(), 1);
 
-        assert_eq!(align_of::<InnerType>(), 1);
-        assert_eq!(size_of::<InnerType>(), 1);
-
-        assert_eq!(align_of::<BorderType>(), 1);
-        assert_eq!(size_of::<BorderType>(), 1);
+        assert_eq!(align_of::<BorderDecoration>(), 1);
+        assert_eq!(size_of::<BorderDecoration>(), 1);
     }
 }

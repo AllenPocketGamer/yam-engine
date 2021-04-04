@@ -17,7 +17,7 @@ pub extern crate nalgebra;
 pub use app::*;
 pub use components::{
     camera::Camera2D,
-    geometry::{Assembly, BorderType, Extra, Geometry, GeometryType, InnerType},
+    geometry::{Assembly, BorderDecoration, Geometry2D, Geometry2DType, InnerDecoration},
     sprite::Sprite,
     time::{DiagnosticTimer, Time},
     transform::Transform2D,

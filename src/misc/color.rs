@@ -24,13 +24,14 @@ impl Rgba {
     #[rustfmt::skip]    pub const ROSE:         Self = Self::new(255, 0, 128, 255);
     #[rustfmt::skip]    pub const WHITE:        Self = Self::new(255, 255, 255, 255);
     #[rustfmt::skip]    pub const BLACK:        Self = Self::new(0, 0, 0, 255);
+    #[rustfmt::skip]    pub const CAMEL:        Self = Self::new(193, 154, 107, 255);
     #[rustfmt::skip]    pub const SOFT_BLACK:   Self = Self::new(14, 17, 17, 255);
     
     pub const fn new(r: u8, g: u8, b: u8, a: u8) -> Self {
         Self { r, g, b, a }
     }
 
-    pub fn to_hex(&self) -> Hex {
+    pub const fn to_hex(&self) -> Hex {
         u32::from_be_bytes([self.r, self.g, self.b, self.a])
     }
     

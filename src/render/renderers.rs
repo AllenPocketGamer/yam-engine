@@ -2,7 +2,7 @@ use super::{Gpu, Viewport};
 
 use crate::{
     components::{
-        geometry::{Assembly, Geometry},
+        geometry::{Assembly, Geometry2D},
         transform::Transform2D,
     },
     legion::{IntoQuery, World},
@@ -38,7 +38,7 @@ const QUAD_INDEX: [u16; 6] = [
 #[rustfmt::skip] const MAX_INDEX_PAIR_COUNT:    usize = 4 * MILLION;
 
 #[rustfmt::skip] const TRANSFORM2D_BUF_SIZE:    u64 = (size_of::<Transform2D>() * MAX_TRANSFORM2D_COUNT) as u64;
-#[rustfmt::skip] const GEOMETRY_BUF_SIZE:       u64 = (size_of::<Geometry>() * MAX_GEOMETRY_COUNT) as u64;
+#[rustfmt::skip] const GEOMETRY_BUF_SIZE:       u64 = (size_of::<Geometry2D>() * MAX_GEOMETRY_COUNT) as u64;
 #[rustfmt::skip] const INDEX_PAIR_BUF_SIZE:     u64 = (size_of::<(u16, u16)>() * MAX_INDEX_PAIR_COUNT) as u64;
 #[rustfmt::skip] const STAGING_BUF_SIZE:        u64 = TRANSFORM2D_BUF_SIZE + GEOMETRY_BUF_SIZE + INDEX_PAIR_BUF_SIZE;
 
@@ -662,7 +662,7 @@ impl GeneralRenderer {
                     attachment: &(frame.output.view),
                     resolve_target: None,
                     ops: wgpu::Operations {
-                        load: wgpu::LoadOp::Clear(Rgba::new(180, 138, 138, 255).to_wgpu_color()),
+                        load: wgpu::LoadOp::Clear(Rgba::CAMEL.to_wgpu_color()),
                         store: true,
                     },
                 }],
@@ -744,11 +744,11 @@ impl GeneralRenderer {
             let s_mp = s_bs.get_mapped_range_mut().as_mut_ptr();
 
             let t_mp = s_mp.offset(t_st as isize) as *mut Transform2D;
-            let g_mp = s_mp.offset(g_st as isize) as *mut Geometry;
+            let g_mp = s_mp.offset(g_st as isize) as *mut Geometry2D;
             let i_mp = s_mp.offset(i_st as isize) as *mut (u16, u16);
 
             let t_len = TRANSFORM2D_BUF_SIZE as usize / size_of::<Transform2D>();
-            let g_len = GEOMETRY_BUF_SIZE as usize / size_of::<Geometry>();
+            let g_len = GEOMETRY_BUF_SIZE as usize / size_of::<Geometry2D>();
             let i_len = INDEX_PAIR_BUF_SIZE as usize / size_of::<(u16, u16)>();
 
             (
@@ -764,9 +764,9 @@ impl GeneralRenderer {
 
         // Copy `Transform2D` and `Geometry` data from `World` to the buffer which is mapped to staging_buf.
         unsafe {
-            let mut q01 = <(&Transform2D, &Geometry)>::query();
+            let mut q01 = <(&Transform2D, &Geometry2D)>::query();
             let mut q02 = <(&Transform2D, &Assembly)>::query();
-            let mut q03 = <(&Instance<Transform2D>, &Geometry)>::query();
+            let mut q03 = <(&Instance<Transform2D>, &Geometry2D)>::query();
             let mut q04 = <(&Instance<Transform2D>, &Assembly)>::query();
 
             q01.for_each(world, |(t, g)| {
@@ -863,7 +863,7 @@ impl GeneralRenderer {
         self.staging_buf.unmap();
 
         let t_buf_size = (t_count * size_of::<Transform2D>()) as wgpu::BufferAddress;
-        let g_buf_size = (g_count * size_of::<Geometry>()) as wgpu::BufferAddress;
+        let g_buf_size = (g_count * size_of::<Geometry2D>()) as wgpu::BufferAddress;
         let i_buf_size = (i_count * size_of::<(u16, u16)>()) as wgpu::BufferAddress;
 
         // Copy transform2d data from staging to storage.
