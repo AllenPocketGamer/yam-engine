@@ -1,36 +1,48 @@
 #version 450
 
+// NOTE: MACROS
+#define PI 3.14159265359
+
 // NOTE: CONSTANTS AREA
 
-const float PI = 3.1415926;
+// The ratio between dash_length : thickness.
+const float DASH_PROPORTION = 8.0;
+// The empty dash proportion.
+const float DASH_EMPTY = 0.3;
+// Anti-aliasing pixel count.
+const float BLUR = 1.0;
+
+// TEMP
+const float TEMP_THICKNESS = 0.004;
+const float TEMP_HT = 0.5 * TEMP_THICKNESS;
 
 // GeometryType
-const uint GT_CIRCLE    = 0;
-const uint GT_LINE      = 1;
-const uint GT_ETRIANGLE = 2;
-const uint GT_SQUARE    = 3;
-const uint GT_PENTAGON  = 4;
-const uint GT_HEXAGON   = 5;
-const uint GT_OCTOGON   = 6;
-const uint GT_HEXAGRAM  = 7;
-const uint GT_STARFIVE  = 8;
-const uint GT_HEART     = 9;
+const uint GT_CIRCLE        = 0;
+const uint GT_LINE          = 1;
+const uint GT_ETRIANGLE     = 2;
+const uint GT_SQUARE        = 3;
+const uint GT_PENTAGON      = 4;
+const uint GT_HEXAGON       = 5;
+const uint GT_OCTOGON       = 6;
+const uint GT_HEXAGRAM      = 7;
+const uint GT_STARFIVE      = 8;
+const uint GT_HEART         = 9;
 
 // BorderType
-const uint BT_NONE = 0;
-const uint BT_SOLID = 1;
-const uint BT_DASH = 2;
-const uint BT_DYN_DASH = 3;
-const uint BT_NAVI = 4;
-const uint BT_DYN_NAVI = 5;
-const uint BT_WARN = 6;
-const uint BT_DYN_WARN = 7;
+const uint BT_NONE          = 0;
+const uint BT_SOLID         = 1;
+const uint BT_DASH          = 2;
+const uint BT_DYN_DASH      = 3;
+const uint BT_NAVI          = 4;
+const uint BT_DYN_NAVI      = 5;
+const uint BT_WARN          = 6;
+const uint BT_DYN_WARN      = 7;
 
 // InnerType
-const uint IT_NONE = 0;
-const uint IT_SOLID = 1;
-const uint IT_DITHER = 2;
-const uint IT_DYN_DITHER = 3;
+const uint IT_NONE          = 0;
+const uint IT_SOLID         = 1;
+const uint IT_DITHER        = 2;
+const uint IT_DYN_DITHER    = 3;
 
 // NOTE: STRUCTS AREA
 
@@ -66,7 +78,8 @@ flat layout(location = 0) in float thickness;
 flat layout(location = 1) in uvec3 types;
 flat layout(location = 2) in vec4 bcolor;
 flat layout(location = 3) in vec4 icolor;
-flat layout(location = 4) in mat4 mx_l2w;
+flat layout(location = 4) in mat4 mx_g2l;
+flat layout(location = 8) in mat4 mx_l2w;
 
 // NOTE: OUT VARIABLES
 
@@ -78,40 +91,49 @@ layout(location = 0) out vec4 o_Target;
 
 // sl(side length) ∈ [0, 1].
 float sdf_circle(vec2 pos, float sl) {
-    float radius = 0.5 * sl;
+    const float radius = 0.5 * sl;
     
     return radius - length(pos);
 }
 
 // sl(side length) ∈ [0, 1].
 float sdf_etriangle(vec2 pos, float sl) {
-    const float K = sqrt(3.0);
+    const float k = sqrt(3.0);
 
     // The radius of the circle enclosing the etriangle.
-    float radius = 0.5 * sl;
+    const float radius = 0.5 * sl;
     // the side length of etriangle.
-    float etsl = K * radius;
+    const float etsl = k * radius;
 
     // Map points along the Y axis.
     pos.x = abs(pos.x) - 0.5 * etsl;
     pos.y = pos.y + 0.5 * radius;
     // Map points along the `l: x + √3y = 0` axis.
-    pos = pos.x + K * pos.y > 0.0 ? vec2(pos.x - K * pos.y, -K * pos.x - pos.y) / 2.0 : pos;
+    pos = pos.x + k * pos.y > 0.0 ? vec2(pos.x - k * pos.y, -k * pos.x - pos.y) / 2.0 : pos;
     
-    pos.x -= clamp(pos.x, -etsl, 0.0);
+    // // 圆角
+    // pos.x -= clamp(pos.x, -etsl, 0.0);
+    // return length(pos) * sign(pos.y);
 
-    return length(pos) * sign(pos.y);
+    // 无圆角
+    return pos.y;
 }
+
+// // sl(side length) ∈ [0, 1].
+// float sdf_square(vec2 pos, float sl) {
+//     pos = abs(pos);
+//     pos = pos.x - pos.y > 0.0 ? pos = pos.yx : pos;
+//     pos.y -= 0.5 * sl;
+
+//     pos.x -= clamp(pos.x, 0, 0.5 * sl);
+    
+//     return length(pos) * sign(-pos.y);
+// }
 
 // sl(side length) ∈ [0, 1].
 float sdf_square(vec2 pos, float sl) {
-    pos = abs(pos);
-    pos = pos.x - pos.y > 0.0 ? pos = pos.yx : pos;
-    pos.y -= 0.5 * sl;
-
-    pos.x -= clamp(pos.x, 0, 0.5 * sl);
-    
-    return length(pos) * sign(-pos.y);
+   pos = abs(pos);
+   return min(0.5 - pos.x, 0.5 - pos.y);
 }
 
 // sl(side length) ∈ [0, 1].
@@ -192,122 +214,168 @@ float sdf_heart(vec2 pos, float sl) {
     return sqrt(min(dot2(pos - vec2(0.00, 1.00)), dot2(pos - 0.5 * max(pos.x + pos.y, 0.0)))) * sign(-pos.x + pos.y);
 }
 
-vec2[9] sample_points(vec2 pos_l) {
-    float w = dFdx(pos_l).x;
-    float h = dFdy(pos_l).y;
+float get_circle_dash(
+    const vec2 pg,
+    const float blur_g,
+    const float time
+) {
+    // radius in `geometry space`.
+    const float rad = atan(pg.y, pg.x);
+    // [-PI, PI] --map-> [-1, 1]. 
+    const float maped = rad / PI;
+    const float count = 2.0 * ceil(0.5 * PI / (DASH_PROPORTION * TEMP_THICKNESS));
 
-    vec2 st = pos_l - 0.5 * vec2(w, h);
+    // blur_r是blur_g在dash弧度长上的占比.
+    const float blur_r = blur_g * count / PI;
 
-    return vec2[9](
-        st + vec2(0.0, 0.0), st + vec2(0.5 * w, 0.0), st + vec2(w, 0.0),
-        st + vec2(0.0, 0.5 * h), st + vec2(0.5 * w, 0.5 * h), st + vec2(w, 0.5 * h),
-        st + vec2(0.0, h), st + vec2(0.5 * w, h), st + vec2(w, h)
-    );
+    return smoothstep(DASH_EMPTY - blur_r, DASH_EMPTY + blur_r, 
+        abs(fract((maped - 0.5) * count / 4.0 + time) - 0.5) * 2.0);
 }
 
-vec4 tex_circle(vec2 pos) {
-    const float TMP_THICKNESS = 0.02;
-    
-    vec4 result = vec4(0.0, 0.0, 0.0, 0.0);
-    float d = sdf_circle(pos, 1.0);
-    
-    switch(types.z) {
+// Returns vec2(inner, decoration).
+vec2 get_inner(
+    const uint itype,
+    const vec2 pg,
+    const float sdf,
+    const float blur_g,
+    const float hth_g,
+    const float time
+) {
+    float inner = 0.0;
+    float decoration = 0.0;
+
+    switch(itype) {
         case IT_NONE:
             break;
         case IT_SOLID:
-            result = sign(d) * icolor;
+            inner = smoothstep(-blur_g, blur_g, sdf - hth_g);
+            decoration = 1.0;
             break;
         case IT_DITHER:
-            result = sign(d) * icolor;
+            // TODO
             break;
         case IT_DYN_DITHER:
-            result = sign(d) * icolor;
+            // TODO
             break;
         default:
             break;
     }
 
-    switch(types.y) {
+    return vec2(inner, decoration);
+}
+
+// Returns vec2(border, decoration).
+vec2 get_border(
+    const uint btype,
+    const vec2 pg,
+    const float sdf,
+    const float blur_g,
+    const float hth_g,
+    const float time
+) {
+    float border = 0.0;
+    float decoration = 0.0;
+    
+    switch(btype) {
         case BT_NONE:
             break;
         case BT_SOLID:
-            result = abs(d) < sign(d) * TMP_THICKNESS ? bcolor : result;
+            border = 1.0 - smoothstep(hth_g - blur_g, hth_g + blur_g, abs(sdf - hth_g));
+            decoration = 1.0;
             break;
         case BT_DASH:
-            float rad = 0.5 * (1.0 - sign(pos.x)) * sign(pos.y) * PI + sign(pos.x) * asin(pos.y / length(pos));
-            float sins = sin(16 * rad) + 0.618;
-            d -= 0.5 * TMP_THICKNESS;
-            // result = abs(d) < 0.5 * TMP_THICKNESS ? bcolor : result;
-            result = abs(d) < 0.5 * TMP_THICKNESS ? (sins > 0 ? bcolor : sign(d) * result) : result;
+            border = 1.0 - smoothstep(hth_g - blur_g, hth_g + blur_g, abs(sdf - hth_g));
+            decoration = get_circle_dash(pg, blur_g, 0.0);
             break;
         case BT_DYN_DASH:
-            result = abs(d) < sign(d) * TMP_THICKNESS ? bcolor : result;
+            border = 1.0 - smoothstep(hth_g - blur_g, hth_g + blur_g, abs(sdf - hth_g));
+            decoration = get_circle_dash(pg, blur_g, time);
             break;
         case BT_NAVI:
-            result = abs(d) < sign(d) * TMP_THICKNESS ? bcolor : result;
+            // TODO
             break;
         case BT_DYN_NAVI:
-            result = abs(d) < sign(d) * TMP_THICKNESS ? bcolor : result;
+            // TODO
             break;
         case BT_WARN:
-            result = abs(d) < sign(d) * TMP_THICKNESS ? bcolor : result;
+            // TODO
             break;
         case BT_DYN_WARN:
-            result = abs(d) < sign(d) * TMP_THICKNESS ? bcolor : result;
+            // TODO
             break;
         default:
             break;
     }
 
-    return result;
+    return vec2(border, decoration);
 }
 
 void main() {
-    // Transform points from `screen space` to `world space`.
-    mat4 mx_s2w = inverse(MX_VIEWPORT * MX_PROJECTION * MX_VIEW);
-    // Transform points from `screen space` to `local space`.
-    mat4 mx_s2l = inverse(mx_l2w) * mx_s2w;
+    // Transform points from `screen space` to `geometry space`.
+    const mat4 mx_g2s = MX_VIEWPORT * MX_PROJECTION * MX_VIEW * mx_l2w * mx_g2l;
+    // Transform points from `screen space` to `geometry space`.
+    const mat4 mx_s2g = inverse(mx_g2s);
     
-    uint gtype = types.x;
-    uint btype = types.y;
-    uint itype = types.z;
-    // vec2 pos_w = (mx_s2w * gl_FragCoord).xy;
-    vec2 pos_l = (mx_s2l * gl_FragCoord).xy;
-    vec2[9] pos_ls = sample_points(pos_l);
+    // frag coordinate without the order info of geometry in `screen space`.
+    const vec4 ps = vec4(gl_FragCoord.xy, 0.0, 1.0);
+    // frag coordniate in `geometry space`.
+    //
+    // careful the pg rewrites the z component to remove the order info of geometry.
+    const vec4 pg = vec4((mx_s2g * ps).xy, 0.0, 1.0);
+    // quad centra in `screen space`.
+    //
+    // careful the cs rewrites the z component to remove the order info of geometry.
+    const vec4 cs = vec4((mx_g2s * vec4(0.0, 0.0, 0.0, 1.0)).xy, 0.0, 1.0);
+
+    // vector from quad centra to frag in screen space.
+    const vec4 avoid_zero = vec4(0.00001, 0.00001, 0.0, 0.0);
+    const vec4 c2p_norm_s = normalize(ps + avoid_zero - cs);
+
+    // blur factor in `geometry space`.
+    const float blur_g = BLUR * length(mx_s2g * c2p_norm_s);
+
+    const uint gtype = types.x;
+    const uint btype = types.y;
+    const uint itype = types.z;
     
+    float sdf;
+
     switch(gtype) {
         case GT_CIRCLE:
-            o_Target = tex_circle(pos_l);
-            return;
+            sdf = sdf_circle(pg.xy, 1.0);
+            break;
         case GT_LINE:
             o_Target = icolor;
-            return;
+            break;
         case GT_ETRIANGLE:
-            o_Target = sign(sdf_etriangle(pos_l, 1.0)) * icolor;
-            return;
+            sdf = sdf_etriangle(pg.xy, 1.0);
+            break;
         case GT_SQUARE:
-            o_Target = sign(sdf_square(pos_l, 1.0)) * icolor;
-            return;
+            sdf = sdf_square(pg.xy, 1.0);
+            break;
         case GT_PENTAGON:
-            o_Target = sign(sdf_pentagon(pos_l, 1.0)) * icolor;
-            return;
+            sdf = sdf_pentagon(pg.xy, 1.0);
+            break;
         case GT_HEXAGON:
-            o_Target = sign(sdf_hexagon(pos_l, 1.0)) * icolor;
-            return;
+            sdf = sdf_hexagon(pg.xy, 1.0);
+            break;
         case GT_OCTOGON:
-            o_Target = sign(sdf_octogon(pos_l, 1.0)) * icolor;
-            return;
+            sdf = sdf_octogon(pg.xy, 1.0);
+            break;
         case GT_HEXAGRAM:
-            o_Target = sign(sdf_hexagram(pos_l, 1.0)) * icolor;
-            return;
+            sdf = sdf_hexagram(pg.xy, 1.0);
+            break;
         case GT_STARFIVE:
-            o_Target = sign(sdf_starfive(pos_l, 1.0)) * icolor;
-            return;
+            sdf = sdf_starfive(pg.xy, 1.0);
+            break;
         case GT_HEART:
-            o_Target = sign(sdf_heart(pos_l, 1.0)) * icolor;
-            return;
+            sdf = sdf_heart(pg.xy, 1.0);
+            break;
         default:
-            o_Target = vec4(1.0, 0.0, 1.0, 1.0);
-            return;
+            break;
     }
+
+    const vec2 inner = get_inner(itype, pg.xy, sdf, blur_g, TEMP_HT, 0.0);
+    const vec2 border = get_border(btype, pg.xy, sdf, blur_g, TEMP_HT, 0.0);
+    o_Target = mix(inner.x * icolor, border.y * bcolor, border.x);
 }

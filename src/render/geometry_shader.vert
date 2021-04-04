@@ -58,8 +58,10 @@ layout(location = 1) out uvec3 types;
 layout(location = 2) out vec4 bcolor;
 // Geometry inner color.
 layout(location = 3) out vec4 icolor;
-// Matrix that transforms point from local space to world space.
-layout(location = 4) out mat4 mx_l2w;
+// Matrix that transforms point from `geometry space` to `local space`.
+layout(location = 4) out mat4 mx_g2l;
+// Matrix that transforms point from `local space` to `world space`.
+layout(location = 8) out mat4 mx_l2w;
 
 // NOTE: FUNCTIONS AREA
 
@@ -76,10 +78,10 @@ mat4 to_matrix(Transform2D t) {
     return to_matrix(t.position, t.complex, t.scale);
 }
 
-mat4 to_matrix(vec2 centra, float slength, float angle) {
+mat4 to_matrix(vec2 centra, float angle, float sl) {
     float rad = radians(angle);
     vec2 complex = vec2(cos(rad), sin(rad));
-    vec2 scale = vec2(slength, slength);
+    vec2 scale = vec2(sl, sl);
 
     return to_matrix(centra, complex, scale);
 }
@@ -113,20 +115,12 @@ void main() {
     // Place order to v_pos.z as depth.
     uint order = types_with_order.w;
 
-    // Transform point from `local space` to `world space`.
-    mat4 mx_to_world = to_matrix(t) * to_matrix(g.extras.xy, g.extras.z, g.extras.w);
-    // Transform point from `local space` to `clip space/NDC`.
-    //
-    // Because the camera is orthographic, so the `clip space` is the same as `NDC`.
-    mat4 mx_to_clip = MX_PROJECTION * MX_VIEW * mx_to_world;
-    // Transform point from `local space` to `screen space`.
-    mat4 mx_to_scrn = MX_VIEWPORT * mx_to_clip;
-
     thickness = g.thickness;
     types = types_with_order.xyz;
     bcolor = hex_to_color(g.bcolor);
     icolor = hex_to_color(g.icolor);
-    mx_l2w = mx_to_world;
+    mx_g2l = to_matrix(g.extras.xy, g.extras.z, g.extras.w);
+    mx_l2w = to_matrix(t);
 
-    gl_Position = mx_to_clip * vec4(v_pos.xy, float(order) - 255.0, v_pos.w);
+    gl_Position = MX_PROJECTION * MX_VIEW * mx_l2w * mx_g2l * vec4(v_pos.xy, float(order) - 255.0, v_pos.w);
 }

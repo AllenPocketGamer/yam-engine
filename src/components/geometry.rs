@@ -255,9 +255,9 @@ pub union Extra {
 }
 
 impl Extra {
-    pub fn new_cla(centra: Vector2<f32>, side_length: f32, angle: f32) -> Self {
+    pub fn new_cla(centra: Vector2<f32>, angle: f32, side_length: f32) -> Self {
         Self {
-            cla: (centra, side_length, angle)
+            cla: (centra, angle, side_length)
         }
     }
 

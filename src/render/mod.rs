@@ -41,6 +41,11 @@ pub(crate) fn create_app_stage_render(Window { window }: &Window) -> AppStage {
         //
         // 这应该只在yam开发时启用, 在被别的库链接时关闭!
         // 但现在不知道怎么做, 反正先把shader写完再说.
+        //
+        // 这些代码不应该放在library里面, 可以新建一个
+        // binary, 这个binary专门用于测试shader, 可以
+        // 把shader热更新放在这个binary里面!
+        // 而library要做的就是留足接口(这个就是比较大的工程了).
         let now = Instant::now();
         if (now - timestamp).as_millis() > 330 {
             r2ds.recompile_shader();
