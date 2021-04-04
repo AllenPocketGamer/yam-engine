@@ -137,7 +137,7 @@ impl Gpu {
 
         let sc_desc = wgpu::SwapChainDescriptor {
             usage: wgpu::TextureUsage::RENDER_ATTACHMENT,
-            format: adapter.get_swap_chain_preferred_format(&surface),
+            format: wgpu::TextureFormat::Bgra8Unorm,
             width: window.inner_size().width,
             height: window.inner_size().height,
             // NOTE: 特别关注这个设置, 跟硬件(显示屏)相关, 不正确的设置可能会导致灵异的bug;

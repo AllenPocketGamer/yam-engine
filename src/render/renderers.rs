@@ -363,11 +363,7 @@ pub struct GeneralRenderer {
 impl GeneralRenderer {
     pub(super) fn new(
         Gpu {
-            surface,
-            adapter,
-            device,
-            sc_desc,
-            ..
+            device, sc_desc, ..
         }: &Gpu,
     ) -> Self {
         let vertex_buf = device.create_buffer_init(&wgpu::util::BufferInitDescriptor {
@@ -504,7 +500,20 @@ impl GeneralRenderer {
             fragment: Some(wgpu::FragmentState {
                 module: &frag_shader,
                 entry_point: "main",
-                targets: &[adapter.get_swap_chain_preferred_format(&surface).into()],
+                targets: &[wgpu::ColorTargetState {
+                    format: sc_desc.format,
+                    color_blend: wgpu::BlendState {
+                        src_factor: wgpu::BlendFactor::SrcAlpha,
+                        dst_factor: wgpu::BlendFactor::OneMinusSrcAlpha,
+                        operation: wgpu::BlendOperation::Add,
+                    },
+                    alpha_blend: wgpu::BlendState {
+                        src_factor: wgpu::BlendFactor::One,
+                        dst_factor: wgpu::BlendFactor::One,
+                        operation: wgpu::BlendOperation::Max,
+                    },
+                    write_mask: wgpu::ColorWrite::ALL,
+                }],
             }),
             primitive: wgpu::PrimitiveState {
                 front_face: wgpu::FrontFace::Ccw,
@@ -550,8 +559,7 @@ impl GeneralRenderer {
         &mut self,
         Gpu {
             device,
-            adapter,
-            surface,
+            sc_desc,
             ..
         }: &Gpu,
         vert: &[u8],
@@ -591,7 +599,20 @@ impl GeneralRenderer {
             fragment: Some(wgpu::FragmentState {
                 module: &frag_shader,
                 entry_point: "main",
-                targets: &[adapter.get_swap_chain_preferred_format(&surface).into()],
+                targets: &[wgpu::ColorTargetState {
+                    format: sc_desc.format,
+                    color_blend: wgpu::BlendState {
+                        src_factor: wgpu::BlendFactor::SrcAlpha,
+                        dst_factor: wgpu::BlendFactor::OneMinusSrcAlpha,
+                        operation: wgpu::BlendOperation::Add,
+                    },
+                    alpha_blend: wgpu::BlendState {
+                        src_factor: wgpu::BlendFactor::One,
+                        dst_factor: wgpu::BlendFactor::One,
+                        operation: wgpu::BlendOperation::Max,
+                    },
+                    write_mask: wgpu::ColorWrite::ALL,
+                }],
             }),
             primitive: wgpu::PrimitiveState {
                 front_face: wgpu::FrontFace::Ccw,
@@ -641,7 +662,7 @@ impl GeneralRenderer {
                     attachment: &(frame.output.view),
                     resolve_target: None,
                     ops: wgpu::Operations {
-                        load: wgpu::LoadOp::Clear(wgpu::Color::GREEN),
+                        load: wgpu::LoadOp::Clear(Rgba::new(180, 138, 138, 255).to_wgpu_color()),
                         store: true,
                     },
                 }],

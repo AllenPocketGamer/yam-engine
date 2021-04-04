@@ -13,7 +13,7 @@ const float DASH_EMPTY = 0.3;
 const float BLUR = 1.0;
 
 // TEMP
-const float TEMP_THICKNESS = 0.004;
+const float TEMP_THICKNESS = 0.02;
 const float TEMP_HT = 0.5 * TEMP_THICKNESS;
 
 // GeometryType
