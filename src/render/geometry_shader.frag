@@ -46,9 +46,16 @@ layout(push_constant) uniform CONSTANTS {
     mat4 MX_VIEWPORT;
 };
 
+layout(binding = 0) uniform Common {
+    // Delta time
+    float t_delta;
+    // Total time
+    float t_total;
+};
+
 // NOTE: IN VARIABLES
 
-layout(location = 0) in float th_g;
+smooth layout(location = 0) in float th_g;
 flat layout(location = 1) in uvec3 types;
 flat layout(location = 2) in vec4 bcolor;
 flat layout(location = 3) in vec4 icolor;
@@ -213,8 +220,7 @@ vec2 get_inner(
     const vec2 pg,
     const float sdf,
     const float blur_g,
-    const float hth_g,
-    const float time
+    const float hth_g
 ) {
     float inner = 0.0;
     float decoration = 0.0;
@@ -245,8 +251,7 @@ vec2 get_border(
     const vec2 pg,
     const float sdf,
     const float blur_g,
-    const float hth_g,
-    const float time
+    const float hth_g
 ) {
     float border = 0.0;
     float decoration = 0.0;
@@ -264,7 +269,7 @@ vec2 get_border(
             break;
         case BD_DYN_DASH:
             border = 1.0 - smoothstep(hth_g - blur_g, hth_g + blur_g, abs(sdf - hth_g));
-            decoration = get_circle_dash(pg, blur_g, hth_g, time);
+            decoration = get_circle_dash(pg, blur_g, hth_g, t_total);
             break;
         default:
             break;
@@ -338,7 +343,7 @@ void main() {
             break;
     }
 
-    const vec2 inner = get_inner(ideco, pg.xy, sdf, blur_g, hth_g, 0.0);
-    const vec2 border = get_border(bdeco, pg.xy, sdf, blur_g, hth_g, 0.0);
+    const vec2 inner = get_inner(ideco, pg.xy, sdf, blur_g, hth_g);
+    const vec2 border = get_border(bdeco, pg.xy, sdf, blur_g, hth_g);
     o_Target = mix(inner.x * icolor, border.y * bcolor, border.x);
 }

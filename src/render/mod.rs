@@ -4,7 +4,7 @@ use renderers::{GeneralRenderer, SpriteRenderer};
 
 use crate::{
     app::{AppStage, AppStageBuilder},
-    components::{camera::Camera2D, sprite::Sprite, transform::Transform2D, Instance},
+    components::{time::Time, camera::Camera2D, sprite::Sprite, transform::Transform2D, Instance},
     legion::{IntoQuery, Resources, World},
     misc::color::Rgba,
     nalgebra::Matrix4,
@@ -64,7 +64,8 @@ pub(crate) fn create_app_stage_render(Window { window }: &Window) -> AppStage {
             r2ds.draw_sprites_in_world_space(transform2ds, sprite);
         }
 
-        r2ds.draw_geometry(world);
+        let time = resources.get::<Time>().unwrap().clone();
+        r2ds.draw_geometry(world, &time);
 
         r2ds.finish_draw();
     };
@@ -162,6 +163,23 @@ impl Gpu {
     }
 }
 
+// TODO: Render2D应该改成Render2DManager, 用来管理Render2DPass;
+// 像GeneralRenderer实际上可以拆分成四个Render2DPass
+//
+// 1. Geometry1D
+// 2. Geometry2D
+// 3. Sprite
+// 4. Background
+//
+// RenderPass2D的相同点在于它们都需要一些共同的buffer(vertex, instance, uniform..);
+// 它们的不同点在于会有一些特殊的buffer(storage, staging..), 以及渲染管线渲染设置上的不同;
+//
+// Render2DManager可以固定常用的buffer, 提供特殊buffer的管理服务, 提供RenderPass2D的注册
+// 功能, 按顺序调用RenderPass2D;
+//
+// 这样, Render2DManager + RenderPass2D还可以提供对外接口以支持渲染自定义!
+//
+// RenderPass2D可以抽象为`trait`.
 struct Render2D {
     gpu: Gpu,
     sprite_renderer: SpriteRenderer,
@@ -295,7 +313,7 @@ impl Render2D {
         );
     }
 
-    pub fn draw_geometry(&mut self, world: &mut World) {
+    pub fn draw_geometry(&mut self, world: &mut World, time: &Time) {
         let (width, height) = self.swap_chain_size();
         let viewport = Viewport::new_in_screen(width as f32, height as f32, self.aspect_ratio);
 
@@ -305,6 +323,7 @@ impl Render2D {
             &self.mx_view,
             &self.mx_projection,
             &viewport,
+            time,
         )
     }
 

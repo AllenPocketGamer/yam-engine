@@ -35,11 +35,18 @@ layout(push_constant) uniform CONSTANTS {
     mat4 MX_VIEWPORT;
 };
 
-readonly layout(std430, binding = 0) buffer Transform2DArray {
+layout(binding = 0) uniform Common {
+    // Delta time
+    float t_delta;
+    // Total time
+    float t_total;
+};
+
+readonly layout(std430, binding = 1) buffer Transform2DArray {
     Transform2D t_arr[];
 };
 
-readonly layout(std430, binding = 1) buffer GeometryArray {
+readonly layout(std430, binding = 2) buffer GeometryArray {
     Geometry g_arr[];
 };
 

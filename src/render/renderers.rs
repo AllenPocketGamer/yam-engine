@@ -3,6 +3,7 @@ use super::{Gpu, Viewport};
 use crate::{
     components::{
         geometry::{Assembly, Geometry2D},
+        time::Time,
         transform::Transform2D,
     },
     legion::{IntoQuery, World},
@@ -13,7 +14,7 @@ use crate::{
 
 use wgpu::util::DeviceExt;
 
-use std::mem::size_of;
+use std::{mem::size_of};
 
 // Quad vertex in world coordinate.
 #[cfg_attr(rustfmt, rustfmt_skip)]
@@ -328,13 +329,15 @@ impl SpriteRenderer {
 pub struct GeneralRenderer {
     vertex_buf: wgpu::Buffer,
     index_buf: wgpu::Buffer,
-    // Store index data(transform2d index and geometry index).
-    //
-    // Default Size: `INDEX_PAIR_BUF_SIZE`
+    /// Store index data(transform2d index and geometry index).
+    ///
+    /// Default Size: `INDEX_PAIR_BUF_SIZE`
     instance_buf: wgpu::Buffer,
-    // Store `Transform2D` data and `Geometry` data.
-    //
-    // Default size: `TRANSFORM2D_BUF_SIZE + GEOMETRY_BUF_SIZE`.
+    /// Store common datas(likes `Time`, `MousePosition`..).
+    uniform_buf: wgpu::Buffer,
+    /// Store `Transform2D` data and `Geometry` data.
+    ///
+    /// Default size: `TRANSFORM2D_BUF_SIZE + GEOMETRY_BUF_SIZE`.
     storage_buf: wgpu::Buffer,
     /// Transfer data from m-mem to v-mem.
     ///
@@ -385,6 +388,15 @@ impl GeneralRenderer {
             mapped_at_creation: false,
         });
 
+        // time_delta + time
+        let uniform_buf_size = 2 * size_of::<f32>() as wgpu::BufferAddress;
+        let uniform_buf = device.create_buffer(&wgpu::BufferDescriptor {
+            label: Some("uniform buffer"),
+            size: uniform_buf_size,
+            usage: wgpu::BufferUsage::UNIFORM | wgpu::BufferUsage::COPY_DST,
+            mapped_at_creation: false,
+        });
+
         let storage_buf = device.create_buffer(&wgpu::BufferDescriptor {
             label: Some("storage buffer"),
             size: TRANSFORM2D_BUF_SIZE + GEOMETRY_BUF_SIZE,
@@ -406,6 +418,16 @@ impl GeneralRenderer {
             entries: &[
                 wgpu::BindGroupLayoutEntry {
                     binding: 0,
+                    visibility: wgpu::ShaderStage::VERTEX | wgpu::ShaderStage::FRAGMENT,
+                    ty: wgpu::BindingType::Buffer {
+                        ty: wgpu::BufferBindingType::Uniform,
+                        has_dynamic_offset: false,
+                        min_binding_size: None,
+                    },
+                    count: None,
+                },
+                wgpu::BindGroupLayoutEntry {
+                    binding: 1,
                     visibility: wgpu::ShaderStage::VERTEX,
                     ty: wgpu::BindingType::Buffer {
                         ty: wgpu::BufferBindingType::Storage { read_only: true },
@@ -415,7 +437,7 @@ impl GeneralRenderer {
                     count: None,
                 },
                 wgpu::BindGroupLayoutEntry {
-                    binding: 1,
+                    binding: 2,
                     visibility: wgpu::ShaderStage::VERTEX,
                     ty: wgpu::BindingType::Buffer {
                         ty: wgpu::BufferBindingType::Storage { read_only: true },
@@ -434,13 +456,21 @@ impl GeneralRenderer {
                 wgpu::BindGroupEntry {
                     binding: 0,
                     resource: wgpu::BindingResource::Buffer {
+                        buffer: &uniform_buf,
+                        offset: 0,
+                        size: wgpu::BufferSize::new(uniform_buf_size),
+                    },
+                },
+                wgpu::BindGroupEntry {
+                    binding: 1,
+                    resource: wgpu::BindingResource::Buffer {
                         buffer: &storage_buf,
                         offset: 0,
                         size: wgpu::BufferSize::new(TRANSFORM2D_BUF_SIZE),
                     },
                 },
                 wgpu::BindGroupEntry {
-                    binding: 1,
+                    binding: 2,
                     resource: wgpu::BindingResource::Buffer {
                         buffer: &storage_buf,
                         offset: TRANSFORM2D_BUF_SIZE,
@@ -535,6 +565,7 @@ impl GeneralRenderer {
             vertex_buf,
             index_buf,
             instance_buf,
+            uniform_buf,
             storage_buf,
             staging_buf,
 
@@ -558,9 +589,7 @@ impl GeneralRenderer {
     pub(super) fn recompile_shader(
         &mut self,
         Gpu {
-            device,
-            sc_desc,
-            ..
+            device, sc_desc, ..
         }: &Gpu,
         vert: &[u8],
         frag: &[u8],
@@ -643,6 +672,7 @@ impl GeneralRenderer {
         mx_view: &Matrix4<f32>,
         mx_proj: &Matrix4<f32>,
         vp: &Viewport,
+        time: &Time,
     ) {
         let frame = frame
             .as_ref()
@@ -651,6 +681,12 @@ impl GeneralRenderer {
         let mut encoder = device.create_command_encoder(&wgpu::CommandEncoderDescriptor {
             label: Some("general encoder"),
         });
+
+        queue.write_buffer(
+            &self.uniform_buf,
+            0,
+            bytemuck::cast_slice(&[time.delta().as_secs_f32(), time.total().as_secs_f32()]),
+        );
 
         let (i_count, i_buf_size) = self.copy_data_to_gpu(device, &mut encoder, world);
 

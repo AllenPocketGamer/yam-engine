@@ -103,7 +103,7 @@ impl Time {
     }
 
     /// The duration from construction to last record.
-    pub fn time(&self) -> Duration {
+    pub fn total(&self) -> Duration {
         self.delta_avg() * self.record_count() as u32
     }
 
