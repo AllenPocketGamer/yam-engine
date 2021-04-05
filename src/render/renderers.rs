@@ -14,7 +14,7 @@ use crate::{
 
 use wgpu::util::DeviceExt;
 
-use std::{mem::size_of};
+use std::mem::size_of;
 
 // Quad vertex in world coordinate.
 #[cfg_attr(rustfmt, rustfmt_skip)]
@@ -498,13 +498,17 @@ impl GeneralRenderer {
 
         let vert_shader = device.create_shader_module(&wgpu::ShaderModuleDescriptor {
             label: Some("geometry vertex shader"),
-            source: wgpu::util::make_spirv(include_bytes!("geometry_shader.vert.spv")),
+            source: wgpu::util::make_spirv(include_bytes!(
+                "../../assets/shaders/geometry/geometry.vert.spv"
+            )),
             flags: wgpu::ShaderFlags::empty(),
         });
 
         let frag_shader = device.create_shader_module(&wgpu::ShaderModuleDescriptor {
             label: Some("geometry fragment shader"),
-            source: wgpu::util::make_spirv(include_bytes!("geometry_shader.frag.spv")),
+            source: wgpu::util::make_spirv(include_bytes!(
+                "../../assets/shaders/geometry/geometry.frag.spv"
+            )),
             flags: wgpu::ShaderFlags::empty(),
         });
 

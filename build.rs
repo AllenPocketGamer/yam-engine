@@ -42,6 +42,9 @@ fn main() -> Result<()> {
         glob("./src/**/*.vert")?,
         glob("./src/**/*.frag")?,
         glob("./src/**/*.comp")?,
+        glob("./assets/shaders/**/*.vert")?,
+        glob("./assets/shaders/**/*.frag")?,
+        glob("./assets/shaders/**/*.comp")?,
     ];
 
     // This could be parallelized

@@ -372,8 +372,8 @@ impl Render2D {
         use std::hash::{Hash, Hasher};
 
         let current_dir = std::env::current_dir().unwrap();
-        let geometry_vert_path = current_dir.join("src\\render\\geometry_shader.vert");
-        let geometry_frag_path = current_dir.join("src\\render\\geometry_shader.frag");
+        let geometry_vert_path = current_dir.join("assets\\shaders\\geometry\\geometry.vert");
+        let geometry_frag_path = current_dir.join("assets\\shaders\\geometry\\geometry.frag");
 
         let vcontent: String;
         let fcontent: String;
