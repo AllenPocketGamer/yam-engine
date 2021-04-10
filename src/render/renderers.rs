@@ -1,36 +1,17 @@
-use super::{Gpu, Viewport, Texture};
+use super::{Gpu, Render2D, Viewport};
 
 use crate::{
     components::{
         geometry::{Assembly, Geometry2D},
-        time::Time,
         transform::Transform2D,
     },
-    legion::{IntoQuery, World},
+    legion::{IntoQuery, Resources, World},
     misc::color::Rgba,
-    nalgebra::{Matrix4, Vector4},
+    nalgebra::Vector4,
     Instance,
 };
 
-use wgpu::util::DeviceExt;
-
 use std::mem::size_of;
-
-// Quad vertex in world coordinate.
-#[cfg_attr(rustfmt, rustfmt_skip)]
-const QUAD_VERTEX: [f32; 16] = [
-    -0.5, 0.5, 0.0, 1.0,    // left-top, point A
-    0.5, 0.5, 0.0, 1.0,     // right-top, point B
-    0.5, -0.5, 0.0, 1.0,    // right-bottom, point C
-    -0.5, -0.5, 0.0, 1.0,   // left-bottom, point D
-];
-
-// Quad vertex index.
-#[cfg_attr(rustfmt, rustfmt_skip)]
-const QUAD_INDEX: [u16; 6] = [
-    0, 1, 2,                // Face ABC
-    2, 3, 0,                // Face CDA
-];
 
 #[rustfmt::skip] const MILLION:                 usize = 1 << 20;
 
@@ -41,42 +22,19 @@ const QUAD_INDEX: [u16; 6] = [
 #[rustfmt::skip] const TRANSFORM2D_BUF_SIZE:    u64 = (size_of::<Transform2D>() * MAX_TRANSFORM2D_COUNT) as u64;
 #[rustfmt::skip] const GEOMETRY_BUF_SIZE:       u64 = (size_of::<Geometry2D>() * MAX_GEOMETRY_COUNT) as u64;
 #[rustfmt::skip] const INDEX_PAIR_BUF_SIZE:     u64 = (size_of::<(u16, u16)>() * MAX_INDEX_PAIR_COUNT) as u64;
-#[rustfmt::skip] const STAGING_BUF_SIZE:        u64 = TRANSFORM2D_BUF_SIZE + GEOMETRY_BUF_SIZE + INDEX_PAIR_BUF_SIZE;
 
 /// Renderer which renders `Sprite` and `Geometry` in the best performance.
 ///
 /// **NOTE: In the experimental stage now!**
 pub struct GeneralRenderer {
-    vertex_buf: wgpu::Buffer,
-    index_buf: wgpu::Buffer,
-    /// Store index data(transform2d index and geometry index).
-    ///
-    /// Default Size: `INDEX_PAIR_BUF_SIZE`
     instance_buf: wgpu::Buffer,
-    /// Store common datas(likes `Time`, `MousePosition`..).
-    uniform_buf: wgpu::Buffer,
     /// Store `Transform2D` data and `Geometry` data.
     ///
     /// Default size: `TRANSFORM2D_BUF_SIZE + GEOMETRY_BUF_SIZE`.
     storage_buf: wgpu::Buffer,
-    /// Transfer data from m-mem to v-mem.
-    ///
-    /// Default size: `STAGING_BUF_SIZE`.
-    ///
-    /// Default layout:
-    ///
-    /// 1. Geometry memory layout:
-    ///  * 0-48MB: transform2ds
-    ///  * 49-112MB: geometries
-    ///  * 113-128MB: index pairs
-    staging_buf: wgpu::Buffer,
-
-    // The depth texture.
-    depth_texture: Texture,
 
     // For `Geometry` rendering.
     geometry_bind_group: wgpu::BindGroup,
-    geometry_pipeline_layout: wgpu::PipelineLayout,
     geometry_pipeline: wgpu::RenderPipeline,
     // TODO: For `Sprite` rendering.
     // sprite_bind_group: wgpu::BindGroup,
@@ -84,36 +42,15 @@ pub struct GeneralRenderer {
 }
 
 impl GeneralRenderer {
-    pub(super) fn new(
-        Gpu {
+    pub(super) fn new(r2d: &Render2D) -> Self {
+        let Gpu {
             device, sc_desc, ..
-        }: &Gpu,
-    ) -> Self {
-        let vertex_buf = device.create_buffer_init(&wgpu::util::BufferInitDescriptor {
-            label: Some("vertex buffer"),
-            contents: bytemuck::cast_slice(&QUAD_VERTEX[..]),
-            usage: wgpu::BufferUsage::VERTEX,
-        });
-
-        let index_buf = device.create_buffer_init(&wgpu::util::BufferInitDescriptor {
-            label: Some("index buffer"),
-            contents: bytemuck::cast_slice(&QUAD_INDEX[..]),
-            usage: wgpu::BufferUsage::INDEX,
-        });
+        } = &r2d.gpu;
 
         let instance_buf = device.create_buffer(&wgpu::BufferDescriptor {
             label: Some("instance buffer"),
             size: INDEX_PAIR_BUF_SIZE,
             usage: wgpu::BufferUsage::VERTEX | wgpu::BufferUsage::COPY_DST,
-            mapped_at_creation: false,
-        });
-
-        // time_delta + time
-        let uniform_buf_size = 2 * size_of::<f32>() as wgpu::BufferAddress;
-        let uniform_buf = device.create_buffer(&wgpu::BufferDescriptor {
-            label: Some("uniform buffer"),
-            size: uniform_buf_size,
-            usage: wgpu::BufferUsage::UNIFORM | wgpu::BufferUsage::COPY_DST,
             mapped_at_creation: false,
         });
 
@@ -123,15 +60,6 @@ impl GeneralRenderer {
             usage: wgpu::BufferUsage::STORAGE | wgpu::BufferUsage::COPY_DST,
             mapped_at_creation: false,
         });
-
-        let staging_buf = device.create_buffer(&wgpu::BufferDescriptor {
-            label: Some("staging buffer"),
-            size: STAGING_BUF_SIZE,
-            usage: wgpu::BufferUsage::MAP_WRITE | wgpu::BufferUsage::COPY_SRC,
-            mapped_at_creation: false,
-        });
-
-        let depth_texture = Texture::create_depth_texture(device, sc_desc);
 
         let bind_group_layout = device.create_bind_group_layout(&wgpu::BindGroupLayoutDescriptor {
             label: Some("geometry bind group layout"),
@@ -176,9 +104,9 @@ impl GeneralRenderer {
                 wgpu::BindGroupEntry {
                     binding: 0,
                     resource: wgpu::BindingResource::Buffer {
-                        buffer: &uniform_buf,
+                        buffer: &r2d.utility_buf,
                         offset: 0,
-                        size: wgpu::BufferSize::new(uniform_buf_size),
+                        size: None,
                     },
                 },
                 wgpu::BindGroupEntry {
@@ -204,16 +132,7 @@ impl GeneralRenderer {
             device.create_pipeline_layout(&wgpu::PipelineLayoutDescriptor {
                 label: Some("geometry pipeline layout"),
                 bind_group_layouts: &[&bind_group_layout],
-                push_constant_ranges: &[
-                    wgpu::PushConstantRange {
-                        stages: wgpu::ShaderStage::FRAGMENT,
-                        range: 0..192, // view matrix + projection matrix + viewport matrix.
-                    },
-                    wgpu::PushConstantRange {
-                        stages: wgpu::ShaderStage::VERTEX,
-                        range: 0..192, // view matrix + projection matrix + viewport matrix.
-                    },
-                ],
+                push_constant_ranges: &[],
             });
 
         let vert_shader = device.create_shader_module(&wgpu::ShaderModuleDescriptor {
@@ -286,118 +205,31 @@ impl GeneralRenderer {
         });
 
         Self {
-            vertex_buf,
-            index_buf,
             instance_buf,
-            uniform_buf,
             storage_buf,
-            staging_buf,
-
-            depth_texture,
 
             geometry_bind_group,
-            geometry_pipeline_layout,
             geometry_pipeline,
         }
     }
 
-    pub(super) fn resize(
-        &mut self,
-        Gpu {
-            device, sc_desc, ..
-        }: &Gpu,
-    ) {
-        self.depth_texture = Texture::create_depth_texture(device, sc_desc);
-    }
-
-    pub(super) fn recompile_shader(
-        &mut self,
-        Gpu {
-            device, sc_desc, ..
-        }: &Gpu,
-        vert: &[u8],
-        frag: &[u8],
-    ) {
-        let vert_shader = device.create_shader_module(&wgpu::ShaderModuleDescriptor {
-            label: Some("geometry vertex shader"),
-            source: wgpu::util::make_spirv(vert),
-            flags: wgpu::ShaderFlags::empty(),
-        });
-
-        let frag_shader = device.create_shader_module(&wgpu::ShaderModuleDescriptor {
-            label: Some("geometry fragment shader"),
-            source: wgpu::util::make_spirv(frag),
-            flags: wgpu::ShaderFlags::empty(),
-        });
-
-        self.geometry_pipeline = device.create_render_pipeline(&wgpu::RenderPipelineDescriptor {
-            label: Some("geometry pipeline"),
-            layout: Some(&self.geometry_pipeline_layout),
-            vertex: wgpu::VertexState {
-                module: &vert_shader,
-                entry_point: "main",
-                buffers: &[
-                    wgpu::VertexBufferLayout {
-                        array_stride: size_of::<Vector4<f32>>() as wgpu::BufferAddress,
-                        step_mode: wgpu::InputStepMode::Vertex,
-                        attributes: &wgpu::vertex_attr_array![0 => Float4],
-                    },
-                    wgpu::VertexBufferLayout {
-                        array_stride: size_of::<(u16, u16)>() as wgpu::BufferAddress,
-                        step_mode: wgpu::InputStepMode::Instance,
-                        attributes: &wgpu::vertex_attr_array![1 => Ushort2],
-                    },
-                ],
-            },
-            fragment: Some(wgpu::FragmentState {
-                module: &frag_shader,
-                entry_point: "main",
-                targets: &[wgpu::ColorTargetState {
-                    format: sc_desc.format,
-                    color_blend: wgpu::BlendState {
-                        src_factor: wgpu::BlendFactor::SrcAlpha,
-                        dst_factor: wgpu::BlendFactor::OneMinusSrcAlpha,
-                        operation: wgpu::BlendOperation::Add,
-                    },
-                    alpha_blend: wgpu::BlendState {
-                        src_factor: wgpu::BlendFactor::One,
-                        dst_factor: wgpu::BlendFactor::One,
-                        operation: wgpu::BlendOperation::Max,
-                    },
-                    write_mask: wgpu::ColorWrite::ALL,
-                }],
-            }),
-            primitive: wgpu::PrimitiveState {
-                front_face: wgpu::FrontFace::Ccw,
-                cull_mode: wgpu::CullMode::None,
-                ..Default::default()
-            },
-            depth_stencil: Some(wgpu::DepthStencilState {
-                format: wgpu::TextureFormat::Depth32Float,
-                depth_write_enabled: true,
-                depth_compare: wgpu::CompareFunction::Less,
-                stencil: wgpu::StencilState::default(),
-                bias: wgpu::DepthBiasState::default(),
-                clamp_depth: device.features().contains(wgpu::Features::DEPTH_CLAMPING),
-            }),
-            multisample: Default::default(),
-        });
-    }
-
-    pub(super) fn render_geometry(
-        &mut self,
-        Gpu {
+    pub(super) fn render(&mut self, r2d: &Render2D, world: &World, _resources: &Resources) {
+        let Gpu {
             device,
             queue,
             frame,
             ..
-        }: &Gpu,
-        world: &mut World,
-        mx_view: &Matrix4<f32>,
-        mx_proj: &Matrix4<f32>,
-        vp: &Viewport,
-        time: &Time,
-    ) {
+        } = &r2d.gpu;
+
+        let Viewport {
+            x,
+            y,
+            w,
+            h,
+            min_depth,
+            max_depth,
+        } = r2d.viewport;
+
         let frame = frame
             .as_ref()
             .expect("ERR: Not call begin_draw on Render2DService.");
@@ -406,13 +238,7 @@ impl GeneralRenderer {
             label: Some("general encoder"),
         });
 
-        queue.write_buffer(
-            &self.uniform_buf,
-            0,
-            bytemuck::cast_slice(&[time.delta().as_secs_f32(), time.total().as_secs_f32()]),
-        );
-
-        let (i_count, i_buf_size) = self.copy_data_to_gpu(device, &mut encoder, world);
+        let (i_count, i_buf_size) = self.copy_data_to_gpu(&mut encoder, r2d, world);
 
         encoder.insert_debug_marker("render geometry");
         {
@@ -427,7 +253,7 @@ impl GeneralRenderer {
                     },
                 }],
                 depth_stencil_attachment: Some(wgpu::RenderPassDepthStencilAttachmentDescriptor {
-                    attachment: &self.depth_texture.view,
+                    attachment: &r2d.depth_texture.view,
                     depth_ops: Some(wgpu::Operations {
                         load: wgpu::LoadOp::Clear(1.0),
                         store: false,
@@ -436,28 +262,12 @@ impl GeneralRenderer {
                 }),
             });
 
-            rpass.push_debug_group("prepare render data.");
+            rpass.push_debug_group("Set datas");
 
             rpass.set_pipeline(&self.geometry_pipeline);
-            rpass.set_viewport(vp.x, vp.y, vp.width, vp.height, vp.min_depth, vp.max_depth);
-
-            rpass.set_push_constants(
-                wgpu::ShaderStage::VERTEX | wgpu::ShaderStage::FRAGMENT,
-                0,
-                bytemuck::cast_slice(mx_view.as_slice()),
-            );
-            rpass.set_push_constants(
-                wgpu::ShaderStage::VERTEX | wgpu::ShaderStage::FRAGMENT,
-                64,
-                bytemuck::cast_slice(mx_proj.as_slice()),
-            );
-            rpass.set_push_constants(
-                wgpu::ShaderStage::VERTEX | wgpu::ShaderStage::FRAGMENT,
-                128,
-                bytemuck::cast_slice(vp.to_homogeneous_3d().as_slice()),
-            );
-            rpass.set_vertex_buffer(0, self.vertex_buf.slice(..));
-            rpass.set_index_buffer(self.index_buf.slice(..), wgpu::IndexFormat::Uint16);
+            rpass.set_viewport(x, y, w, h, min_depth, max_depth);
+            rpass.set_vertex_buffer(0, r2d.quad_vertex_buf.slice(..));
+            rpass.set_index_buffer(r2d.quad_index_buf.slice(..), wgpu::IndexFormat::Uint16);
             rpass.set_vertex_buffer(1, self.instance_buf.slice(0..i_buf_size));
             rpass.set_bind_group(0, &self.geometry_bind_group, &[]);
 
@@ -482,15 +292,17 @@ impl GeneralRenderer {
     ///     3. The number of `Index Pair` exceeds the limit: `MAX_INDEX_PAIR_COUNT`.
     fn copy_data_to_gpu(
         &mut self,
-        device: &wgpu::Device,
         encoder: &mut wgpu::CommandEncoder,
+        r2d: &Render2D,
         world: &World,
     ) -> (usize, wgpu::BufferAddress) {
+        let Gpu { device, .. } = &r2d.gpu;
+
         let t_st = 0;
         let g_st = TRANSFORM2D_BUF_SIZE;
         let i_st = TRANSFORM2D_BUF_SIZE + GEOMETRY_BUF_SIZE;
 
-        let s_bs = self.staging_buf.slice(..);
+        let s_bs = r2d.staging_buf.slice(..);
 
         // Mapping main-memory to video-memory.
         {
@@ -620,18 +432,18 @@ impl GeneralRenderer {
             }
         }
 
-        self.staging_buf.unmap();
+        r2d.staging_buf.unmap();
 
         let t_buf_size = (t_count * size_of::<Transform2D>()) as wgpu::BufferAddress;
         let g_buf_size = (g_count * size_of::<Geometry2D>()) as wgpu::BufferAddress;
         let i_buf_size = (i_count * size_of::<(u16, u16)>()) as wgpu::BufferAddress;
 
         // Copy transform2d data from staging to storage.
-        encoder.copy_buffer_to_buffer(&self.staging_buf, t_st, &self.storage_buf, 0, t_buf_size);
+        encoder.copy_buffer_to_buffer(&r2d.staging_buf, t_st, &self.storage_buf, 0, t_buf_size);
         // Copy geometry data from staging to storage.
-        encoder.copy_buffer_to_buffer(&self.staging_buf, g_st, &self.storage_buf, g_st, g_buf_size);
+        encoder.copy_buffer_to_buffer(&r2d.staging_buf, g_st, &self.storage_buf, g_st, g_buf_size);
         // Copy index pair data from staging to instance.
-        encoder.copy_buffer_to_buffer(&self.staging_buf, i_st, &self.instance_buf, 0, i_buf_size);
+        encoder.copy_buffer_to_buffer(&r2d.staging_buf, i_st, &self.instance_buf, 0, i_buf_size);
 
         (i_count, i_buf_size)
     }

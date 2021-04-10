@@ -26,16 +26,14 @@ struct Geometry {
 
 // NOTE: BUFFERS AREA
 
-layout(push_constant) uniform CONSTANTS {
+layout(binding = 0) uniform Common {
     // Transform point from `world space` to `eye space`.
     mat4 MX_VIEW;
     // Transform point from `eye space` to `NDC`.
     mat4 MX_PROJECTION;
     // Transform point from `NDC` to `screen space`.
     mat4 MX_VIEWPORT;
-};
 
-layout(binding = 0) uniform Common {
     // Delta time
     float t_delta;
     // Total time

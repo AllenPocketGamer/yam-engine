@@ -1,63 +1,46 @@
 mod renderers;
 
-use renderers::{GeneralRenderer};
+use renderers::GeneralRenderer;
 
 use crate::{
     app::{AppStage, AppStageBuilder},
-    components::{time::Time, camera::Camera2D, sprite::Sprite, transform::Transform2D, Instance},
+    components::{camera::Camera2D, time::Time, transform::Transform2D},
     legion::{IntoQuery, Resources, World},
-    misc::color::Rgba,
     nalgebra::Matrix4,
     window::Window,
 };
 
-use std::time::Instant;
+// Quad vertex in world coordinate.
+#[cfg_attr(rustfmt, rustfmt_skip)]
+const QUAD_VERTEX: [f32; 16] = [
+    -0.5, 0.5, 0.0, 1.0,    // left-top, point A
+    0.5, 0.5, 0.0, 1.0,     // right-top, point B
+    0.5, -0.5, 0.0, 1.0,    // right-bottom, point C
+    -0.5, -0.5, 0.0, 1.0,   // left-bottom, point D
+];
 
-pub(crate) fn create_app_stage_render(Window { window }: &Window) -> AppStage {
-    let mut r2ds = Render2D::new(window);
-    let mut timestamp = Instant::now();
+// Quad vertex index.
+#[cfg_attr(rustfmt, rustfmt_skip)]
+const QUAD_INDEX: [u16; 6] = [
+    0, 1, 2,                // Face ABC
+    2, 3, 0,                // Face CDA
+];
+
+#[rustfmt::skip] const KB: u64 = 1 << 10;
+#[rustfmt::skip] const MB: u64 = 1 << 20;
+
+pub(crate) fn create_app_stage_render(window: &Window) -> AppStage {
+    let mut r2d = Render2D::new(window);
+    let mut grd = GeneralRenderer::new(&r2d);
 
     let render_process = move |world: &mut World, resources: &mut Resources| {
-        let (width, height) = {
-            let window = resources
-                .get::<Window>()
-                .expect("ERR: Not find window resource.");
-            window.resolution()
-        };
+        r2d.process(world, resources);
 
-        let mut query_camera2d = <(&Transform2D, &Camera2D)>::query();
-        let mut query_sprites = <(&Transform2D, &Sprite)>::query();
-        let mut query_sprites_instanced = <(&Instance<Transform2D>, &Sprite)>::query();
+        r2d.begin_draw();
 
-        r2ds.set_swap_chain_size(width, height);
-
-        if let Some((transform2d, camera2d)) = query_camera2d.iter(world).next() {
-            r2ds.set_view_transformation(transform2d);
-            r2ds.set_projection(camera2d);
-            r2ds.set_viewport_aspect_ratio(camera2d.aspect_ratio());
-        }
-
-        // NOTE: 临时性代码: 热更新shaders.
-        //
-        // 这应该只在yam开发时启用, 在被别的库链接时关闭!
-        // 但现在不知道怎么做, 反正先把shader写完再说.
-        //
-        // 这些代码不应该放在library里面, 可以新建一个
-        // binary, 这个binary专门用于测试shader, 可以
-        // 把shader热更新放在这个binary里面!
-        // 而library要做的就是留足接口(这个就是比较大的工程了).
-        let now = Instant::now();
-        if (now - timestamp).as_millis() > 330 {
-            r2ds.recompile_shader();
-            timestamp = now;
-        }
-
-        r2ds.begin_draw();
-
-        let time = resources.get::<Time>().unwrap().clone();
-        r2ds.draw_geometry(world, &time);
-
-        r2ds.finish_draw();
+        grd.render(&r2d, world, resources);
+        
+        r2d.finish_draw();
     };
 
     AppStageBuilder::new(String::from("default_render"))
@@ -65,6 +48,7 @@ pub(crate) fn create_app_stage_render(Window { window }: &Window) -> AppStage {
         .build()
 }
 
+#[allow(dead_code)]
 struct Gpu {
     surface: wgpu::Surface,
     adapter: wgpu::Adapter,
@@ -153,117 +137,95 @@ impl Gpu {
     }
 }
 
-// TODO: Render2D应该改成Render2DManager, 用来管理Render2DPass;
-// 像GeneralRenderer实际上可以拆分成四个Render2DPass
+// 2D渲染管理器, 持有渲染设备, 常用渲染资源, 执行渲染流程.
 //
-// 1. Geometry1D
-// 2. Geometry2D
-// 3. Sprite
-// 4. Background
+// TODO: 将`GeneralRenderer`中的常用渲染资源拆分到此处,
+//  修改`GeneralRenderer`来适应此改变.
 //
-// RenderPass2D的相同点在于它们都需要一些共同的buffer(vertex, instance, uniform..);
-// 它们的不同点在于会有一些特殊的buffer(storage, staging..), 以及渲染管线渲染设置上的不同;
-//
-// Render2DManager可以固定常用的buffer, 提供特殊buffer的管理服务, 提供RenderPass2D的注册
-// 功能, 按顺序调用RenderPass2D;
-//
-// 这样, Render2DManager + RenderPass2D还可以提供对外接口以支持渲染自定义!
-//
-// RenderPass2D可以抽象为`trait`.
+// TODO: 整理`Render2DManager`代码, 提高可读性.
 struct Render2D {
     gpu: Gpu,
-    general_renderer: GeneralRenderer,
 
-    aspect_ratio: f32,
-    mx_view: Matrix4<f32>,
-    mx_projection: Matrix4<f32>,
+    // Store the vertex datas of quad.
+    quad_vertex_buf: wgpu::Buffer,
+    // Store the index datas of quad.
+    quad_index_buf: wgpu::Buffer,
+    // Store the common use datas(likes `Time`, `MousePosition`..).
+    utility_buf: wgpu::Buffer,
+    // A springboard to transfer data from CPU to GPU.
+    staging_buf: wgpu::Buffer,
+    // Depth texture.
+    depth_texture: Texture,
 
-    // NOTE: 临时性数据, 用于决定是否更新shader
-    vhash: u64,
-    fhash: u64,
+    viewport: Viewport,
+    // // NOTE: 临时性数据, 用于决定是否更新shader
+    // vhash: u64,
+    // fhash: u64,
 }
 
 impl Render2D {
-    pub fn new(window: &winit::window::Window) -> Self {
-        let mut gpu = futures::executor::block_on(Gpu::new(window));
-        let general_renderer = GeneralRenderer::new(&mut gpu);
+    fn new(window: &Window) -> Self {
+        let gpu = futures::executor::block_on(Gpu::new(&window.window));
 
-        let default_camera2d = Camera2D::default();
-        let default_camera2d_transform2d = Transform2D::default();
+        use wgpu::util::DeviceExt;
+
+        let quad_vertex_buf = gpu
+            .device
+            .create_buffer_init(&wgpu::util::BufferInitDescriptor {
+                label: Some("vertex buffer"),
+                contents: bytemuck::cast_slice(&QUAD_VERTEX[..]),
+                usage: wgpu::BufferUsage::VERTEX,
+            });
+
+        let quad_index_buf = gpu
+            .device
+            .create_buffer_init(&wgpu::util::BufferInitDescriptor {
+                label: Some("index buffer"),
+                contents: bytemuck::cast_slice(&QUAD_INDEX[..]),
+                usage: wgpu::BufferUsage::INDEX,
+            });
+
+        let utility_size = KB >> 2;
+        let utility_buf = gpu.device.create_buffer(&wgpu::BufferDescriptor {
+            label: Some("utility buffer"),
+            size: utility_size,
+            usage: wgpu::BufferUsage::UNIFORM | wgpu::BufferUsage::COPY_DST,
+            mapped_at_creation: false,
+        });
+
+        let staging_buf = gpu.device.create_buffer(&wgpu::BufferDescriptor {
+            label: Some("staging buffer"),
+            size: 128 * MB,
+            usage: wgpu::BufferUsage::MAP_WRITE | wgpu::BufferUsage::COPY_SRC,
+            mapped_at_creation: false,
+        });
+
+        let depth_texture = Texture::create_depth_texture(&gpu.device, &gpu.sc_desc);
+
+        let (width, height) = window.resolution();
+        let viewport = Viewport::new_in_screen(
+            width as f32,
+            height as f32,
+            Camera2D::default().aspect_ratio(),
+        );
 
         Self {
             gpu,
-            general_renderer,
 
-            aspect_ratio: default_camera2d.aspect_ratio(),
-            mx_view: default_camera2d_transform2d
-                .to_homogeneous_3d()
-                .try_inverse()
-                .unwrap(),
-            mx_projection: default_camera2d.to_orthographic_homogeneous(),
+            quad_vertex_buf,
+            quad_index_buf,
+            utility_buf,
+            staging_buf,
+            depth_texture,
 
-            // NOTE: 临时性数据
-            vhash: 0,
-            fhash: 0,
+            viewport,
+            // // NOTE: 临时性数据
+            // vhash: 0,
+            // fhash: 0,
         }
     }
 
-    pub fn swap_chain_size(&self) -> (u32, u32) {
-        (self.gpu.sc_desc.width, self.gpu.sc_desc.height)
-    }
-
-    pub fn set_swap_chain_size(&mut self, width: u32, height: u32) {
-        if self.gpu.sc_desc.width != width || self.gpu.sc_desc.height != height {
-            self.gpu.sc_desc.width = width;
-            self.gpu.sc_desc.height = height;
-
-            self.gpu.swap_chain = self
-                .gpu
-                .device
-                .create_swap_chain(&self.gpu.surface, &self.gpu.sc_desc);
-            self.general_renderer.resize(&self.gpu);
-        }
-    }
-
-    #[allow(dead_code)]
-    pub fn view_transformation(&self) -> Matrix4<f32> {
-        self.mx_view
-    }
-
-    pub fn set_view_transformation(&mut self, camera2d_transform2d: &Transform2D) {
-        self.mx_view = camera2d_transform2d
-            .to_homogeneous_3d()
-            .try_inverse()
-            .unwrap()
-    }
-
-    #[allow(dead_code)]
-    pub fn projection(&self) -> Matrix4<f32> {
-        self.mx_projection
-    }
-
-    pub fn set_projection(&mut self, camera2d: &Camera2D) {
-        #[cfg_attr(rustfmt, rustfmt_skip)]
-        let opengl_to_wgpu_matrix: Matrix4<f32> = Matrix4::new(
-            1.0, 0.0, 0.0, 0.0,
-            0.0, 1.0, 0.0, 0.0,
-            0.0, 0.0, 0.5, 0.5,
-            0.0, 0.0, 0.0, 1.0,
-        );
-
-        self.mx_projection = opengl_to_wgpu_matrix * camera2d.to_orthographic_homogeneous()
-    }
-
-    #[allow(dead_code)]
-    pub fn viewport_aspect_ratio(&self) -> f32 {
-        self.aspect_ratio
-    }
-
-    pub fn set_viewport_aspect_ratio(&mut self, aspect_ratio: f32) {
-        self.aspect_ratio = aspect_ratio.abs();
-    }
-
-    pub fn begin_draw(&mut self) {
+    fn begin_draw(&mut self) {
         if self.gpu.frame.is_none() {
             match self.gpu.swap_chain.get_current_frame() {
                 Ok(sw_frame) => self.gpu.frame = Some(sw_frame),
@@ -274,136 +236,83 @@ impl Render2D {
         }
     }
 
-    pub fn draw_geometry(&mut self, world: &mut World, time: &Time) {
-        let (width, height) = self.swap_chain_size();
-        let viewport = Viewport::new_in_screen(width as f32, height as f32, self.aspect_ratio);
+    fn process(&mut self, world: &mut World, resources: &mut Resources) {
+        // Get window size.
+        let (width, height) = {
+            let window = resources
+                .get::<Window>()
+                .expect("ERR: Not find window resource.");
+            window.resolution()
+        };
 
-        self.general_renderer.render_geometry(
-            &mut self.gpu,
-            world,
-            &self.mx_view,
-            &self.mx_projection,
-            &viewport,
-            time,
-        )
-    }
+        // Resize swap_chain and depth texture.
+        if self.gpu.sc_desc.width != width || self.gpu.sc_desc.height != height {
+            self.gpu.sc_desc.width = width;
+            self.gpu.sc_desc.height = height;
 
-    #[allow(dead_code)]
-    pub fn clear(&mut self, clear_color: &Rgba) {
-        let mut encoder = self
-            .gpu
-            .device
-            .create_command_encoder(&wgpu::CommandEncoderDescriptor { label: None });
+            self.gpu.swap_chain = self
+                .gpu
+                .device
+                .create_swap_chain(&self.gpu.surface, &self.gpu.sc_desc);
 
-        {
-            encoder.begin_render_pass(&wgpu::RenderPassDescriptor {
-                label: None,
-                color_attachments: &[wgpu::RenderPassColorAttachmentDescriptor {
-                    attachment: &(self.gpu.frame.as_ref().unwrap().output.view),
-                    resolve_target: None,
-                    ops: wgpu::Operations {
-                        load: wgpu::LoadOp::Clear(clear_color.to_wgpu_color()),
-                        store: true,
-                    },
-                }],
-                depth_stencil_attachment: None,
-            });
+            self.depth_texture = Texture::create_depth_texture(&self.gpu.device, &self.gpu.sc_desc);
         }
 
-        self.gpu.queue.submit(Some(encoder.finish()));
+        // Get camera2d.
+        let mut query_camera2d = <(&Transform2D, &Camera2D)>::query();
+
+        // Render a frame if there has a camera.
+        if let Some((transform2d, camera2d)) = query_camera2d.iter(world).next() {
+            let mx_view = transform2d.to_homogeneous_3d().try_inverse().unwrap();
+            let mx_proj = {
+                #[cfg_attr(rustfmt, rustfmt_skip)]
+                let opengl_to_wgpu_matrix: Matrix4<f32> = Matrix4::new(
+                    1.0, 0.0, 0.0, 0.0,
+                    0.0, 1.0, 0.0, 0.0,
+                    0.0, 0.0, 0.5, 0.5,
+                    0.0, 0.0, 0.0, 1.0,
+                );
+
+                opengl_to_wgpu_matrix * camera2d.to_orthographic_homogeneous()
+            };
+            let viewport =
+                Viewport::new_in_screen(width as f32, height as f32, camera2d.aspect_ratio());
+
+            let time = resources
+                .get::<Time>()
+                .expect("ERR: Not find time resource.");
+
+            // Write these datas to utility_buf.
+            self.gpu.queue.write_buffer(
+                &self.utility_buf,
+                0,
+                bytemuck::cast_slice(mx_view.as_slice()),
+            );
+            self.gpu.queue.write_buffer(
+                &self.utility_buf,
+                64,
+                bytemuck::cast_slice(mx_proj.as_slice()),
+            );
+            self.gpu.queue.write_buffer(
+                &self.utility_buf,
+                128,
+                bytemuck::cast_slice(viewport.to_homogeneous_3d().as_slice()),
+            );
+            self.gpu.queue.write_buffer(
+                &self.utility_buf,
+                192,
+                bytemuck::cast_slice(&[time.delta().as_secs_f32(), time.total().as_secs_f32()]),
+            );
+
+            self.viewport = viewport;
+        }
     }
 
-    pub fn finish_draw(&mut self) {
+    fn finish_draw(&mut self) {
         if self.gpu.frame.is_some() {
             self.gpu.frame.take();
         } else {
             panic!("ERR: Drawing has ended already.")
-        }
-    }
-
-    // NOTE: 临时性代码
-    pub fn recompile_shader(&mut self) {
-        // 1. 定时检查shader, 若有改变, 记录hash, 进入下一步
-        // 2. 编译所有shader(因为现在只有两个)
-        //  通过: 将编译后的字节码传入general_renderer
-        //  失败: 打印错误, 返回等待下一次更新
-        use shaderc::*;
-        use std::collections::hash_map::DefaultHasher;
-        use std::fs::read_to_string;
-        use std::hash::{Hash, Hasher};
-
-        let current_dir = std::env::current_dir().unwrap();
-        let geometry_vert_path = current_dir.join("assets\\shaders\\geometry\\geometry.vert");
-        let geometry_frag_path = current_dir.join("assets\\shaders\\geometry\\geometry.frag");
-
-        let vcontent: String;
-        let fcontent: String;
-
-        if let Ok(content) = read_to_string(&geometry_vert_path) {
-            vcontent = content;
-        } else {
-            println!(
-                "WARN: Cannot get geometry vertex shader in {}.",
-                geometry_vert_path.display()
-            );
-            return;
-        }
-        if let Ok(content) = read_to_string(&geometry_frag_path) {
-            fcontent = content;
-        } else {
-            println!(
-                "WARN: Cannot get geometry fragment shader in {}.",
-                geometry_frag_path.display()
-            );
-            return;
-        }
-
-        let mut dh = DefaultHasher::new();
-
-        vcontent.hash(&mut dh);
-        let vhash = dh.finish();
-        fcontent.hash(&mut dh);
-        let fhash = dh.finish();
-
-        if self.vhash == vhash && self.fhash == fhash {
-            return;
-        }
-
-        self.vhash = vhash;
-        self.fhash = fhash;
-
-        if let Some(mut compiler) = Compiler::new() {
-            let vs = compiler.compile_into_spirv(
-                &vcontent,
-                ShaderKind::Vertex,
-                geometry_vert_path.to_str().unwrap(),
-                "main",
-                None,
-            );
-            let fs = compiler.compile_into_spirv(
-                &&fcontent,
-                ShaderKind::Fragment,
-                geometry_frag_path.to_str().unwrap(),
-                "main",
-                None,
-            );
-
-            if let Err(err) = vs {
-                println!("{}", err);
-                return;
-            }
-            if let Err(err) = fs {
-                println!("{}", err);
-                return;
-            }
-
-            self.general_renderer.recompile_shader(
-                &self.gpu,
-                vs.unwrap().as_binary_u8(),
-                fs.unwrap().as_binary_u8(),
-            );
-        } else {
-            println!("WARN: Fail to create shader compiler.");
         }
     }
 }
@@ -413,38 +322,38 @@ struct Viewport {
     pub x: f32,
     pub y: f32,
 
-    pub width: f32,
-    pub height: f32,
+    pub w: f32,
+    pub h: f32,
 
     pub min_depth: f32,
     pub max_depth: f32,
 }
 
 impl Viewport {
-    pub fn new_in_screen(screen_width: f32, screen_height: f32, aspect_ratio: f32) -> Self {
-        let screen_ratio = screen_width / screen_height;
+    pub fn new_in_screen(width: f32, height: f32, aspect_ratio: f32) -> Self {
+        let screen_ratio = width / height;
 
         let (x, y, width, height) = if aspect_ratio <= screen_ratio {
             (
-                (screen_width - aspect_ratio * screen_height) / 2.0,
+                (width - aspect_ratio * height) / 2.0,
                 0f32,
-                aspect_ratio * screen_height,
-                screen_height,
+                aspect_ratio * height,
+                height,
             )
         } else {
             (
                 0f32,
-                (screen_height - screen_width / aspect_ratio) / 2.0,
-                screen_width,
-                screen_width / aspect_ratio,
+                (height - width / aspect_ratio) / 2.0,
+                width,
+                width / aspect_ratio,
             )
         };
 
         Self {
             x,
             y,
-            width,
-            height,
+            w: width,
+            h: height,
             min_depth: 0.0,
             max_depth: 1.0,
         }
@@ -458,8 +367,8 @@ impl Viewport {
     pub fn to_homogeneous_3d(&self) -> Matrix4<f32> {
         #[cfg_attr(rustfmt, rustfmt_skip)]
         Matrix4::new(
-            0.5 * self.width,   0.0,                0.0,                                0.5 * self.width + self.x,
-            0.0,                -0.5 * self.height, 0.0,                                0.5 * self.height + self.y,
+            0.5 * self.w,   0.0,                0.0,                                0.5 * self.w + self.x,
+            0.0,                -0.5 * self.h, 0.0,                                0.5 * self.h + self.y,
             0.0,                0.0,                self.max_depth - self.min_depth,    self.min_depth,
             0.0,                0.0,                0.0,                                1.0,
         )
