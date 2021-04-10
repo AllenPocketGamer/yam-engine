@@ -1,4 +1,7 @@
-use crate::nalgebra::{Orthographic3, Matrix4};
+use crate::{
+    nalgebra::{Matrix4, Orthographic3},
+    DEFAULT_HEIGHT, DEFAULT_WIDTH,
+};
 
 pub struct Camera2D {
     pub width: u32,
@@ -35,6 +38,6 @@ impl Camera2D {
 
 impl Default for Camera2D {
     fn default() -> Self {
-        Self::new(1024, 720)
+        Self::new(DEFAULT_WIDTH, DEFAULT_HEIGHT)
     }
 }

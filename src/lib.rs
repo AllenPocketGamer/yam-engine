@@ -26,3 +26,6 @@ pub use components::{
 pub use input::{Input, KeyCode, MouseButton};
 pub use misc::color::{Hex, Rgba};
 pub use window::{Fullscreen, MonitorHandle, VideoMode, Window};
+
+const DEFAULT_WIDTH: u32 = 1280;
+const DEFAULT_HEIGHT: u32 = 720;

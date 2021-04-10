@@ -7,9 +7,11 @@ use crate::{
     },
     render::create_app_stage_render,
     window::Window,
+    DEFAULT_HEIGHT, DEFAULT_WIDTH,
 };
 
 use winit::{
+    dpi::LogicalSize,
     event::{DeviceEvent, Event, StartCause, WindowEvent},
     event_loop::{ControlFlow, EventLoop},
     window::WindowBuilder,
@@ -50,6 +52,7 @@ impl App {
         let window = Window::new(
             WindowBuilder::new()
                 .with_title("default")
+                .with_inner_size(LogicalSize::<u32>::from((DEFAULT_WIDTH, DEFAULT_HEIGHT)))
                 .build(&event_loop)
                 .unwrap(),
         );
