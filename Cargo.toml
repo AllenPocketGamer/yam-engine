@@ -78,9 +78,13 @@ name = "geometry"
 path = "examples/2_2_geometry.rs"
 
 [[example]]
-name = "render2d_millions"
-path = "examples/3_1_render2d_millions.rs"
+name = "millions_sprites"
+path = "examples/3_1_millions_sprites.rs"
 
 [[example]]
 name = "render2d_millions_with_simd"
-path= "example/3_2_render2d_millions_with_simd"
+path= "examples/3_2_render2d_millions_with_simd.rs"
+
+[[example]]
+name = "millions_geometry"
+path= "examples/3_3_millions_geometry.rs"

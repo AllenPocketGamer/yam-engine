@@ -137,12 +137,6 @@ impl Gpu {
     }
 }
 
-// 2D渲染管理器, 持有渲染设备, 常用渲染资源, 执行渲染流程.
-//
-// TODO: 将`GeneralRenderer`中的常用渲染资源拆分到此处,
-//  修改`GeneralRenderer`来适应此改变.
-//
-// TODO: 整理`Render2DManager`代码, 提高可读性.
 struct Render2D {
     gpu: Gpu,
 
