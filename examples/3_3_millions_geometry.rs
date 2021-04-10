@@ -32,7 +32,7 @@ fn introduction() {
 fn init_entities(commands: &mut CommandBuffer, #[resource] window: &Window) {
     const GEOMETRY_SIZE: f32 = 128.0;
 
-    const SQRT_COUNT: usize = 512;
+    const SQRT_COUNT: usize = 1024;
     const COUNT: usize = SQRT_COUNT * SQRT_COUNT;
 
     let (width, height) = window.resolution();

@@ -184,9 +184,7 @@ float dot2( in vec2 v ) { return dot(v,v); }
 // sl(side length) ∈ [0, 1].
 // NOTE: 抄 + 瞎调参, 不懂原理; 看着能用, 可能有错!
 float sdf_heart(vec2 pos, float sl) {
-    pos *= 1.2 / sl;
-    pos.y += 0.6;
-    pos.x = abs(pos.x);
+    pos = vec2(abs(pos.x + 0.002), pos.y + 0.5) * 1.214 / sl;
 
     if(pos.y + pos.x > 1.0)
         return -sqrt(dot2(pos - vec2(0.25, 0.75))) + sqrt(2.0) / 4.0;
@@ -343,5 +341,9 @@ void main() {
 
     const vec2 inner = get_inner(ideco, pg.xy, sdf, blur_g, hth_g);
     const vec2 border = get_border(bdeco, pg.xy, sdf, blur_g, hth_g);
+    
     o_Target = mix(inner.x * icolor, border.y * bcolor, border.x);
+    
+    // NOTE: 顺序无关透明渲染, 有瑕疵
+    gl_FragDepth = o_Target.w > 0.0 ? gl_FragCoord.z : 1.0;
 }
