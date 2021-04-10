@@ -1,6 +1,6 @@
 mod renderers;
 
-use renderers::{GeneralRenderer, SpriteRenderer};
+use renderers::{GeneralRenderer};
 
 use crate::{
     app::{AppStage, AppStageBuilder},
@@ -53,16 +53,6 @@ pub(crate) fn create_app_stage_render(Window { window }: &Window) -> AppStage {
         }
 
         r2ds.begin_draw();
-
-        // TODO: move query to `Render2D`.
-        for (transform2d, sprite) in query_sprites.iter(world) {
-            r2ds.draw_sprite_in_world_space(transform2d, sprite);
-        }
-
-        // TODO: move query to `Render2D`.
-        for (transform2ds, sprite) in query_sprites_instanced.iter(world) {
-            r2ds.draw_sprites_in_world_space(transform2ds, sprite);
-        }
 
         let time = resources.get::<Time>().unwrap().clone();
         r2ds.draw_geometry(world, &time);
@@ -182,7 +172,6 @@ impl Gpu {
 // RenderPass2D可以抽象为`trait`.
 struct Render2D {
     gpu: Gpu,
-    sprite_renderer: SpriteRenderer,
     general_renderer: GeneralRenderer,
 
     aspect_ratio: f32,
@@ -197,7 +186,6 @@ struct Render2D {
 impl Render2D {
     pub fn new(window: &winit::window::Window) -> Self {
         let mut gpu = futures::executor::block_on(Gpu::new(window));
-        let sprite_renderer = SpriteRenderer::new(&mut gpu);
         let general_renderer = GeneralRenderer::new(&mut gpu);
 
         let default_camera2d = Camera2D::default();
@@ -205,7 +193,6 @@ impl Render2D {
 
         Self {
             gpu,
-            sprite_renderer,
             general_renderer,
 
             aspect_ratio: default_camera2d.aspect_ratio(),
@@ -285,32 +272,6 @@ impl Render2D {
         } else {
             panic!("ERR: Drawing has begun already.")
         }
-    }
-
-    pub fn draw_sprite_in_world_space(&mut self, transform2d: &Transform2D, sprite: &Sprite) {
-        let viewport = self.calculate_adapted_viewport();
-
-        self.sprite_renderer.render(
-            &mut self.gpu,
-            std::slice::from_ref(transform2d),
-            &sprite.color,
-            &self.mx_view,
-            &self.mx_projection,
-            &viewport,
-        );
-    }
-
-    pub fn draw_sprites_in_world_space(&mut self, transform2ds: &[Transform2D], sprite: &Sprite) {
-        let viewport = self.calculate_adapted_viewport();
-
-        self.sprite_renderer.render(
-            &mut self.gpu,
-            transform2ds,
-            &sprite.color,
-            &self.mx_view,
-            &self.mx_projection,
-            &viewport,
-        );
     }
 
     pub fn draw_geometry(&mut self, world: &mut World, time: &Time) {
@@ -443,29 +404,6 @@ impl Render2D {
             );
         } else {
             println!("WARN: Fail to create shader compiler.");
-        }
-    }
-
-    // NOTE: Deprecated next update!
-    //
-    // return (x, y, width, height, min_depth, max_depth)
-    fn calculate_adapted_viewport(&self) -> (f32, f32, f32, f32, f32, f32) {
-        let (screen_width, screen_height) = self.swap_chain_size();
-        let (screen_width, screen_height) = (screen_width as f32, screen_height as f32);
-
-        let aspect_ratio = self.aspect_ratio;
-        let screen_ratio = screen_width / screen_height;
-
-        if aspect_ratio <= screen_ratio {
-            let (x, y) = ((screen_width - aspect_ratio * screen_height) / 2.0, 0f32);
-            let (width, height) = (aspect_ratio * screen_height, screen_height);
-
-            (x, y, width, height, 0.0, 1.0)
-        } else {
-            let (x, y) = (0f32, (screen_height - screen_width / aspect_ratio) / 2.0);
-            let (width, height) = (screen_width, screen_width / aspect_ratio);
-
-            (x, y, width, height, 0.0, 1.0)
         }
     }
 }
