@@ -17,11 +17,11 @@ use std::mem::size_of;
 
 #[rustfmt::skip] const MAX_TRANSFORM2D_COUNT:   usize = 2 * MILLION;
 #[rustfmt::skip] const MAX_GEOMETRY_COUNT:      usize = 2 * MILLION;
-#[rustfmt::skip] const MAX_INDEX_PAIR_COUNT:    usize = 4 * MILLION;
+#[rustfmt::skip] const MAX_INDEX_PAIR_COUNT:    usize = 2 * MILLION;
 
 #[rustfmt::skip] const TRANSFORM2D_BUF_SIZE:    u64 = (size_of::<Transform2D>() * MAX_TRANSFORM2D_COUNT) as u64;
 #[rustfmt::skip] const GEOMETRY_BUF_SIZE:       u64 = (size_of::<Geometry2D>() * MAX_GEOMETRY_COUNT) as u64;
-#[rustfmt::skip] const INDEX_PAIR_BUF_SIZE:     u64 = (size_of::<(u16, u16)>() * MAX_INDEX_PAIR_COUNT) as u64;
+#[rustfmt::skip] const INDEX_PAIR_BUF_SIZE:     u64 = (size_of::<(u32, u32)>() * MAX_INDEX_PAIR_COUNT) as u64;
 
 /// Renderer which renders `Sprite` and `Geometry` in the best performance.
 ///
@@ -164,9 +164,9 @@ impl GeneralRenderer {
                         attributes: &wgpu::vertex_attr_array![0 => Float4],
                     },
                     wgpu::VertexBufferLayout {
-                        array_stride: size_of::<(u16, u16)>() as wgpu::BufferAddress,
+                        array_stride: size_of::<(u32, u32)>() as wgpu::BufferAddress,
                         step_mode: wgpu::InputStepMode::Instance,
-                        attributes: &wgpu::vertex_attr_array![1 => Ushort2],
+                        attributes: &wgpu::vertex_attr_array![1 => Uint2],
                     },
                 ],
             },
@@ -317,11 +317,11 @@ impl GeneralRenderer {
 
             let t_mp = s_mp.offset(t_st as isize) as *mut Transform2D;
             let g_mp = s_mp.offset(g_st as isize) as *mut Geometry2D;
-            let i_mp = s_mp.offset(i_st as isize) as *mut (u16, u16);
+            let i_mp = s_mp.offset(i_st as isize) as *mut (u32, u32);
 
             let t_len = TRANSFORM2D_BUF_SIZE as usize / size_of::<Transform2D>();
             let g_len = GEOMETRY_BUF_SIZE as usize / size_of::<Geometry2D>();
-            let i_len = INDEX_PAIR_BUF_SIZE as usize / size_of::<(u16, u16)>();
+            let i_len = INDEX_PAIR_BUF_SIZE as usize / size_of::<(u32, u32)>();
 
             (
                 std::slice::from_raw_parts_mut(t_mp, t_len),
@@ -344,7 +344,7 @@ impl GeneralRenderer {
             q01.for_each(world, |(t, g)| {
                 *t_slice.get_unchecked_mut(t_count) = *t;
                 *g_slice.get_unchecked_mut(g_count) = *g;
-                *i_slice.get_unchecked_mut(i_count) = (t_count as u16, g_count as u16);
+                *i_slice.get_unchecked_mut(i_count) = (t_count as u32, g_count as u32);
 
                 t_count += 1;
                 g_count += 1;
@@ -360,7 +360,7 @@ impl GeneralRenderer {
                 g_part.copy_from_slice(gs);
 
                 for _ in 0..g_len {
-                    *i_slice.get_unchecked_mut(i_count) = (t_count as u16, g_count as u16);
+                    *i_slice.get_unchecked_mut(i_count) = (t_count as u32, g_count as u32);
 
                     g_count += 1;
                     i_count += 1;
@@ -378,7 +378,7 @@ impl GeneralRenderer {
                 *g_slice.get_unchecked_mut(g_count) = *g;
 
                 for _ in 0..t_len {
-                    *i_slice.get_unchecked_mut(i_count) = (t_count as u16, g_count as u16);
+                    *i_slice.get_unchecked_mut(i_count) = (t_count as u32, g_count as u32);
 
                     t_count += 1;
                     i_count += 1;
@@ -400,7 +400,7 @@ impl GeneralRenderer {
                 for t in 0..t_len {
                     for g in 0..g_len {
                         *i_slice.get_unchecked_mut(i_count) =
-                            ((t_count + t) as u16, (g_count + g) as u16);
+                            ((t_count + t) as u32, (g_count + g) as u32);
 
                         i_count += 1;
                     }
@@ -436,7 +436,7 @@ impl GeneralRenderer {
 
         let t_buf_size = (t_count * size_of::<Transform2D>()) as wgpu::BufferAddress;
         let g_buf_size = (g_count * size_of::<Geometry2D>()) as wgpu::BufferAddress;
-        let i_buf_size = (i_count * size_of::<(u16, u16)>()) as wgpu::BufferAddress;
+        let i_buf_size = (i_count * size_of::<(u32, u32)>()) as wgpu::BufferAddress;
 
         // Copy transform2d data from staging to storage.
         encoder.copy_buffer_to_buffer(&r2d.staging_buf, t_st, &self.storage_buf, 0, t_buf_size);
