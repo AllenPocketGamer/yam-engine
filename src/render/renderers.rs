@@ -23,10 +23,8 @@ use std::mem::size_of;
 #[rustfmt::skip] const GEOMETRY_BUF_SIZE:       u64 = (size_of::<Geometry2D>() * MAX_GEOMETRY_COUNT) as u64;
 #[rustfmt::skip] const INDEX_PAIR_BUF_SIZE:     u64 = (size_of::<(u32, u32)>() * MAX_INDEX_PAIR_COUNT) as u64;
 
-/// Renderer which renders `Sprite` and `Geometry` in the best performance.
-///
-/// **NOTE: In the experimental stage now!**
-pub struct GeneralRenderer {
+/// Renderer which renders `Geometry2D` in the best performance.
+pub struct Geometry2DRenderer {
     instance_buf: wgpu::Buffer,
     /// Store `Transform2D` data and `Geometry` data.
     ///
@@ -41,7 +39,7 @@ pub struct GeneralRenderer {
     // sprite_pipeline: wgpu::RenderPipeline,
 }
 
-impl GeneralRenderer {
+impl Geometry2DRenderer {
     pub(super) fn new(r2d: &Render2D) -> Self {
         let Gpu {
             device, sc_desc, ..

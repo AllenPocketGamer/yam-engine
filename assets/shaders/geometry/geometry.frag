@@ -12,7 +12,7 @@ const float DASH_EMPTY = 0.3;
 // Anti-aliasing pixel count.
 const float BLUR = 1.0;
 
-// GeometryType
+// Geometry2DType
 const uint GT_CIRCLE        = 0;
 const uint GT_ETRIANGLE     = 1;
 const uint GT_SQUARE        = 2;
@@ -22,6 +22,10 @@ const uint GT_OCTOGON       = 5;
 const uint GT_HEXAGRAM      = 6;
 const uint GT_STARFIVE      = 7;
 const uint GT_HEART         = 8;
+
+const uint GT_LINE          = 20;
+const uint GT_RAY           = 21;
+const uint GT_SEGMENT       = 22;
 
 // BorderDecoration
 const uint BD_NONE          = 0;
@@ -275,6 +279,10 @@ vec2 get_border(
 }
 
 void main() {
+    const uint gtype = types.x;
+    const uint bdeco = types.y;
+    const uint ideco = types.z;
+    
     // Transform points from `screen space` to `geometry space`.
     const mat4 mx_g2s = MX_VIEWPORT * MX_PROJECTION * MX_VIEW * mx_l2w * mx_g2l;
     // Transform points from `screen space` to `geometry space`.
@@ -295,55 +303,145 @@ void main() {
     const vec4 avoid_zero = vec4(0.00001, 0.00001, 0.0, 0.0);
     const vec4 c2p_norm_s = normalize(ps + avoid_zero - cs);
 
+    const bool is_1d = gtype == GT_LINE || gtype == GT_RAY || gtype == GT_SEGMENT;
+    
     // blur factor in `geometry space`.
-    const float blur_g = BLUR * length(mx_s2g * c2p_norm_s);
+    const float blur_g = is_1d ? BLUR / length(mx_g2s * vec4(0.0, 1.0, 0.0, 0.0)) : BLUR * length(mx_s2g * c2p_norm_s);
 
     // half thickness in `geometry space`.
     const float hth_g = 0.5 * th_g;
-
-    const uint gtype = types.x;
-    const uint bdeco = types.y;
-    const uint ideco = types.z;
     
-    float sdf;
-
     switch(gtype) {
-        case GT_CIRCLE:
-            sdf = sdf_circle(pg.xy, 1.0);
+        case GT_CIRCLE: {
+            const float sdf = sdf_circle(pg.xy, 1.0);
+
+            const vec2 inner = get_inner(ideco, pg.xy, sdf, blur_g, hth_g);
+            const vec2 border = get_border(bdeco, pg.xy, sdf, blur_g, hth_g);
+    
+            o_Target = mix(inner.x * icolor, border.y * bcolor, border.x);
+    
+            // NOTE: 顺序无关透明渲染, 有瑕疵
+            gl_FragDepth = o_Target.w > 0.0 ? gl_FragCoord.z : 1.0;
+
             break;
-        case GT_ETRIANGLE:
-            sdf = sdf_etriangle(pg.xy, 1.0);
+        }
+        case GT_ETRIANGLE: {
+            const float sdf = sdf_etriangle(pg.xy, 1.0);
+            
+            const vec2 inner = get_inner(ideco, pg.xy, sdf, blur_g, hth_g);
+            const vec2 border = get_border(bdeco, pg.xy, sdf, blur_g, hth_g);
+    
+            o_Target = mix(inner.x * icolor, border.y * bcolor, border.x);
+    
+            // NOTE: 顺序无关透明渲染, 有瑕疵
+            gl_FragDepth = o_Target.w > 0.0 ? gl_FragCoord.z : 1.0;
+
             break;
-        case GT_SQUARE:
-            sdf = sdf_square(pg.xy, 1.0);
+        }
+        case GT_SQUARE: {
+            const float sdf = sdf_square(pg.xy, 1.0);
+            
+            const vec2 inner = get_inner(ideco, pg.xy, sdf, blur_g, hth_g);
+            const vec2 border = get_border(bdeco, pg.xy, sdf, blur_g, hth_g);
+    
+            o_Target = mix(inner.x * icolor, border.y * bcolor, border.x);
+    
+            // NOTE: 顺序无关透明渲染, 有瑕疵
+            gl_FragDepth = o_Target.w > 0.0 ? gl_FragCoord.z : 1.0;
+
             break;
-        case GT_PENTAGON:
-            sdf = sdf_pentagon(pg.xy, 1.0);
+        }
+        case GT_PENTAGON: {
+            const float sdf = sdf_pentagon(pg.xy, 1.0);
+
+            const vec2 inner = get_inner(ideco, pg.xy, sdf, blur_g, hth_g);
+            const vec2 border = get_border(bdeco, pg.xy, sdf, blur_g, hth_g);
+    
+            o_Target = mix(inner.x * icolor, border.y * bcolor, border.x);
+    
+            // NOTE: 顺序无关透明渲染, 有瑕疵
+            gl_FragDepth = o_Target.w > 0.0 ? gl_FragCoord.z : 1.0;
+
             break;
-        case GT_HEXAGON:
-            sdf = sdf_hexagon(pg.xy, 1.0);
+        }
+        case GT_HEXAGON: {
+            const float sdf = sdf_hexagon(pg.xy, 1.0);
+
+            const vec2 inner = get_inner(ideco, pg.xy, sdf, blur_g, hth_g);
+            const vec2 border = get_border(bdeco, pg.xy, sdf, blur_g, hth_g);
+    
+            o_Target = mix(inner.x * icolor, border.y * bcolor, border.x);
+    
+            // NOTE: 顺序无关透明渲染, 有瑕疵
+            gl_FragDepth = o_Target.w > 0.0 ? gl_FragCoord.z : 1.0;
+
             break;
-        case GT_OCTOGON:
-            sdf = sdf_octogon(pg.xy, 1.0);
+        }
+        case GT_OCTOGON: {
+            const float sdf = sdf_octogon(pg.xy, 1.0);
+
+            const vec2 inner = get_inner(ideco, pg.xy, sdf, blur_g, hth_g);
+            const vec2 border = get_border(bdeco, pg.xy, sdf, blur_g, hth_g);
+    
+            o_Target = mix(inner.x * icolor, border.y * bcolor, border.x);
+    
+            // NOTE: 顺序无关透明渲染, 有瑕疵
+            gl_FragDepth = o_Target.w > 0.0 ? gl_FragCoord.z : 1.0;
+
             break;
-        case GT_HEXAGRAM:
-            sdf = sdf_hexagram(pg.xy, 1.0);
+        }
+        case GT_HEXAGRAM: {
+            const float sdf = sdf_hexagram(pg.xy, 1.0);
+
+            const vec2 inner = get_inner(ideco, pg.xy, sdf, blur_g, hth_g);
+            const vec2 border = get_border(bdeco, pg.xy, sdf, blur_g, hth_g);
+    
+            o_Target = mix(inner.x * icolor, border.y * bcolor, border.x);
+    
+            // NOTE: 顺序无关透明渲染, 有瑕疵
+            gl_FragDepth = o_Target.w > 0.0 ? gl_FragCoord.z : 1.0;
+
             break;
-        case GT_STARFIVE:
-            sdf = sdf_starfive(pg.xy, 1.0);
+        }
+        case GT_STARFIVE: {
+            const float sdf = sdf_starfive(pg.xy, 1.0);
+
+            const vec2 inner = get_inner(ideco, pg.xy, sdf, blur_g, hth_g);
+            const vec2 border = get_border(bdeco, pg.xy, sdf, blur_g, hth_g);
+    
+            o_Target = mix(inner.x * icolor, border.y * bcolor, border.x);
+    
+            // NOTE: 顺序无关透明渲染, 有瑕疵
+            gl_FragDepth = o_Target.w > 0.0 ? gl_FragCoord.z : 1.0;
+
             break;
-        case GT_HEART:
-            sdf = sdf_heart(pg.xy, 1.0);
+        }
+        case GT_HEART: {
+            const float sdf = sdf_heart(pg.xy, 1.0);
+
+            const vec2 inner = get_inner(ideco, pg.xy, sdf, blur_g, hth_g);
+            const vec2 border = get_border(bdeco, pg.xy, sdf, blur_g, hth_g);
+    
+            o_Target = mix(inner.x * icolor, border.y * bcolor, border.x);
+    
+            // NOTE: 顺序无关透明渲染, 有瑕疵
+            gl_FragDepth = o_Target.w > 0.0 ? gl_FragCoord.z : 1.0;
+
             break;
+        }
+        case GT_LINE:
+            break;
+        case GT_RAY:
+            break;
+        case GT_SEGMENT: {
+            const float in_border = smoothstep(0.0, blur_g, 0.5 - abs(pg.y));
+
+            o_Target = in_border * bcolor;
+            gl_FragDepth = gl_FragCoord.z;
+            
+            break;
+        }
         default:
             break;
     }
-
-    const vec2 inner = get_inner(ideco, pg.xy, sdf, blur_g, hth_g);
-    const vec2 border = get_border(bdeco, pg.xy, sdf, blur_g, hth_g);
-    
-    o_Target = mix(inner.x * icolor, border.y * bcolor, border.x);
-    
-    // NOTE: 顺序无关透明渲染, 有瑕疵
-    gl_FragDepth = o_Target.w > 0.0 ? gl_FragCoord.z : 1.0;
 }

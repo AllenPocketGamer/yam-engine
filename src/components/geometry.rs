@@ -127,15 +127,19 @@ impl Geometry2D {
 #[repr(u8)]
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum Geometry2DType {
-    Circle = 0,
-    ETriangle, // ⯅
-    Square,    // □
-    Pentagon,  // ⬟
-    Hexagon,   // ⎔
-    Octogon,
-    Hexagram,
-    StarFive,
-    Heart,
+    Circle      = 0,
+    ETriangle   = 1, // ⯅
+    Square      = 2,    // □
+    Pentagon    = 3,  // ⬟
+    Hexagon     = 4,   // ⎔
+    Octogon     = 5,
+    Hexagram    = 6,
+    StarFive    = 7,
+    Heart       = 8,
+
+    Line        = 20,
+    Ray         = 21,
+    Segment     = 22,
 }
 
 #[repr(u8)]

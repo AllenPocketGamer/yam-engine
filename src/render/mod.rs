@@ -1,6 +1,6 @@
 mod renderers;
 
-use renderers::GeneralRenderer;
+use renderers::Geometry2DRenderer;
 
 use crate::{
     app::{AppStage, AppStageBuilder},
@@ -31,14 +31,14 @@ const QUAD_INDEX: [u16; 6] = [
 
 pub(crate) fn create_app_stage_render(window: &Window) -> AppStage {
     let mut r2d = Render2D::new(window);
-    let mut grd = GeneralRenderer::new(&r2d);
+    let mut g2d_rder = Geometry2DRenderer::new(&r2d);
 
     let render_process = move |world: &mut World, resources: &mut Resources| {
         r2d.process(world, resources);
 
         r2d.begin_draw();
 
-        grd.render(&r2d, world, resources);
+        g2d_rder.render(&r2d, world, resources);
         
         r2d.finish_draw();
     };

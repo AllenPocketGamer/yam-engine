@@ -7,7 +7,7 @@ fn main() -> Result<(), AppBuildError> {
         .create_stage_builder(String::from("default"))?
         .add_thread_local_system_startup(init_entities_system())
         .add_thread_local_system_process(control_camera_system())
-        // .add_thread_local_system_process(control_geometry_tmp_system())
+        .add_thread_local_system_process(control_geometry_tmp_system())
         .into_app_builder()
         .build()
         .run();
@@ -87,7 +87,7 @@ fn init_entities(cmd: &mut CommandBuffer, #[resource] window: &Window) {
             128.0,
         ),
     ));
-    
+
     cmd.push((
         Transform2D::with_position(-96.0, -96.0),
         Geometry2D::new(
@@ -135,7 +135,7 @@ fn init_entities(cmd: &mut CommandBuffer, #[resource] window: &Window) {
             128.0,
         ),
     ));
-    
+
     cmd.push((
         Transform2D::with_position(-96.0, 64.0),
         Geometry2D::new(
@@ -156,7 +156,7 @@ fn init_entities(cmd: &mut CommandBuffer, #[resource] window: &Window) {
         Transform2D::with_position(64.0, 64.0),
         Geometry2D::new(
             Geometry2DType::Heart,
-            BorderDecoration::DynDash,
+            BorderDecoration::Solid,
             Rgba::SOFT_BLACK,
             th_l,
             InnerDecoration::Solid,
@@ -168,6 +168,22 @@ fn init_entities(cmd: &mut CommandBuffer, #[resource] window: &Window) {
         ),
     ));
 
+    cmd.push((
+        Transform2D::default(),
+        Geometry2D::new(
+            Geometry2DType::Segment,
+            BorderDecoration::DynDash,
+            Rgba::SOFT_BLACK,
+            -4.0,
+            InnerDecoration::Solid,
+            Rgba::RED,
+            101,
+            Vector2::new(0.0, 0.0),
+            256.0,
+            200.0,
+        ),
+        Marker {},
+    ));
 }
 
 #[system(for_each)]
@@ -189,36 +205,31 @@ fn control_camera(transform: &mut Transform2D, #[resource] input: &Input) {
     );
 }
 
-// #[system(for_each)]
-// #[filter(component::<Geometry2D>() & !component::<Marker>())]
-// fn control_geometry_tmp(
-//     transform: &mut Transform2D,
-//     geometry: &mut Geometry2D,
-//     #[resource] input: &Input,
-//     #[resource] time: &Time,
-// ) {
-//     const TSPEED: f32 = 48.0;
+#[system(for_each)]
+#[filter(component::<Geometry2D>() & component::<Marker>())]
+fn control_geometry_tmp(
+    transform: &mut Transform2D,
+    geometry: &mut Geometry2D,
+    #[resource] input: &Input,
+    #[resource] time: &Time,
+) {
+    const TSPEED: f32 = 48.0;
 
-//     if input.keyboard.pressed(KeyCode::A) {
-//         transform.position.x -= TSPEED * time.delta().as_secs_f32();
-//     } else if input.keyboard.pressed(KeyCode::D) {
-//         transform.position.x += TSPEED * time.delta().as_secs_f32();
-//     }
+    if input.keyboard.pressed(KeyCode::A) {
+        transform.position.x -= TSPEED * time.delta().as_secs_f32();
+    } else if input.keyboard.pressed(KeyCode::D) {
+        transform.position.x += TSPEED * time.delta().as_secs_f32();
+    }
 
-//     if input.keyboard.pressed(KeyCode::S) {
-//         transform.position.y -= TSPEED * time.delta().as_secs_f32();
-//     } else if input.keyboard.pressed(KeyCode::W) {
-//         transform.position.y += TSPEED * time.delta().as_secs_f32();
-//     }
+    if input.keyboard.pressed(KeyCode::S) {
+        transform.position.y -= TSPEED * time.delta().as_secs_f32();
+    } else if input.keyboard.pressed(KeyCode::W) {
+        transform.position.y += TSPEED * time.delta().as_secs_f32();
+    }
 
-//     // let angle = time.delta().as_secs_f32() * 30.0;
-//     // transform.rotate(angle);
-//     // unsafe {
-//     //     let past = time.time().as_secs_f32();
+    if input.keyboard.pressed(KeyCode::Space) {
+        transform.rotate(30.0 * time.delta().as_secs_f32());
+    }
+}
 
-//     //     geometry.extras.cla.0.y = 32.0 * f32::sin(geometry.extras.cla.0.x + 4.0 * past);
-//     //     geometry.extras.cla.2 += angle;
-//     // }
-// }
-
-// struct Marker;
+struct Marker;

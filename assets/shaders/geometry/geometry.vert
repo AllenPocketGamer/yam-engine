@@ -1,5 +1,22 @@
 #version 450
 
+// NOTE: CONSTANTS AREA
+
+// Geometry2DType
+const uint GT_CIRCLE        = 0;
+const uint GT_ETRIANGLE     = 1;
+const uint GT_SQUARE        = 2;
+const uint GT_PENTAGON      = 3;
+const uint GT_HEXAGON       = 4;
+const uint GT_OCTOGON       = 5;
+const uint GT_HEXAGRAM      = 6;
+const uint GT_STARFIVE      = 7;
+const uint GT_HEART         = 8;
+
+const uint GT_LINE          = 20;
+const uint GT_RAY           = 21;
+const uint GT_SEGMENT       = 22;
+
 // NOTE: STRUCTS AREA
 
 // std430 layout        // offset   align   size
@@ -125,11 +142,30 @@ void main() {
     datas = datas_with_order.xyz;
     bcolor = hex_to_color(g.bcolor);
     icolor = hex_to_color(g.icolor);
-    mx_g2l = to_matrix(g.extras.xy, g.extras.z, g.extras.w);
     mx_l2w = to_matrix(t);
 
-    const mat4 matrix = g.thickness >= 0 ? MX_VIEWPORT * MX_PROJECTION * MX_VIEW * mx_l2w * mx_g2l : mx_g2l;
-    th_g = abs(g.thickness) / length(matrix * vec4(normalize(v_pos.xy), 0.0, 0.0));
+    const uint gtype = datas.x;
+
+    if(gtype == GT_SEGMENT || gtype == GT_RAY || gtype == GT_LINE) {
+        const vec2 ab = g.extras.zw - g.extras.xy;
+        const float len = length(ab);
+
+        const vec2 position = (g.extras.xy + g.extras.zw) / 2.0;
+        const vec2 complex = ab / len;
+
+        const mat4 mx_l2s = MX_VIEWPORT * MX_PROJECTION * MX_VIEW * mx_l2w;
+        const float th_l = g.thickness >= 0 ? g.thickness / length(mx_l2s * vec4(1.0, 0.0, 0.0, 0.0)) : abs(g.thickness);
+
+        const vec2 scale = vec2(len, th_l);
+
+        mx_g2l = to_matrix(position, complex, scale);
+        th_g = 1.0;
+    } else {
+        mx_g2l = to_matrix(g.extras.xy, g.extras.z, g.extras.w);
+
+        const mat4 matrix = g.thickness >= 0 ? MX_VIEWPORT * MX_PROJECTION * MX_VIEW * mx_l2w * mx_g2l : mx_g2l;
+        th_g = abs(g.thickness) / length(matrix * vec4(normalize(v_pos.xy), 0.0, 0.0));
+    }
 
     gl_Position = MX_PROJECTION * MX_VIEW * mx_l2w * mx_g2l * vec4(v_pos.xy, float(order) - 255.0, v_pos.w);
 }
