@@ -1,6 +1,6 @@
 # yam
 
-`yam` is a `game engine` which uses ECS(Entity-Component-System) architecture dedicated to running millions of units.
+`yam` is a `game library` which uses ECS(Entity-Component-System) architecture dedicated to running millions of units.
 
 ## The State
 
