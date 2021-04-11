@@ -41,8 +41,8 @@ fn init_entities(commands: &mut CommandBuffer, #[resource] window: &Window) {
     commands.push((Transform2D::default(), Camera2D::new(width, height)));
 
     // `+8` prevent double the capacity of the vec when push element into.
-    let mut steerings: Vec<Steering> = Vec::with_capacity(COUNT + 8);
-    let mut transform2ds: Vec<Transform2D> = Vec::with_capacity(COUNT + 8);
+    let mut steerings: Instance<Steering> = Instance::with_capacity(COUNT + 8);
+    let mut transform2ds: Instance<Transform2D> = Instance::with_capacity(COUNT + 8);
 
     for x in 0..SQRT_COUNT {
         for y in 0..SQRT_COUNT {
@@ -54,7 +54,7 @@ fn init_entities(commands: &mut CommandBuffer, #[resource] window: &Window) {
     }
 
     // Push sprite(with instance) entity to `World`.
-    commands.push((transform2ds, steerings, Sprite { color: Color::BLUE }));
+    commands.push((transform2ds, steerings, Sprite { color: Rgba::ORANGE }));
 }
 
 #[system(for_each)]
@@ -79,8 +79,8 @@ fn control_camera(transform: &mut Transform2D, #[resource] input: &Input) {
 #[system(for_each)]
 #[filter(component::<Sprite>())]
 fn wander(
-    transform2ds: &mut Vec<Transform2D>,
-    steerings: &mut Vec<Steering>,
+    transform2ds: &mut Instance<Transform2D>,
+    steerings: &mut Instance<Steering>,
     #[resource] time: &Time,
 ) {
     use rayon::prelude::*;
@@ -141,7 +141,7 @@ impl Steering {
 
         let jitter: Vector2<f32> = Vector2::new(gen_random_f32(), gen_random_f32()) * r_radius;
 
-        let to_target: Vector2<f32> = jitter + transform2d.heading() * r_distance;
+        let to_target: Vector2<f32> = jitter + transform2d.heading_y() * r_distance;
         let desired_velocity: Vector2<f32> = to_target.normalize() * Self::MAX_FORCE;
 
         desired_velocity - self.velocity
@@ -158,7 +158,7 @@ impl Steering {
         transform2d.position += self.velocity * delta;
 
         if self.velocity.norm() > Self::THREHOLD {
-            transform2d.set_heading(&self.velocity.normalize());
+            transform2d.set_heading_y(&self.velocity.normalize());
         }
     }
 }

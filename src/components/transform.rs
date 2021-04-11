@@ -14,12 +14,12 @@ impl Transform2D {
     pub fn new(tx: f32, ty: f32, angle: f32, sx: f32, sy: f32) -> Self {
         Self {
             position: Vector2::new(tx, ty),
-            rotation: UnitComplex::new(angle),
+            rotation: UnitComplex::new(f32::to_radians(angle)),
             scale: Vector2::new(sx, sy),
         }
     }
 
-    pub fn new_with_translation(tx: f32, ty: f32) -> Self {
+    pub fn with_position(tx: f32, ty: f32) -> Self {
         Self {
             position: Vector2::new(tx, ty),
             rotation: UnitComplex::new(0.0),
@@ -27,15 +27,15 @@ impl Transform2D {
         }
     }
 
-    pub fn new_with_rotation(angle: f32) -> Self {
+    pub fn with_rotation(angle: f32) -> Self {
         Self {
             position: Vector2::new(0.0, 0.0),
-            rotation: UnitComplex::new(angle),
+            rotation: UnitComplex::new(f32::to_radians(angle)),
             scale: Vector2::new(1.0, 1.0),
         }
     }
 
-    pub fn new_with_scale(sx: f32, sy: f32) -> Self {
+    pub fn with_scale(sx: f32, sy: f32) -> Self {
         Self {
             position: Vector2::new(0.0, 0.0),
             rotation: UnitComplex::new(0.0),
@@ -44,25 +44,35 @@ impl Transform2D {
     }
 
     pub fn angle(&self) -> f32 {
-        self.rotation.angle()
+        f32::to_degrees(self.rotation.angle())
     }
 
     pub fn set_angle(&mut self, angle: f32) {
-        self.rotation = UnitComplex::new(angle);
+        self.rotation = UnitComplex::new(f32::to_radians(angle));
     }
 
     pub fn rotate(&mut self, delta_angle: f32) {
-        self.rotation *= UnitComplex::new(delta_angle);
+        self.rotation *= UnitComplex::new(f32::to_radians(delta_angle));
     }
 
-    pub fn heading(&self) -> Vector2<f32> {
+    pub fn heading_x(&self) -> Vector2<f32> {
         Vector2::new(self.rotation.re, self.rotation.im)
     }
 
-    pub fn set_heading(&mut self, heading: &Vector2<f32>) {
+    pub fn set_heading_x(&mut self, heading: &Vector2<f32>) {
         let heading = heading.normalize();
 
         self.rotation = UnitComplex::from_cos_sin_unchecked(heading.x, heading.y);
+    }
+
+    pub fn heading_y(&self) -> Vector2<f32> {
+        Vector2::new(-self.rotation.im, self.rotation.re)
+    }
+
+    pub fn set_heading_y(&mut self, heading: &Vector2<f32>) {
+        let heading = heading.normalize();
+
+        self.rotation = UnitComplex::from_cos_sin_unchecked(heading.y, -heading.x);
     }
 
     pub fn to_homogeneous(&self) -> Matrix3<f32> {

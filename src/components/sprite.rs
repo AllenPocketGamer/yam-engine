@@ -1,5 +1,5 @@
-use crate::misc::color::Color;
+use crate::misc::color::Rgba;
 
 pub struct Sprite {
-    pub color: Color,
+    pub color: Rgba,
 }

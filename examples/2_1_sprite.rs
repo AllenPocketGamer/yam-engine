@@ -31,8 +31,8 @@ fn init_entities(commands: &mut CommandBuffer, #[resource] window: &Window) {
     commands.push((Transform2D::default(), Camera2D::new(width, height)));
     // Push sprite entity to `World`.
     commands.push((
-        Transform2D::new_with_scale(64.0, 64.0),
-        Sprite { color: Color::RED },
+        Transform2D::with_scale(64.0, 64.0),
+        Sprite { color: Rgba::RED },
     ));
 }
 

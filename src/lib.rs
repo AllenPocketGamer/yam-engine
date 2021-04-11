@@ -17,10 +17,15 @@ pub extern crate nalgebra;
 pub use app::*;
 pub use components::{
     camera::Camera2D,
+    geometry::{Assembly, BorderDecoration, Geometry2D, Geometry2DType, InnerDecoration},
     sprite::Sprite,
     time::{DiagnosticTimer, Time},
     transform::Transform2D,
+    Instance,
 };
 pub use input::{Input, KeyCode, MouseButton};
-pub use misc::color::Color;
+pub use misc::color::{Hex, Rgba};
 pub use window::{Fullscreen, MonitorHandle, VideoMode, Window};
+
+const DEFAULT_WIDTH: u32 = 1280;
+const DEFAULT_HEIGHT: u32 = 720;

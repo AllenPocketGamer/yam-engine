@@ -29,6 +29,7 @@ num_cpus = "1.*"
 bytemuck = { version = "1.4.*", features = ["derive"] }
 colored = "2.0.*"
 crossterm = "0.18.*"
+shaderc ="0.7.*"
 
 # async
 futures = "0.3.*"
@@ -42,8 +43,8 @@ criterion = "0.3.*"
 [build-dependencies]
 glob = "0.3.*"
 anyhow = "1.0.*"
-shaderc ="0.7.*"
 fs_extra = "1.2.*"
+shaderc ="0.7.*"
 
 # [[bench]]
 # name = "my_benchmark"
@@ -69,13 +70,21 @@ name = "window"
 path = "examples/1_4_window.rs"
 
 [[example]]
-name = "render2d"
-path = "examples/2_1_render2d.rs"
+name = "sprite"
+path = "examples/2_1_sprite.rs"
 
 [[example]]
-name = "render2d_millions"
-path = "examples/2_2_render2d_millions.rs"
+name = "geometry"
+path = "examples/2_2_geometry.rs"
+
+[[example]]
+name = "millions_sprites"
+path = "examples/3_1_millions_sprites.rs"
 
 [[example]]
 name = "render2d_millions_with_simd"
-path= "example/2_3_render2d_millions_with_simd"
+path= "examples/3_2_render2d_millions_with_simd.rs"
+
+[[example]]
+name = "millions_geometry"
+path= "examples/3_3_millions_geometry.rs"
