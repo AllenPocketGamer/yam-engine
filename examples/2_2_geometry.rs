@@ -226,7 +226,7 @@ fn control_camera(transform: &mut Transform2D, #[resource] input: &Input) {
 #[filter(component::<Geometry2D>() & component::<Marker>())]
 fn control_geometry_tmp(
     transform: &mut Transform2D,
-    geometry: &mut Geometry2D,
+    _geometry: &mut Geometry2D,
     #[resource] input: &Input,
     #[resource] time: &Time,
 ) {
