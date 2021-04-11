@@ -1,7 +1,5 @@
-//! Run the example with command `cargo run --example render2d_millions` --release`.
-//!
-//! My device(CPU: AMD R5 2600X, Meomory: 16GB DDR4, GPU: NVIDIA GTX1070Ti) can be
-//! able to render 1_000_000 sprites in 60 fps.
+//! wander行为有问题, 大概率朝着一个方向移动;
+//! 之后再解决, 现在没心情;
 
 use yam::legion::{systems::CommandBuffer, *};
 use yam::nalgebra::Vector2;
@@ -32,7 +30,7 @@ fn introduction() {
 fn init_entities(commands: &mut CommandBuffer, #[resource] window: &Window) {
     const GEOMETRY_SIZE: f32 = 128.0;
 
-    const SQRT_COUNT: usize = 1024;
+    const SQRT_COUNT: usize = 256;
     const COUNT: usize = SQRT_COUNT * SQRT_COUNT;
 
     let (width, height) = window.resolution();
@@ -59,18 +57,32 @@ fn init_entities(commands: &mut CommandBuffer, #[resource] window: &Window) {
     // Push geometry(with instance) entity to `World`.
     commands.push((
         transform2ds,
-        Geometry2D::new(
-            Geometry2DType::StarFive,
-            BorderDecoration::DynDash,
-            Rgba::SOFT_BLACK,
-            -2.0,
-            InnerDecoration::Solid,
-            Rgba::VIOLET,
-            1,
-            Vector2::new(0.0, 0.0),
-            0.0,
-            GEOMETRY_SIZE,
-        ),
+        vec![
+            Geometry2D::new(
+                Geometry2DType::ETriangle,
+                BorderDecoration::DynDash,
+                Rgba::SOFT_BLACK,
+                -2.0,
+                InnerDecoration::Solid,
+                Rgba::VIOLET,
+                1,
+                Vector2::new(0.0, 0.0),
+                0.0,
+                GEOMETRY_SIZE,
+            ),
+            Geometry2D::new(
+                Geometry2DType::Circle,
+                BorderDecoration::Solid,
+                Rgba::SOFT_BLACK,
+                -2.0,
+                InnerDecoration::Solid,
+                Rgba::GREEN,
+                2,
+                Vector2::new(0.0, 0.8 * GEOMETRY_SIZE),
+                0.0,
+                0.2 * GEOMETRY_SIZE,
+            ),
+        ],
         steerings,
     ));
 
@@ -111,7 +123,7 @@ fn control_camera(transform: &mut Transform2D, #[resource] input: &Input) {
 }
 
 #[system(for_each)]
-#[filter(component::<Geometry2D>())]
+#[filter(component::<Vec<Geometry2D>>())]
 fn wander(
     transform2ds: &mut Instance<Transform2D>,
     steerings: &mut Instance<Steering>,
@@ -119,8 +131,8 @@ fn wander(
 ) {
     use rayon::prelude::*;
 
-    const RADIUS: f32 = 128.0;
-    const DISTANCE: f32 = 64.0;
+    const RADIUS: f32 = 64.0;
+    const DISTANCE: f32 = 16.0;
 
     let delta = time.delta().as_secs_f32();
 
@@ -141,9 +153,9 @@ struct Steering {
 
 impl Steering {
     #[allow(dead_code)]
-    pub const MAX_SPEED: f32 = 1024.0;
+    pub const MAX_SPEED: f32 = 256.0;
     #[allow(dead_code)]
-    pub const MAX_FORCE: f32 = 2048.0;
+    pub const MAX_FORCE: f32 = 512.0;
     #[allow(dead_code)]
     pub const THREHOLD: f32 = 0.0001;
 
@@ -175,7 +187,7 @@ impl Steering {
 
         let jitter: Vector2<f32> = Vector2::new(gen_random_f32(), gen_random_f32()) * r_radius;
 
-        let to_target: Vector2<f32> = jitter + transform2d.heading() * r_distance;
+        let to_target: Vector2<f32> = jitter + transform2d.heading_y() * r_distance;
         let desired_velocity: Vector2<f32> = to_target.normalize() * Self::MAX_FORCE;
 
         desired_velocity - self.velocity
@@ -192,7 +204,7 @@ impl Steering {
         transform2d.position += self.velocity * delta;
 
         if self.velocity.norm() > Self::THREHOLD {
-            transform2d.set_heading(&self.velocity.normalize());
+            transform2d.set_heading_y(&self.velocity);
         }
     }
 }

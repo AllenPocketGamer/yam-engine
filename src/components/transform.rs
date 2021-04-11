@@ -55,14 +55,24 @@ impl Transform2D {
         self.rotation *= UnitComplex::new(f32::to_radians(delta_angle));
     }
 
-    pub fn heading(&self) -> Vector2<f32> {
+    pub fn heading_x(&self) -> Vector2<f32> {
         Vector2::new(self.rotation.re, self.rotation.im)
     }
 
-    pub fn set_heading(&mut self, heading: &Vector2<f32>) {
+    pub fn set_heading_x(&mut self, heading: &Vector2<f32>) {
         let heading = heading.normalize();
 
         self.rotation = UnitComplex::from_cos_sin_unchecked(heading.x, heading.y);
+    }
+
+    pub fn heading_y(&self) -> Vector2<f32> {
+        Vector2::new(-self.rotation.im, self.rotation.re)
+    }
+
+    pub fn set_heading_y(&mut self, heading: &Vector2<f32>) {
+        let heading = heading.normalize();
+
+        self.rotation = UnitComplex::from_cos_sin_unchecked(heading.y, -heading.x);
     }
 
     pub fn to_homogeneous(&self) -> Matrix3<f32> {
