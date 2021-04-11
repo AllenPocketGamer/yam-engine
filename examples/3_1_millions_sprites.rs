@@ -141,7 +141,7 @@ impl Steering {
 
         let jitter: Vector2<f32> = Vector2::new(gen_random_f32(), gen_random_f32()) * r_radius;
 
-        let to_target: Vector2<f32> = jitter + transform2d.heading() * r_distance;
+        let to_target: Vector2<f32> = jitter + transform2d.heading_y() * r_distance;
         let desired_velocity: Vector2<f32> = to_target.normalize() * Self::MAX_FORCE;
 
         desired_velocity - self.velocity
@@ -158,7 +158,7 @@ impl Steering {
         transform2d.position += self.velocity * delta;
 
         if self.velocity.norm() > Self::THREHOLD {
-            transform2d.set_heading(&self.velocity.normalize());
+            transform2d.set_heading_y(&self.velocity.normalize());
         }
     }
 }
