@@ -74,8 +74,10 @@ layout(location = 1) in uvec2 index;
 
 // NOTE: OUT VARIABLES
 
-// The border thickness in `geometry space`.
-layout(location = 0) out float th_g;
+// The border thickness in `local space` if it is a 1d geometry;
+// 
+// The border thickness in `geometry space` if it is a 2d geometry.
+layout(location = 0) out float th;
 // GeometryType + BorderDecoration + InnerDecoration.
 layout(location = 1) out uvec3 datas;
 // Geometry border color.
@@ -145,8 +147,9 @@ void main() {
     mx_l2w = to_matrix(t);
 
     const uint gtype = datas.x;
+    const bool is_1d = gtype == GT_LINE || gtype == GT_RAY || gtype == GT_SEGMENT;
 
-    if(gtype == GT_SEGMENT || gtype == GT_RAY || gtype == GT_LINE) {
+    if(is_1d) {
         const vec2 ab = g.extras.zw - g.extras.xy;
         const float len = length(ab);
 
@@ -159,12 +162,13 @@ void main() {
         const vec2 scale = vec2(len, th_l);
 
         mx_g2l = to_matrix(position, complex, scale);
-        th_g = 1.0;
+        th = th_l;
     } else {
         mx_g2l = to_matrix(g.extras.xy, g.extras.z, g.extras.w);
 
         const mat4 matrix = g.thickness >= 0 ? MX_VIEWPORT * MX_PROJECTION * MX_VIEW * mx_l2w * mx_g2l : mx_g2l;
-        th_g = abs(g.thickness) / length(matrix * vec4(normalize(v_pos.xy), 0.0, 0.0));
+        const float th_g = abs(g.thickness) / length(matrix * vec4(normalize(v_pos.xy), 0.0, 0.0));
+        th = th_g;
     }
 
     gl_Position = MX_PROJECTION * MX_VIEW * mx_l2w * mx_g2l * vec4(v_pos.xy, float(order) - 255.0, v_pos.w);

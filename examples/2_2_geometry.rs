@@ -184,6 +184,23 @@ fn init_entities(cmd: &mut CommandBuffer, #[resource] window: &Window) {
         ),
         Marker {},
     ));
+
+    cmd.push((
+        Transform2D::default(),
+        Geometry2D::new(
+            Geometry2DType::Segment,
+            BorderDecoration::DynDash,
+            Rgba::SOFT_BLACK,
+            4.0,
+            InnerDecoration::Solid,
+            Rgba::RED,
+            101,
+            Vector2::new(0.0, 0.0),
+            -256.0,
+            200.0,
+        ),
+        Marker {},
+    ));
 }
 
 #[system(for_each)]
