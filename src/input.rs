@@ -2,6 +2,8 @@ use winit::event::{
     DeviceEvent, ElementState, Event, KeyboardInput, MouseScrollDelta, WindowEvent,
 };
 
+use crate::{misc::coordinates::Transformation, nalgebra::Vector4};
+
 use std::collections::HashMap;
 
 pub type KeyCode = winit::event::VirtualKeyCode;
@@ -20,9 +22,11 @@ impl Input {
         }
     }
 
-    pub(crate) fn apply(&mut self, evts: &mut Vec<Event<()>>) {
+    pub(crate) fn apply(&mut self, evts: &mut Vec<Event<()>>, trf: &Transformation) {
         self.mouse.before_apply();
         self.keyboard.before_apply();
+
+        self.mouse.trf = *trf;
 
         for evt in evts.drain(..) {
             match evt {
@@ -57,7 +61,7 @@ impl Input {
                         self.mouse.cursor_state = CursorState::JustEntered;
                     }
                     WindowEvent::CursorMoved { position, .. } => {
-                        self.mouse.cursor_position = (position.x as f32, position.y as f32);
+                        self.mouse.cursor_position_ss = (position.x as f32, position.y as f32);
                     }
 
                     WindowEvent::KeyboardInput {
@@ -113,7 +117,10 @@ pub struct Mouse {
     mouse_button_state: HashMap<MouseButton, ButtonState>,
 
     cursor_state: CursorState,
-    cursor_position: (f32, f32),
+    // cursor position in `screen space`.
+    cursor_position_ss: (f32, f32),
+
+    trf: Transformation,
 }
 
 impl Mouse {
@@ -124,7 +131,9 @@ impl Mouse {
             mouse_button_state: HashMap::with_capacity(4),
 
             cursor_state: CursorState::Left,
-            cursor_position: (0f32, 0f32),
+            cursor_position_ss: (0f32, 0f32),
+
+            trf: Transformation::default(),
         }
     }
 
@@ -180,12 +189,38 @@ impl Mouse {
         self.cursor_state == CursorState::JustEntered
     }
 
-    /// Return the position of the cursor in the window.
-    pub fn cursor_position(&self) -> (f32, f32) {
-        self.cursor_position
+    /// Return the position of the cursor in `screen space`.
+    pub fn cursor_position_in_ss(&self) -> (f32, f32) {
+        self.cursor_position_ss
     }
 
-    /// Return the difference in the position of the mouse between two frames.
+    /// Return the position of the cursor in `view space`.
+    pub fn cursor_position_in_vs(&self) -> (f32, f32) {
+        let mp_vs = self.trf.mx_s2v()
+            * Vector4::new(
+                self.cursor_position_ss.0,
+                self.cursor_position_ss.1,
+                0.0,
+                1.0,
+            );
+
+        (mp_vs.x, mp_vs.y)
+    }
+
+    /// Return the position of the cursor in `world space`.
+    pub fn cursor_position_in_ws(&self) -> (f32, f32) {
+        let mp_ws = self.trf.mx_s2w()
+            * Vector4::new(
+                self.cursor_position_ss.0,
+                self.cursor_position_ss.1,
+                0.0,
+                1.0,
+            );
+
+        (mp_ws.x, mp_ws.y)
+    }
+
+    /// Return the difference in the position of the mouse between two frames(in screen space).
     pub fn mouse_motion(&self) -> (f32, f32) {
         self.mouse_motion
     }

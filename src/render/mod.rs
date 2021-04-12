@@ -6,6 +6,7 @@ use crate::{
     app::{AppStage, AppStageBuilder},
     components::{camera::Camera2D, time::Time, transform::Transform2D},
     legion::{IntoQuery, Resources, World},
+    misc::{coordinates::Transformation, viewport::Viewport},
     nalgebra::{Matrix4, Vector2},
     window::Window,
 };
@@ -37,7 +38,8 @@ pub(crate) fn create_app_stage_render(window: &Window) -> AppStage {
     let mut g2d_rder = GeometryRenderer::new(&r2d);
 
     let render_process = move |world: &mut World, resources: &mut Resources| {
-        r2d.process(world, resources);
+        let trf = r2d.process(world, resources);
+        resources.insert(trf);
 
         r2d.begin_draw();
 
@@ -234,7 +236,11 @@ impl Render2D {
         }
     }
 
-    fn process(&mut self, world: &mut World, resources: &mut Resources) {
+    fn process(
+        &mut self,
+        world: &mut World,
+        resources: &mut Resources,
+    ) -> Transformation {
         // Get window size.
         let (width, height) = {
             let window = resources
@@ -260,9 +266,10 @@ impl Render2D {
         let mut query_camera2d = <(&Transform2D, &Camera2D)>::query();
 
         // Render a frame if there has a camera.
+        let mut ct = Transformation::default();
         if let Some((transform2d, camera2d)) = query_camera2d.iter(world).next() {
-            let mx_view = transform2d.to_homogeneous_3d().try_inverse().unwrap();
-            let mx_proj = {
+            ct.mx_view = transform2d.to_homogeneous_3d().try_inverse().unwrap();
+            ct.mx_proj = {
                 #[cfg_attr(rustfmt, rustfmt_skip)]
                 let opengl_to_wgpu_matrix: Matrix4<f32> = Matrix4::new(
                     1.0, 0.0, 0.0, 0.0,
@@ -275,6 +282,7 @@ impl Render2D {
             };
             let viewport =
                 Viewport::new_in_screen(width as f32, height as f32, camera2d.aspect_ratio());
+            ct.mx_viewport = viewport.to_homogeneous_3d();
 
             let time = resources
                 .get::<Time>()
@@ -284,17 +292,17 @@ impl Render2D {
             self.gpu.queue.write_buffer(
                 &self.utility_buf,
                 0,
-                bytemuck::cast_slice(mx_view.as_slice()),
+                bytemuck::cast_slice(ct.mx_view.as_slice()),
             );
             self.gpu.queue.write_buffer(
                 &self.utility_buf,
                 64,
-                bytemuck::cast_slice(mx_proj.as_slice()),
+                bytemuck::cast_slice(ct.mx_proj.as_slice()),
             );
             self.gpu.queue.write_buffer(
                 &self.utility_buf,
                 128,
-                bytemuck::cast_slice(viewport.to_homogeneous_3d().as_slice()),
+                bytemuck::cast_slice(ct.mx_viewport.as_slice()),
             );
 
             // Write viewport_size to utility buffer.
@@ -313,6 +321,8 @@ impl Render2D {
 
             self.viewport = viewport;
         }
+
+        ct
     }
 
     fn finish_draw(&mut self) {
@@ -321,64 +331,6 @@ impl Render2D {
         } else {
             panic!("ERR: Drawing has ended already.")
         }
-    }
-}
-
-#[derive(Debug, Clone, Copy)]
-struct Viewport {
-    pub x: f32,
-    pub y: f32,
-
-    pub w: f32,
-    pub h: f32,
-
-    pub min_depth: f32,
-    pub max_depth: f32,
-}
-
-impl Viewport {
-    pub fn new_in_screen(width: f32, height: f32, aspect_ratio: f32) -> Self {
-        let screen_ratio = width / height;
-
-        let (x, y, width, height) = if aspect_ratio <= screen_ratio {
-            (
-                (width - aspect_ratio * height) / 2.0,
-                0f32,
-                aspect_ratio * height,
-                height,
-            )
-        } else {
-            (
-                0f32,
-                (height - width / aspect_ratio) / 2.0,
-                width,
-                width / aspect_ratio,
-            )
-        };
-
-        Self {
-            x,
-            y,
-            w: width,
-            h: height,
-            min_depth: 0.0,
-            max_depth: 1.0,
-        }
-    }
-
-    /// Transform point from NDC to screen space
-    ///
-    /// x_ss = (x_ndc + 1) / 2 * width + vp.x        , x_ndc ∈ [-1, 1]
-    /// y_ss = (1 - y_ndc) / 2 * height + vp.z       , y_ndc ∈ [-1, 1]
-    /// z_ss = (far - near) * z_ndc + near           , z_ndc ∈ [+0, 1]
-    pub fn to_homogeneous_3d(&self) -> Matrix4<f32> {
-        #[cfg_attr(rustfmt, rustfmt_skip)]
-        Matrix4::new(
-            0.5 * self.w,   0.0,                0.0,                                0.5 * self.w + self.x,
-            0.0,                -0.5 * self.h, 0.0,                                0.5 * self.h + self.y,
-            0.0,                0.0,                self.max_depth - self.min_depth,    self.min_depth,
-            0.0,                0.0,                0.0,                                1.0,
-        )
     }
 }
 

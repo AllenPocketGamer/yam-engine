@@ -5,6 +5,7 @@ use crate::{
         systems::{Builder, ParallelRunnable, Runnable},
         Resources, Schedule, World,
     },
+    misc::coordinates::Transformation,
     render::create_app_stage_render,
     window::Window,
     DEFAULT_HEIGHT, DEFAULT_WIDTH,
@@ -139,7 +140,8 @@ impl App {
                     todo!()
                 }
                 Event::MainEventsCleared => {
-                    resources.get_mut::<Input>().unwrap().apply(&mut input_evts)
+                    let trf = *resources.get_or_default::<Transformation>();
+                    resources.get_mut::<Input>().unwrap().apply(&mut input_evts, &trf)
                 }
                 Event::RedrawRequested(_) => {}
                 Event::RedrawEventsCleared => {}

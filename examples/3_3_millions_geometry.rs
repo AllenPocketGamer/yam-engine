@@ -2,8 +2,8 @@ use yam::legion::{systems::CommandBuffer, *};
 use yam::nalgebra::Vector2;
 use yam::*;
 
-const RADIUS: f32 = 64.0;
-const DISTANCE: f32 = 16.0;
+static mut RADIUS: f32 = 64.0;
+static mut DISTANCE: f32 = 16.0;
 
 fn main() -> Result<(), AppBuildError> {
     AppBuilder::new()
@@ -12,6 +12,7 @@ fn main() -> Result<(), AppBuildError> {
         .add_thread_local_system_startup(init_entities_system())
         .add_thread_local_system_process(control_camera_system())
         .add_thread_local_system_process(wander_system())
+        .add_thread_local_system_process(control_behaviour_system())
         .into_app_builder()
         .build()
         .run();
@@ -78,9 +79,9 @@ fn init_entities(commands: &mut CommandBuffer, #[resource] window: &Window) {
                 InnerDecoration::None,
                 Rgba::WHITE,
                 1,
-                Vector2::new(0.0, DISTANCE),
+                Vector2::new(0.0, unsafe { DISTANCE }),
                 0.0,
-                2.0 * RADIUS,
+                2.0 * unsafe { RADIUS },
             ),
             Geometry::new_2d(
                 Geometry2DType::Circle,
@@ -90,7 +91,7 @@ fn init_entities(commands: &mut CommandBuffer, #[resource] window: &Window) {
                 InnerDecoration::Solid,
                 Rgba::CAMEL,
                 2,
-                Vector2::new(0.0, DISTANCE + RADIUS),
+                Vector2::new(0.0, unsafe { RADIUS + DISTANCE }),
                 0.0,
                 32.0,
             ),
@@ -119,21 +120,63 @@ fn control_camera(transform: &mut Transform2D, #[resource] input: &Input) {
 }
 
 #[system(for_each)]
+fn control_behaviour(
+    geometries: &mut Assembly,
+    #[resource] input: &Input,
+    #[resource] time: &Time,
+) {
+    const SPEED: f32 = 16.0;
+
+    if input.keyboard.pressed(KeyCode::A) {
+        unsafe {
+            RADIUS -= SPEED * time.delta().as_secs_f32();
+        }
+    } else if input.keyboard.pressed(KeyCode::D) {
+        unsafe {
+            RADIUS += SPEED * time.delta().as_secs_f32();
+        }
+    }
+
+    if input.keyboard.pressed(KeyCode::S) {
+        unsafe {
+            DISTANCE -= SPEED * time.delta().as_secs_f32();
+        }
+    } else if input.keyboard.pressed(KeyCode::W) {
+        unsafe {
+            DISTANCE += SPEED * time.delta().as_secs_f32();
+        }
+    }
+
+    {
+        let dash_circle = &mut geometries[1];
+        dash_circle.set_position_uncheck(Vector2::new(0.0, unsafe { DISTANCE }));
+        dash_circle.set_size_uncheck(2.0 * unsafe { RADIUS });
+    }
+
+    {
+        let dirc_circle = &mut geometries[2];
+        dirc_circle.set_position_uncheck(Vector2::new(0.0, unsafe { RADIUS + DISTANCE }));
+    }
+}
+
+#[system(for_each)]
 #[filter(component::<Vec<Geometry>>())]
 fn wander(
     transform2ds: &mut Instance<Transform2D>,
     steerings: &mut Instance<Steering>,
+    #[resource] input: &Input,
     #[resource] time: &Time,
 ) {
     use rayon::prelude::*;
-    
+
     let delta = time.delta().as_secs_f32();
 
     transform2ds
         .par_iter_mut()
         .zip(steerings.par_iter_mut())
         .for_each(|(transform2d, steering)| {
-            steering.apply_force(&steering.wander(transform2d, RADIUS, DISTANCE));
+            steering
+                .apply_force(steering.wander(transform2d, unsafe { RADIUS }, unsafe { DISTANCE }));
             steering.motion(transform2d, delta);
         });
 }
@@ -160,8 +203,8 @@ impl Steering {
     }
 
     #[allow(dead_code)]
-    pub fn seek(&self, transform2d: &Transform2D, target: &Vector2<f32>) -> Vector2<f32> {
-        let to_target: Vector2<f32> = *target - transform2d.position;
+    pub fn seek(&self, transform2d: &Transform2D, target: Vector2<f32>) -> Vector2<f32> {
+        let to_target: Vector2<f32> = target - transform2d.position;
         let desired_velocity: Vector2<f32> = to_target.normalize() * Self::MAX_FORCE;
 
         desired_velocity - self.velocity
@@ -186,7 +229,7 @@ impl Steering {
         desired_velocity - self.velocity
     }
 
-    pub fn apply_force(&mut self, force: &Vector2<f32>) {
+    pub fn apply_force(&mut self, force: Vector2<f32>) {
         self.force = force.normalize() * Self::MAX_FORCE.min(force.norm());
     }
 
