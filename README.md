@@ -49,11 +49,13 @@
     cargo run --example window
     ```
 
-5. **sprite**: Show how to render a sprite to screen.
+5. ~~**sprite**: Show how to render a sprite to screen.~~(WAITTING TO FIX)
 
     ```bash
     cargo run --example sprite
     ```
+
+    ![example_geometry](./assets/images/examples/example_geometry.png)
 
 6. **geometry**: Show how to render a geometry to screen.
 
@@ -61,14 +63,21 @@
     cargo run --example geometry
     ```
 
-7. **render2d_millions**: Show how to render millions of sprites to screen in 60fps.
+7. ~~**millions_sprites**: Show how to render millions of sprites to screen in 60fps.~~(WAITTING TO FIX)
 
     ```bash
     # Use `--release` flag to prevent performance decline.
-    cargo run --example render2d_millions --release
+    cargo run --example millions_sprites --release
     ```
 
-8. (TODO)**render2d_millions_with_simd**: Show how to optimize **render2d_millions** by SIMD.
+8. **millions_geometry**: Show how to render millions of geometries to screen in 60fps.
+
+    ```bash
+    # Use `--release` flag to prevent performance decline.
+    cargo run --example millions_geometry --release
+    ```
+
+9. (TODO)**render2d_millions_with_simd**: Show how to optimize **render2d_millions** by SIMD.
 
     ```bash
     # Use `--release` flag to prevent performance decline.

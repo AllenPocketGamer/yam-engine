@@ -1,9 +1,9 @@
-//! wander行为有问题, 大概率朝着一个方向移动;
-//! 之后再解决, 现在没心情;
-
 use yam::legion::{systems::CommandBuffer, *};
 use yam::nalgebra::Vector2;
 use yam::*;
+
+const RADIUS: f32 = 64.0;
+const DISTANCE: f32 = 16.0;
 
 fn main() -> Result<(), AppBuildError> {
     AppBuilder::new()
@@ -28,7 +28,7 @@ fn introduction() {
 
 #[system]
 fn init_entities(commands: &mut CommandBuffer, #[resource] window: &Window) {
-    const GEOMETRY_SIZE: f32 = 128.0;
+    const GEOMETRY_SIZE: f32 = 100.0;
 
     const SQRT_COUNT: usize = 256;
     const COUNT: usize = SQRT_COUNT * SQRT_COUNT;
@@ -62,44 +62,40 @@ fn init_entities(commands: &mut CommandBuffer, #[resource] window: &Window) {
                 Geometry2DType::ETriangle,
                 BorderDecoration::Solid,
                 Rgba::SOFT_BLACK,
-                -2.0,
+                -4.0,
                 InnerDecoration::Solid,
-                Rgba::VIOLET,
-                1,
+                Rgba::ROSE,
+                0,
                 Vector2::new(0.0, 0.0),
                 0.0,
                 GEOMETRY_SIZE,
             ),
             Geometry2D::new(
-                Geometry2DType::Segment,
+                Geometry2DType::Circle,
                 BorderDecoration::DynDash,
-                Rgba::SPRING,
+                Rgba::SOFT_BLACK,
                 -4.0,
                 InnerDecoration::None,
                 Rgba::WHITE,
-                0,
-                Vector2::new(0.0, 0.0),
+                1,
+                Vector2::new(0.0, DISTANCE),
                 0.0,
-                1.2 * GEOMETRY_SIZE,
+                2.0 * RADIUS,
+            ),
+            Geometry2D::new(
+                Geometry2DType::Circle,
+                BorderDecoration::Solid,
+                Rgba::SOFT_BLACK,
+                -2.0,
+                InnerDecoration::Solid,
+                Rgba::CAMEL,
+                2,
+                Vector2::new(0.0, DISTANCE + RADIUS),
+                0.0,
+                32.0,
             ),
         ],
         steerings,
-    ));
-
-    commands.push((
-        Transform2D::default(),
-        Geometry2D::new(
-            Geometry2DType::Circle,
-            BorderDecoration::DynDash,
-            Rgba::SOFT_BLACK,
-            -2.0,
-            InnerDecoration::Solid,
-            Rgba::ROSE,
-            1,
-            Vector2::new(0.0, 0.0),
-            0.0,
-            128.0,
-        ),
     ));
 }
 
@@ -130,10 +126,7 @@ fn wander(
     #[resource] time: &Time,
 ) {
     use rayon::prelude::*;
-
-    const RADIUS: f32 = 64.0;
-    const DISTANCE: f32 = 16.0;
-
+    
     let delta = time.delta().as_secs_f32();
 
     transform2ds

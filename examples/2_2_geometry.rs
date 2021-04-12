@@ -7,7 +7,7 @@ fn main() -> Result<(), AppBuildError> {
         .create_stage_builder(String::from("default"))?
         .add_thread_local_system_startup(init_entities_system())
         .add_thread_local_system_process(control_camera_system())
-        .add_thread_local_system_process(control_geometry_tmp_system())
+        .add_thread_local_system_process(control_geometry_system())
         .into_app_builder()
         .build()
         .run();
@@ -23,9 +23,12 @@ fn init_entities(cmd: &mut CommandBuffer, #[resource] window: &Window) {
     cmd.push((Transform2D::default(), Camera2D::new(width, height)));
 
     let th_l: f32 = -2.0;
+    let size: f32 = 100.0;
+
+    let (x0, x1, x2) = (-0.5 * size, 0.5 * size, 1.5 * size);
 
     cmd.push((
-        Transform2D::with_position(-256.0, -256.0),
+        Transform2D::with_position(x0, x0),
         Geometry2D::new(
             Geometry2DType::Circle,
             BorderDecoration::DynDash,
@@ -36,15 +39,15 @@ fn init_entities(cmd: &mut CommandBuffer, #[resource] window: &Window) {
             100,
             Vector2::new(0.0, 0.0),
             0.0,
-            128.0,
+            size,
         ),
     ));
 
     cmd.push((
-        Transform2D::with_position(-96.0, -256.0),
+        Transform2D::with_position(x1, x0),
         Geometry2D::new(
             Geometry2DType::ETriangle,
-            BorderDecoration::DynDash,
+            BorderDecoration::Solid,
             Rgba::SOFT_BLACK,
             th_l,
             InnerDecoration::Solid,
@@ -52,12 +55,12 @@ fn init_entities(cmd: &mut CommandBuffer, #[resource] window: &Window) {
             100,
             Vector2::new(0.0, 0.0),
             0.0,
-            128.0,
+            size,
         ),
     ));
 
     cmd.push((
-        Transform2D::with_position(64.0, -256.0),
+        Transform2D::with_position(x2, x0),
         Geometry2D::new(
             Geometry2DType::Square,
             BorderDecoration::DynDash,
@@ -68,15 +71,15 @@ fn init_entities(cmd: &mut CommandBuffer, #[resource] window: &Window) {
             100,
             Vector2::new(0.0, 0.0),
             0.0,
-            128.0,
+            size,
         ),
     ));
 
     cmd.push((
-        Transform2D::with_position(-256.0, -96.0),
+        Transform2D::with_position(x0, x1),
         Geometry2D::new(
             Geometry2DType::Pentagon,
-            BorderDecoration::DynDash,
+            BorderDecoration::Solid,
             Rgba::SOFT_BLACK,
             th_l,
             InnerDecoration::Solid,
@@ -84,12 +87,12 @@ fn init_entities(cmd: &mut CommandBuffer, #[resource] window: &Window) {
             100,
             Vector2::new(0.0, 0.0),
             0.0,
-            128.0,
+            size,
         ),
     ));
 
     cmd.push((
-        Transform2D::with_position(-96.0, -96.0),
+        Transform2D::with_position(x1, x1),
         Geometry2D::new(
             Geometry2DType::Hexagon,
             BorderDecoration::DynDash,
@@ -100,15 +103,15 @@ fn init_entities(cmd: &mut CommandBuffer, #[resource] window: &Window) {
             100,
             Vector2::new(0.0, 0.0),
             0.0,
-            128.0,
+            size,
         ),
     ));
 
     cmd.push((
-        Transform2D::with_position(64.0, -96.0),
+        Transform2D::with_position(x2, x1),
         Geometry2D::new(
             Geometry2DType::Octogon,
-            BorderDecoration::DynDash,
+            BorderDecoration::Solid,
             Rgba::SOFT_BLACK,
             th_l,
             InnerDecoration::Solid,
@@ -116,12 +119,12 @@ fn init_entities(cmd: &mut CommandBuffer, #[resource] window: &Window) {
             100,
             Vector2::new(0.0, 0.0),
             0.0,
-            128.0,
+            size,
         ),
     ));
 
     cmd.push((
-        Transform2D::with_position(-256.0, 64.0),
+        Transform2D::with_position(x0, x2),
         Geometry2D::new(
             Geometry2DType::Hexagram,
             BorderDecoration::DynDash,
@@ -132,15 +135,15 @@ fn init_entities(cmd: &mut CommandBuffer, #[resource] window: &Window) {
             100,
             Vector2::new(0.0, 0.0),
             0.0,
-            128.0,
+            size,
         ),
     ));
 
     cmd.push((
-        Transform2D::with_position(-96.0, 64.0),
+        Transform2D::with_position(x1, x2),
         Geometry2D::new(
             Geometry2DType::StarFive,
-            BorderDecoration::DynDash,
+            BorderDecoration::Solid,
             Rgba::SOFT_BLACK,
             th_l,
             InnerDecoration::Solid,
@@ -148,15 +151,15 @@ fn init_entities(cmd: &mut CommandBuffer, #[resource] window: &Window) {
             100,
             Vector2::new(0.0, 0.0),
             0.0,
-            128.0,
+            size,
         ),
     ));
 
     cmd.push((
-        Transform2D::with_position(64.0, 64.0),
+        Transform2D::with_position(x2, x2),
         Geometry2D::new(
             Geometry2DType::Heart,
-            BorderDecoration::Solid,
+            BorderDecoration::DynDash,
             Rgba::SOFT_BLACK,
             th_l,
             InnerDecoration::Solid,
@@ -164,12 +167,12 @@ fn init_entities(cmd: &mut CommandBuffer, #[resource] window: &Window) {
             100,
             Vector2::new(0.0, 0.0),
             0.0,
-            128.0,
+            size,
         ),
     ));
 
     cmd.push((
-        Transform2D::default(),
+        Transform2D::with_position(x1, x1),
         Geometry2D::new(
             Geometry2DType::Segment,
             BorderDecoration::DynDash,
@@ -180,23 +183,6 @@ fn init_entities(cmd: &mut CommandBuffer, #[resource] window: &Window) {
             101,
             Vector2::new(0.0, 0.0),
             256.0,
-            200.0,
-        ),
-        Marker {},
-    ));
-
-    cmd.push((
-        Transform2D::default(),
-        Geometry2D::new(
-            Geometry2DType::Segment,
-            BorderDecoration::DynDash,
-            Rgba::SOFT_BLACK,
-            4.0,
-            InnerDecoration::Solid,
-            Rgba::RED,
-            101,
-            Vector2::new(0.0, 0.0),
-            -256.0,
             200.0,
         ),
         Marker {},
@@ -224,29 +210,14 @@ fn control_camera(transform: &mut Transform2D, #[resource] input: &Input) {
 
 #[system(for_each)]
 #[filter(component::<Geometry2D>() & component::<Marker>())]
-fn control_geometry_tmp(
+fn control_geometry(
     transform: &mut Transform2D,
     _geometry: &mut Geometry2D,
-    #[resource] input: &Input,
     #[resource] time: &Time,
 ) {
-    const TSPEED: f32 = 48.0;
+    const RSPEED: f32 = 60.0;
 
-    if input.keyboard.pressed(KeyCode::A) {
-        transform.position.x -= TSPEED * time.delta().as_secs_f32();
-    } else if input.keyboard.pressed(KeyCode::D) {
-        transform.position.x += TSPEED * time.delta().as_secs_f32();
-    }
-
-    if input.keyboard.pressed(KeyCode::S) {
-        transform.position.y -= TSPEED * time.delta().as_secs_f32();
-    } else if input.keyboard.pressed(KeyCode::W) {
-        transform.position.y += TSPEED * time.delta().as_secs_f32();
-    }
-
-    if input.keyboard.pressed(KeyCode::Space) {
-        transform.rotate(30.0 * time.delta().as_secs_f32());
-    }
+    transform.rotate(RSPEED * time.delta().as_secs_f32());
 }
 
 struct Marker;
