@@ -17,8 +17,8 @@
 
 ## Roadmap
 
-* A simple `AssetLoader` to load texture, shader and scripts.
-* A debug graph primitive which can draw a line, a circle in limited sytle.
+* ~~A simple `AssetLoader` to load texture, shader and scripts.~~
+* ~~A debug graph primitive which can draw a line, a circle in limited sytle.~~
 * Embed a simple `IMGUI` module.
 * Embed a simple `Script` module
 * More flexible render pipeline, get data from shader by reflecting.
@@ -55,7 +55,7 @@
     cargo run --example sprite
     ```
 
-    ![example_geometry](./assets/images/examples/example_geometry.png)
+    ![example_geometry](./assets/images/examples/geometry.png)
 
 6. **geometry**: Show how to render a geometry to screen.
 
@@ -76,6 +76,8 @@
     # Use `--release` flag to prevent performance decline.
     cargo run --example millions_geometry --release
     ```
+
+    ![example_geometry](./assets/images/examples/millions_geometry.png)
 
 9. (TODO)**render2d_millions_with_simd**: Show how to optimize **render2d_millions** by SIMD.
 
