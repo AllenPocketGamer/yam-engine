@@ -51,6 +51,9 @@ layout(binding = 0) uniform Common {
     // Transform point from `NDC` to `screen space`.
     mat4 MX_VIEWPORT;
 
+    // Viewport size
+    vec2 vp_size;
+
     // Delta time
     float t_delta;
     // Total time

@@ -1,7 +1,8 @@
 #version 450
 
 // NOTE: MACROS
-#define PI 3.14159265359
+
+#define PI 3.14159265358979323846
 
 // NOTE: CONSTANTS AREA
 
@@ -48,6 +49,9 @@ layout(binding = 0) uniform Common {
     mat4 MX_PROJECTION;
     // Transform point from `NDC` to `screen space`.
     mat4 MX_VIEWPORT;
+
+    // Viewport size
+    vec2 vp_size;
 
     // Delta time
     float t_delta;

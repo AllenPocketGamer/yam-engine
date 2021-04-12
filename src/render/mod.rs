@@ -1,12 +1,12 @@
 mod renderers;
 
-use renderers::Geometry2DRenderer;
+use renderers::{background_renderer::BackgroundRenderer, geometry2d_renderer::Geometry2DRenderer};
 
 use crate::{
     app::{AppStage, AppStageBuilder},
     components::{camera::Camera2D, time::Time, transform::Transform2D},
     legion::{IntoQuery, Resources, World},
-    nalgebra::Matrix4,
+    nalgebra::{Matrix4, Vector2},
     window::Window,
 };
 
@@ -26,11 +26,14 @@ const QUAD_INDEX: [u16; 6] = [
     2, 3, 0,                // Face CDA
 ];
 
-#[rustfmt::skip] const KB: u64 = 1 << 10;
-#[rustfmt::skip] const MB: u64 = 1 << 20;
+#[rustfmt::skip] const THOUSAND:    usize = 1 << 10;
+#[rustfmt::skip] const MILLION:     usize = THOUSAND * THOUSAND;
+#[rustfmt::skip] const KB:          u64 = 1 << 10;
+#[rustfmt::skip] const MB:          u64 = KB * KB;
 
 pub(crate) fn create_app_stage_render(window: &Window) -> AppStage {
     let mut r2d = Render2D::new(window);
+    let mut bg_rder = BackgroundRenderer::new(&r2d);
     let mut g2d_rder = Geometry2DRenderer::new(&r2d);
 
     let render_process = move |world: &mut World, resources: &mut Resources| {
@@ -38,8 +41,9 @@ pub(crate) fn create_app_stage_render(window: &Window) -> AppStage {
 
         r2d.begin_draw();
 
+        bg_rder.render(&r2d, world, resources);
         g2d_rder.render(&r2d, world, resources);
-        
+
         r2d.finish_draw();
     };
 
@@ -276,7 +280,7 @@ impl Render2D {
                 .get::<Time>()
                 .expect("ERR: Not find time resource.");
 
-            // Write these datas to utility_buf.
+            // Write matrix data to utility buffer.
             self.gpu.queue.write_buffer(
                 &self.utility_buf,
                 0,
@@ -292,9 +296,18 @@ impl Render2D {
                 128,
                 bytemuck::cast_slice(viewport.to_homogeneous_3d().as_slice()),
             );
+
+            // Write viewport_size to utility buffer.
             self.gpu.queue.write_buffer(
                 &self.utility_buf,
                 192,
+                bytemuck::cast_slice(Vector2::new(width as f32, height as f32).as_slice()),
+            );
+
+            // Write time(delta, total) to utility buffer.
+            self.gpu.queue.write_buffer(
+                &self.utility_buf,
+                200,
                 bytemuck::cast_slice(&[time.delta().as_secs_f32(), time.total().as_secs_f32()]),
             );
 

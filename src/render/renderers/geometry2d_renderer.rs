@@ -1,4 +1,4 @@
-use super::{Gpu, Render2D, Viewport};
+use super::super::{Gpu, Render2D, Viewport, MILLION};
 
 use crate::{
     components::{
@@ -6,14 +6,11 @@ use crate::{
         transform::Transform2D,
     },
     legion::{IntoQuery, Resources, World},
-    misc::color::Rgba,
     nalgebra::Vector4,
     Instance,
 };
 
 use std::mem::size_of;
-
-#[rustfmt::skip] const MILLION:                 usize = 1 << 20;
 
 #[rustfmt::skip] const MAX_TRANSFORM2D_COUNT:   usize = 2 * MILLION;
 #[rustfmt::skip] const MAX_GEOMETRY_COUNT:      usize = 2 * MILLION;
@@ -24,23 +21,20 @@ use std::mem::size_of;
 #[rustfmt::skip] const INDEX_PAIR_BUF_SIZE:     u64 = (size_of::<(u32, u32)>() * MAX_INDEX_PAIR_COUNT) as u64;
 
 /// Renderer which renders `Geometry2D` in the best performance.
-pub struct Geometry2DRenderer {
+pub(in super::super) struct Geometry2DRenderer {
     instance_buf: wgpu::Buffer,
     /// Store `Transform2D` data and `Geometry` data.
     ///
     /// Default size: `TRANSFORM2D_BUF_SIZE + GEOMETRY_BUF_SIZE`.
     storage_buf: wgpu::Buffer,
 
-    // For `Geometry` rendering.
-    geometry_bind_group: wgpu::BindGroup,
-    geometry_pipeline: wgpu::RenderPipeline,
-    // TODO: For `Sprite` rendering.
-    // sprite_bind_group: wgpu::BindGroup,
-    // sprite_pipeline: wgpu::RenderPipeline,
+    // For `Geometry2D` rendering.
+    bind_group: wgpu::BindGroup,
+    pipeline: wgpu::RenderPipeline,
 }
 
 impl Geometry2DRenderer {
-    pub(super) fn new(r2d: &Render2D) -> Self {
+    pub fn new(r2d: &Render2D) -> Self {
         let Gpu {
             device, sc_desc, ..
         } = &r2d.gpu;
@@ -95,7 +89,7 @@ impl Geometry2DRenderer {
             ],
         });
 
-        let geometry_bind_group = device.create_bind_group(&wgpu::BindGroupDescriptor {
+        let bind_group = device.create_bind_group(&wgpu::BindGroupDescriptor {
             label: Some("geometry bind group"),
             layout: &bind_group_layout,
             entries: &[
@@ -126,7 +120,7 @@ impl Geometry2DRenderer {
             ],
         });
 
-        let geometry_pipeline_layout =
+        let pipeline_layout =
             device.create_pipeline_layout(&wgpu::PipelineLayoutDescriptor {
                 label: Some("geometry pipeline layout"),
                 bind_group_layouts: &[&bind_group_layout],
@@ -136,7 +130,7 @@ impl Geometry2DRenderer {
         let vert_shader = device.create_shader_module(&wgpu::ShaderModuleDescriptor {
             label: Some("geometry vertex shader"),
             source: wgpu::util::make_spirv(include_bytes!(
-                "../../assets/shaders/geometry/geometry.vert.spv"
+                "../../../assets/shaders/geometry/geometry.vert.spv"
             )),
             flags: wgpu::ShaderFlags::empty(),
         });
@@ -144,14 +138,14 @@ impl Geometry2DRenderer {
         let frag_shader = device.create_shader_module(&wgpu::ShaderModuleDescriptor {
             label: Some("geometry fragment shader"),
             source: wgpu::util::make_spirv(include_bytes!(
-                "../../assets/shaders/geometry/geometry.frag.spv"
+                "../../../assets/shaders/geometry/geometry.frag.spv"
             )),
             flags: wgpu::ShaderFlags::empty(),
         });
 
-        let geometry_pipeline = device.create_render_pipeline(&wgpu::RenderPipelineDescriptor {
+        let pipeline = device.create_render_pipeline(&wgpu::RenderPipelineDescriptor {
             label: Some("geometry pipeline"),
-            layout: Some(&geometry_pipeline_layout),
+            layout: Some(&pipeline_layout),
             vertex: wgpu::VertexState {
                 module: &vert_shader,
                 entry_point: "main",
@@ -206,12 +200,12 @@ impl Geometry2DRenderer {
             instance_buf,
             storage_buf,
 
-            geometry_bind_group,
-            geometry_pipeline,
+            bind_group,
+            pipeline,
         }
     }
 
-    pub(super) fn render(&mut self, r2d: &Render2D, world: &World, _resources: &Resources) {
+    pub fn render(&mut self, r2d: &Render2D, world: &World, _resources: &Resources) {
         let Gpu {
             device,
             queue,
@@ -230,7 +224,7 @@ impl Geometry2DRenderer {
 
         let frame = frame
             .as_ref()
-            .expect("ERR: Not call begin_draw on Render2DService.");
+            .expect("ERR: Not call begin_draw.");
 
         let mut encoder = device.create_command_encoder(&wgpu::CommandEncoderDescriptor {
             label: Some("general encoder"),
@@ -246,7 +240,7 @@ impl Geometry2DRenderer {
                     attachment: &(frame.output.view),
                     resolve_target: None,
                     ops: wgpu::Operations {
-                        load: wgpu::LoadOp::Clear(Rgba::CAMEL.to_wgpu_color()),
+                        load: wgpu::LoadOp::Load,
                         store: true,
                     },
                 }],
@@ -262,12 +256,12 @@ impl Geometry2DRenderer {
 
             rpass.push_debug_group("Set datas");
 
-            rpass.set_pipeline(&self.geometry_pipeline);
+            rpass.set_pipeline(&self.pipeline);
             rpass.set_viewport(x, y, w, h, min_depth, max_depth);
             rpass.set_vertex_buffer(0, r2d.quad_vertex_buf.slice(..));
             rpass.set_index_buffer(r2d.quad_index_buf.slice(..), wgpu::IndexFormat::Uint16);
             rpass.set_vertex_buffer(1, self.instance_buf.slice(0..i_buf_size));
-            rpass.set_bind_group(0, &self.geometry_bind_group, &[]);
+            rpass.set_bind_group(0, &self.bind_group, &[]);
 
             rpass.pop_debug_group();
 
