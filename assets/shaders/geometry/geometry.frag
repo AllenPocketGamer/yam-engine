@@ -13,7 +13,7 @@ const float DASH_EMPTY = 0.3;
 // Anti-aliasing pixel count.
 const float BLUR = 1.0;
 
-// Geometry2DType
+// GeometryType
 const uint GT_CIRCLE        = 0;
 const uint GT_ETRIANGLE     = 1;
 const uint GT_SQUARE        = 2;

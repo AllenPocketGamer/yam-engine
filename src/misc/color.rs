@@ -31,6 +31,17 @@ impl Rgba {
         Self { r, g, b, a }
     }
 
+    pub const fn from_hex(hex: Hex) -> Self {
+        let rgba = hex.to_be_bytes();
+        
+        Self {
+            r: rgba[0],
+            g: rgba[1],
+            b: rgba[2],
+            a: rgba[3],
+        }
+    }
+
     pub const fn to_hex(&self) -> Hex {
         u32::from_be_bytes([self.r, self.g, self.b, self.a])
     }
@@ -42,6 +53,12 @@ impl Rgba {
             b: self.b as f64 / 255.0,
             a: self.a as f64 / 255.0,
         }
+    }
+}
+
+impl Default for Rgba {
+    fn default() -> Self {
+        Self::SOFT_BLACK
     }
 }
 

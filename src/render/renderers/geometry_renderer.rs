@@ -2,7 +2,7 @@ use super::super::{Gpu, Render2D, Viewport, MILLION};
 
 use crate::{
     components::{
-        geometry::{Assembly, Geometry2D},
+        geometry::{Assembly, Geometry},
         transform::Transform2D,
     },
     legion::{IntoQuery, Resources, World},
@@ -17,11 +17,11 @@ use std::mem::size_of;
 #[rustfmt::skip] const MAX_INDEX_PAIR_COUNT:    usize = 2 * MILLION;
 
 #[rustfmt::skip] const TRANSFORM2D_BUF_SIZE:    u64 = (size_of::<Transform2D>() * MAX_TRANSFORM2D_COUNT) as u64;
-#[rustfmt::skip] const GEOMETRY_BUF_SIZE:       u64 = (size_of::<Geometry2D>() * MAX_GEOMETRY_COUNT) as u64;
+#[rustfmt::skip] const GEOMETRY_BUF_SIZE:       u64 = (size_of::<Geometry>() * MAX_GEOMETRY_COUNT) as u64;
 #[rustfmt::skip] const INDEX_PAIR_BUF_SIZE:     u64 = (size_of::<(u32, u32)>() * MAX_INDEX_PAIR_COUNT) as u64;
 
 /// Renderer which renders `Geometry2D` in the best performance.
-pub(in super::super) struct Geometry2DRenderer {
+pub(in super::super) struct GeometryRenderer {
     instance_buf: wgpu::Buffer,
     /// Store `Transform2D` data and `Geometry` data.
     ///
@@ -33,7 +33,7 @@ pub(in super::super) struct Geometry2DRenderer {
     pipeline: wgpu::RenderPipeline,
 }
 
-impl Geometry2DRenderer {
+impl GeometryRenderer {
     pub fn new(r2d: &Render2D) -> Self {
         let Gpu {
             device, sc_desc, ..
@@ -308,11 +308,11 @@ impl Geometry2DRenderer {
             let s_mp = s_bs.get_mapped_range_mut().as_mut_ptr();
 
             let t_mp = s_mp.offset(t_st as isize) as *mut Transform2D;
-            let g_mp = s_mp.offset(g_st as isize) as *mut Geometry2D;
+            let g_mp = s_mp.offset(g_st as isize) as *mut Geometry;
             let i_mp = s_mp.offset(i_st as isize) as *mut (u32, u32);
 
             let t_len = TRANSFORM2D_BUF_SIZE as usize / size_of::<Transform2D>();
-            let g_len = GEOMETRY_BUF_SIZE as usize / size_of::<Geometry2D>();
+            let g_len = GEOMETRY_BUF_SIZE as usize / size_of::<Geometry>();
             let i_len = INDEX_PAIR_BUF_SIZE as usize / size_of::<(u32, u32)>();
 
             (
@@ -328,9 +328,9 @@ impl Geometry2DRenderer {
 
         // Copy `Transform2D` and `Geometry` data from `World` to the buffer which is mapped to staging_buf.
         unsafe {
-            let mut q01 = <(&Transform2D, &Geometry2D)>::query();
+            let mut q01 = <(&Transform2D, &Geometry)>::query();
             let mut q02 = <(&Transform2D, &Assembly)>::query();
-            let mut q03 = <(&Instance<Transform2D>, &Geometry2D)>::query();
+            let mut q03 = <(&Instance<Transform2D>, &Geometry)>::query();
             let mut q04 = <(&Instance<Transform2D>, &Assembly)>::query();
 
             q01.for_each(world, |(t, g)| {
@@ -427,7 +427,7 @@ impl Geometry2DRenderer {
         r2d.staging_buf.unmap();
 
         let t_buf_size = (t_count * size_of::<Transform2D>()) as wgpu::BufferAddress;
-        let g_buf_size = (g_count * size_of::<Geometry2D>()) as wgpu::BufferAddress;
+        let g_buf_size = (g_count * size_of::<Geometry>()) as wgpu::BufferAddress;
         let i_buf_size = (i_count * size_of::<(u32, u32)>()) as wgpu::BufferAddress;
 
         // Copy transform2d data from staging to storage.

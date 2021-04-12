@@ -58,11 +58,11 @@ fn init_entities(commands: &mut CommandBuffer, #[resource] window: &Window) {
     commands.push((
         transform2ds,
         vec![
-            Geometry2D::new(
+            Geometry::new_2d(
                 Geometry2DType::ETriangle,
                 BorderDecoration::Solid,
                 Rgba::SOFT_BLACK,
-                -4.0,
+                BorderThickness::LocalSpace(4.0),
                 InnerDecoration::Solid,
                 Rgba::ROSE,
                 0,
@@ -70,11 +70,11 @@ fn init_entities(commands: &mut CommandBuffer, #[resource] window: &Window) {
                 0.0,
                 GEOMETRY_SIZE,
             ),
-            Geometry2D::new(
+            Geometry::new_2d(
                 Geometry2DType::Circle,
                 BorderDecoration::DynDash,
                 Rgba::SOFT_BLACK,
-                -4.0,
+                BorderThickness::LocalSpace(4.0),
                 InnerDecoration::None,
                 Rgba::WHITE,
                 1,
@@ -82,11 +82,11 @@ fn init_entities(commands: &mut CommandBuffer, #[resource] window: &Window) {
                 0.0,
                 2.0 * RADIUS,
             ),
-            Geometry2D::new(
+            Geometry::new_2d(
                 Geometry2DType::Circle,
                 BorderDecoration::Solid,
                 Rgba::SOFT_BLACK,
-                -2.0,
+                BorderThickness::LocalSpace(2.0),
                 InnerDecoration::Solid,
                 Rgba::CAMEL,
                 2,
@@ -119,7 +119,7 @@ fn control_camera(transform: &mut Transform2D, #[resource] input: &Input) {
 }
 
 #[system(for_each)]
-#[filter(component::<Vec<Geometry2D>>())]
+#[filter(component::<Vec<Geometry>>())]
 fn wander(
     transform2ds: &mut Instance<Transform2D>,
     steerings: &mut Instance<Steering>,

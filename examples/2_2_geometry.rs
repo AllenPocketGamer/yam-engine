@@ -22,14 +22,14 @@ fn init_entities(cmd: &mut CommandBuffer, #[resource] window: &Window) {
     // Push camera entity to `World`.
     cmd.push((Transform2D::default(), Camera2D::new(width, height)));
 
-    let th_l: f32 = -2.0;
+    let th_l = BorderThickness::LocalSpace(2.0);
     let size: f32 = 100.0;
 
     let (x0, x1, x2) = (-0.5 * size, 0.5 * size, 1.5 * size);
 
     cmd.push((
         Transform2D::with_position(x0, x0),
-        Geometry2D::new(
+        Geometry::new_2d(
             Geometry2DType::Circle,
             BorderDecoration::DynDash,
             Rgba::SOFT_BLACK,
@@ -45,7 +45,7 @@ fn init_entities(cmd: &mut CommandBuffer, #[resource] window: &Window) {
 
     cmd.push((
         Transform2D::with_position(x1, x0),
-        Geometry2D::new(
+        Geometry::new_2d(
             Geometry2DType::ETriangle,
             BorderDecoration::Solid,
             Rgba::SOFT_BLACK,
@@ -61,7 +61,7 @@ fn init_entities(cmd: &mut CommandBuffer, #[resource] window: &Window) {
 
     cmd.push((
         Transform2D::with_position(x2, x0),
-        Geometry2D::new(
+        Geometry::new_2d(
             Geometry2DType::Square,
             BorderDecoration::DynDash,
             Rgba::SOFT_BLACK,
@@ -77,7 +77,7 @@ fn init_entities(cmd: &mut CommandBuffer, #[resource] window: &Window) {
 
     cmd.push((
         Transform2D::with_position(x0, x1),
-        Geometry2D::new(
+        Geometry::new_2d(
             Geometry2DType::Pentagon,
             BorderDecoration::Solid,
             Rgba::SOFT_BLACK,
@@ -93,7 +93,7 @@ fn init_entities(cmd: &mut CommandBuffer, #[resource] window: &Window) {
 
     cmd.push((
         Transform2D::with_position(x1, x1),
-        Geometry2D::new(
+        Geometry::new_2d(
             Geometry2DType::Hexagon,
             BorderDecoration::DynDash,
             Rgba::SOFT_BLACK,
@@ -109,7 +109,7 @@ fn init_entities(cmd: &mut CommandBuffer, #[resource] window: &Window) {
 
     cmd.push((
         Transform2D::with_position(x2, x1),
-        Geometry2D::new(
+        Geometry::new_2d(
             Geometry2DType::Octogon,
             BorderDecoration::Solid,
             Rgba::SOFT_BLACK,
@@ -125,7 +125,7 @@ fn init_entities(cmd: &mut CommandBuffer, #[resource] window: &Window) {
 
     cmd.push((
         Transform2D::with_position(x0, x2),
-        Geometry2D::new(
+        Geometry::new_2d(
             Geometry2DType::Hexagram,
             BorderDecoration::DynDash,
             Rgba::SOFT_BLACK,
@@ -141,7 +141,7 @@ fn init_entities(cmd: &mut CommandBuffer, #[resource] window: &Window) {
 
     cmd.push((
         Transform2D::with_position(x1, x2),
-        Geometry2D::new(
+        Geometry::new_2d(
             Geometry2DType::StarFive,
             BorderDecoration::Solid,
             Rgba::SOFT_BLACK,
@@ -157,7 +157,7 @@ fn init_entities(cmd: &mut CommandBuffer, #[resource] window: &Window) {
 
     cmd.push((
         Transform2D::with_position(x2, x2),
-        Geometry2D::new(
+        Geometry::new_2d(
             Geometry2DType::Heart,
             BorderDecoration::DynDash,
             Rgba::SOFT_BLACK,
@@ -173,17 +173,14 @@ fn init_entities(cmd: &mut CommandBuffer, #[resource] window: &Window) {
 
     cmd.push((
         Transform2D::with_position(x1, x1),
-        Geometry2D::new(
-            Geometry2DType::Segment,
+        Geometry::new_1d(
+            Geometry1DType::Segment,
             BorderDecoration::DynDash,
             Rgba::SOFT_BLACK,
-            -4.0,
-            InnerDecoration::Solid,
-            Rgba::RED,
+            th_l,
             101,
             Vector2::new(0.0, 0.0),
-            256.0,
-            200.0,
+            Vector2::new(0.0, 256.0),
         ),
         Marker {},
     ));
@@ -209,10 +206,10 @@ fn control_camera(transform: &mut Transform2D, #[resource] input: &Input) {
 }
 
 #[system(for_each)]
-#[filter(component::<Geometry2D>() & component::<Marker>())]
+#[filter(component::<Geometry>() & component::<Marker>())]
 fn control_geometry(
     transform: &mut Transform2D,
-    _geometry: &mut Geometry2D,
+    _geometry: &mut Geometry,
     #[resource] time: &Time,
 ) {
     const RSPEED: f32 = 60.0;
