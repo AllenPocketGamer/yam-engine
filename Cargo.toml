@@ -6,7 +6,7 @@ edition = "2018"
 description ="A game library dedicated to running millions of units."
 homepage = "https://github.com/AllenPocketGamer/yam-engine"
 repository = "https://github.com/AllenPocketGamer/yam-engine"
-keywords = ["game engine", "millions"]
+keywords = ["game library", "millions"]
 license = "MIT"
 
 [lib]
@@ -20,7 +20,7 @@ winit = "0.24.*"
 legion = "0.4.*"
 
 # about math calculation
-nalgebra = "0.24.*"
+nalgebra = "0.26.*"
 # simba = { version = "0.4.0", features = ["wide"] }
 # num-traits = "0.2.14"
 
