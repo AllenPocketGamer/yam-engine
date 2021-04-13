@@ -180,7 +180,7 @@ impl Geometry {
         Vector2::new(self.extras[0], self.extras[1])
     }
 
-    pub fn set_position_uncheck(&mut self, position: Vector2<f32>) {
+    pub fn set_position_uncheck(&mut self, position: &Vector2<f32>) {
         self.extras[0] = position.x;
         self.extras[1] = position.y;
     }
@@ -205,7 +205,7 @@ impl Geometry {
         Vector2::new(self.extras[0], self.extras[1])
     }
 
-    pub fn set_start_point_uncheck(&mut self, start_point: Vector2<f32>) {
+    pub fn set_start_point_uncheck(&mut self, start_point: &Vector2<f32>) {
         self.extras[0] = start_point.x;
         self.extras[1] = start_point.y;
     }
@@ -214,7 +214,7 @@ impl Geometry {
         Vector2::new(self.extras[2], self.extras[3])
     }
 
-    pub fn set_end_point_uncheck(&mut self, end_point: Vector2<f32>) {
+    pub fn set_end_point_uncheck(&mut self, end_point: &Vector2<f32>) {
         self.extras[2] = end_point.x;
         self.extras[3] = end_point.y;
     }

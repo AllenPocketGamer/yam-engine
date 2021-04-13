@@ -1,4 +1,6 @@
-use crate::nalgebra::{Matrix3, Matrix4, UnitComplex, UnitQuaternion, Vector2, Vector3};
+use crate::nalgebra::{
+    Matrix3, Matrix4, Point2, UnitComplex, UnitQuaternion, Vector2, Vector3,
+};
 
 /// Transformation from local space to world space.
 ///
@@ -98,6 +100,32 @@ impl Transform2D {
             .to_homogeneous()
             .prepend_nonuniform_scaling(&scale)
             .append_translation(&Vector3::new(self.position.x, self.position.y, 0.0))
+    }
+
+    /// Transform vector2 from `local space` to `world space`.
+    pub fn transform_vector2(&self, v2: &Vector2<f32>) -> Vector2<f32> {
+        self.to_homogeneous().transform_vector(v2)
+    }
+
+    /// Transform vector2 from `world space` to `local space`.
+    pub fn transform_vector2_inverse(&self, v2: &Vector2<f32>) -> Vector2<f32> {
+        self.to_homogeneous()
+            .try_inverse()
+            .unwrap()
+            .transform_vector(v2)
+    }
+
+    /// Transform point2 from `local space` to `world space`.
+    pub fn transform_point2(&self, p2: &Point2<f32>) -> Point2<f32> {
+        self.to_homogeneous().transform_point(p2)
+    }
+
+    /// Transform point2 from `world space` to `local space`.
+    pub fn transform_point2_inverse(&self, p2: &Point2<f32>) -> Point2<f32> {
+        self.to_homogeneous()
+            .try_inverse()
+            .unwrap()
+            .transform_point(p2)
     }
 
     fn normal_or_min(num: f32) -> f32 {
