@@ -2,17 +2,17 @@ use yam::legion::{systems::CommandBuffer, *};
 use yam::nalgebra::Vector2;
 use yam::*;
 
-static mut RADIUS: f32 = 64.0;
-static mut DISTANCE: f32 = 16.0;
+const SQRT_COUNT: usize = 512;
+const GEOM_COUNT: usize = SQRT_COUNT * SQRT_COUNT;
+const QUAD_SIZE: f32 = 128.0;
 
 fn main() -> Result<(), AppBuildError> {
     AppBuilder::new()
         .create_stage_builder(String::from("default"))?
         .add_thread_local_system_startup(introduction_system())
-        .add_thread_local_system_startup(init_entities_system())
+        .add_thread_local_system_startup(init_entities_system(64.0, 16.0))
         .add_thread_local_system_process(control_camera_system())
-        .add_thread_local_system_process(wander_system())
-        .add_thread_local_system_process(control_behaviour_system())
+        .add_thread_local_system_process(wander_system(0.0, 64.0, 16.0))
         .into_app_builder()
         .build()
         .run();
@@ -25,32 +25,27 @@ fn introduction() {
     println!("Introduction:");
     println!("  1. Pressed the middle button of mouse to move the camera.");
     println!("  2. Scroll the wheel of mouse to scale the view of the camera.");
+    println!("  3. Pressed A/D to control radius, S/W to control distance.");
 }
 
 #[system]
-fn init_entities(commands: &mut CommandBuffer, #[resource] window: &Window) {
-    const GEOMETRY_SIZE: f32 = 100.0;
-
-    const SQRT_COUNT: usize = 256;
-    const COUNT: usize = SQRT_COUNT * SQRT_COUNT;
-
-    let (width, height) = window.resolution();
-
+fn init_entities(
+    commands: &mut CommandBuffer,
+    #[state] init_radius: &f32,
+    #[state] init_distance: &f32,
+) {
     // Push camera entity to `World`.
-    commands.push((Transform2D::default(), Camera2D::new(width, height)));
+    commands.push((Transform2D::default(), Camera2D::default()));
 
-    // `+8` prevent double the capacity of the vec when push element into.
-    let mut steerings: Instance<Steering> = Instance::with_capacity(COUNT + 8);
-    let mut transform2ds: Instance<Transform2D> = Instance::with_capacity(COUNT + 8);
+    // `+1` prevent double the capacity of the vec when push element into.
+    let mut steerings: Instance<Steering> = Instance::with_capacity(GEOM_COUNT + 1);
+    let mut transform2ds: Instance<Transform2D> = Instance::with_capacity(GEOM_COUNT + 1);
 
     for x in 0..SQRT_COUNT {
         for y in 0..SQRT_COUNT {
-            let (tx, ty) = (
-                1.2 * GEOMETRY_SIZE * x as f32,
-                1.2 * GEOMETRY_SIZE * y as f32,
-            );
+            let (tx, ty) = (QUAD_SIZE * x as f32, QUAD_SIZE * y as f32);
 
-            steerings.push(Steering::new(0.0, 0.0));
+            steerings.push(Steering::default());
             transform2ds.push(Transform2D::with_position(tx, ty));
         }
     }
@@ -59,6 +54,7 @@ fn init_entities(commands: &mut CommandBuffer, #[resource] window: &Window) {
     commands.push((
         transform2ds,
         vec![
+            // main geometry
             Geometry::new_2d(
                 Geometry2DType::ETriangle,
                 BorderDecoration::Solid,
@@ -69,8 +65,9 @@ fn init_entities(commands: &mut CommandBuffer, #[resource] window: &Window) {
                 0,
                 Vector2::new(0.0, 0.0),
                 0.0,
-                GEOMETRY_SIZE,
+                QUAD_SIZE,
             ),
+            // radius geometry
             Geometry::new_2d(
                 Geometry2DType::Circle,
                 BorderDecoration::DynDash,
@@ -79,21 +76,9 @@ fn init_entities(commands: &mut CommandBuffer, #[resource] window: &Window) {
                 InnerDecoration::None,
                 Rgba::WHITE,
                 1,
-                Vector2::new(0.0, unsafe { DISTANCE }),
+                Vector2::new(0.0, *init_distance),
                 0.0,
-                2.0 * unsafe { RADIUS },
-            ),
-            Geometry::new_2d(
-                Geometry2DType::Circle,
-                BorderDecoration::Solid,
-                Rgba::SOFT_BLACK,
-                BorderThickness::LocalSpace(2.0),
-                InnerDecoration::Solid,
-                Rgba::CAMEL,
-                2,
-                Vector2::new(0.0, unsafe { RADIUS + DISTANCE }),
-                0.0,
-                32.0,
+                2.0 * (*init_radius),
             ),
         ],
         steerings,
@@ -103,81 +88,79 @@ fn init_entities(commands: &mut CommandBuffer, #[resource] window: &Window) {
 #[system(for_each)]
 #[filter(component::<Camera2D>())]
 fn control_camera(transform: &mut Transform2D, #[resource] input: &Input) {
-    const TSPEED: f32 = 16.0;
     const SSPEED: f32 = 0.40;
 
     if input.mouse.pressed(MouseButton::Middle) {
-        let (dx, dy) = input.mouse.mouse_motion_in_ss();
+        let (dx, dy) = input.mouse.mouse_motion_in_ws();
 
-        transform.position += Vector2::<f32>::new(dx, -dy) * TSPEED;
+        transform.position -= Vector2::<f32>::new(dx, dy);
     }
 
     let (_, motion) = input.mouse.mouse_wheel_motion();
     transform.scale = Vector2::new(
-        (transform.scale.x + motion).max(0.2),
-        (transform.scale.y + motion).max(0.2),
+        (transform.scale.x + motion * SSPEED).max(0.1),
+        (transform.scale.y + motion * SSPEED).max(0.1),
     );
 }
 
 #[system(for_each)]
-fn control_behaviour(
-    geometries: &mut Assembly,
+#[filter(component::<Assembly>())]
+fn wander(
+    trf2ds: &mut Instance<Transform2D>,
+    asmbly: &mut Assembly,
+    strngs: &mut Instance<Steering>,
     #[resource] input: &Input,
     #[resource] time: &Time,
-) {
-    const SPEED: f32 = 16.0;
-
-    if input.keyboard.pressed(KeyCode::A) {
-        unsafe {
-            RADIUS -= SPEED * time.delta().as_secs_f32();
-        }
-    } else if input.keyboard.pressed(KeyCode::D) {
-        unsafe {
-            RADIUS += SPEED * time.delta().as_secs_f32();
-        }
-    }
-
-    if input.keyboard.pressed(KeyCode::S) {
-        unsafe {
-            DISTANCE -= SPEED * time.delta().as_secs_f32();
-        }
-    } else if input.keyboard.pressed(KeyCode::W) {
-        unsafe {
-            DISTANCE += SPEED * time.delta().as_secs_f32();
-        }
-    }
-
-    {
-        let dash_circle = &mut geometries[1];
-        dash_circle.set_position_uncheck(Vector2::new(0.0, unsafe { DISTANCE }));
-        dash_circle.set_size_uncheck(2.0 * unsafe { RADIUS });
-    }
-
-    {
-        let dirc_circle = &mut geometries[2];
-        dirc_circle.set_position_uncheck(Vector2::new(0.0, unsafe { RADIUS + DISTANCE }));
-    }
-}
-
-#[system(for_each)]
-#[filter(component::<Vec<Geometry>>())]
-fn wander(
-    transform2ds: &mut Instance<Transform2D>,
-    steerings: &mut Instance<Steering>,
-    #[resource] time: &Time,
+    #[state] timer: &mut f32,
+    #[state] p_radius: &mut f32,
+    #[state] p_distance: &mut f32,
 ) {
     use rayon::prelude::*;
 
+    const INTERVAL: f32 = 1.0;
+    const TSPEED: f32 = 16.0;
+
     let delta = time.delta().as_secs_f32();
 
-    transform2ds
+    if *timer >= INTERVAL {
+        trf2ds
+            .par_iter_mut()
+            .zip(strngs.par_iter_mut())
+            .for_each(|(trf2d, strng)| {
+                let wander_force: Vector2<f32> = strng.wander(trf2d, *p_radius, *p_distance);
+                strng.apply_force(&wander_force);
+            });
+
+        *timer -= INTERVAL;
+    }
+
+    trf2ds
         .par_iter_mut()
-        .zip(steerings.par_iter_mut())
-        .for_each(|(transform2d, steering)| {
-            steering
-                .apply_force(steering.wander(transform2d, unsafe { RADIUS }, unsafe { DISTANCE }));
-            steering.motion(transform2d, delta);
+        .zip(strngs.par_iter_mut())
+        .for_each(|(trf2d, strng)| {
+            strng.motion(trf2d, delta);
         });
+
+    *timer += time.delta().as_secs_f32();
+
+    if input.keyboard.pressed(KeyCode::A) {
+        *p_radius -= TSPEED * delta;
+    } else if input.keyboard.pressed(KeyCode::D) {
+        *p_radius += TSPEED * delta;
+    }
+
+    if input.keyboard.pressed(KeyCode::S) {
+        *p_distance -= TSPEED * delta;
+    } else if input.keyboard.pressed(KeyCode::W) {
+        *p_distance += TSPEED * delta;
+    }
+
+    {
+        let r_geo = &mut asmbly[1];
+
+        r_geo.set_position_uncheck(&Vector2::new(0.0, *p_distance));
+        r_geo.set_size_uncheck(2.0 * (*p_radius));
+    }
 }
 
 #[allow(dead_code)]
@@ -190,20 +173,13 @@ impl Steering {
     #[allow(dead_code)]
     pub const MAX_SPEED: f32 = 256.0;
     #[allow(dead_code)]
-    pub const MAX_FORCE: f32 = 256.0;
+    pub const MAX_FORCE: f32 = 512.0;
     #[allow(dead_code)]
     pub const THREHOLD: f32 = 0.0001;
 
-    pub fn new(x: f32, y: f32) -> Self {
-        Self {
-            velocity: Vector2::new(x, y),
-            force: Vector2::new(0.0, 0.0),
-        }
-    }
-
     #[allow(dead_code)]
-    pub fn seek(&self, transform2d: &Transform2D, target: Vector2<f32>) -> Vector2<f32> {
-        let to_target: Vector2<f32> = target - transform2d.position;
+    pub fn seek(&self, transform2d: &Transform2D, target: &Vector2<f32>) -> Vector2<f32> {
+        let to_target: Vector2<f32> = *target - transform2d.position;
         let desired_velocity: Vector2<f32> = to_target.normalize() * Self::MAX_FORCE;
 
         desired_velocity - self.velocity
@@ -220,17 +196,16 @@ impl Steering {
             2.0 * (rand::random::<f32>() - 0.5)
         }
 
-        let jitter: Vector2<f32> = Vector2::new(gen_random_f32(), gen_random_f32()).normalize() * r_radius;
+        let jitter: Vector2<f32> =
+            Vector2::new(gen_random_f32(), gen_random_f32()).normalize() * r_radius;
 
         let to_target: Vector2<f32> = jitter + transform2d.heading_y() * r_distance;
-        
-        // let desired_velocity: Vector2<f32> = to_target.normalize() * Self::MAX_FORCE;
-        // desired_velocity - self.velocity
 
-        to_target
+        let desired_velocity: Vector2<f32> = to_target.normalize() * Self::MAX_FORCE;
+        desired_velocity - self.velocity
     }
 
-    pub fn apply_force(&mut self, force: Vector2<f32>) {
+    pub fn apply_force(&mut self, force: &Vector2<f32>) {
         self.force = force.normalize() * Self::MAX_FORCE.min(force.norm());
     }
 
@@ -242,6 +217,15 @@ impl Steering {
 
         if self.velocity.norm() > Self::THREHOLD {
             transform2d.set_heading_y(&self.velocity);
+        }
+    }
+}
+
+impl Default for Steering {
+    fn default() -> Self {
+        Self {
+            velocity: Vector2::new(0.0001, 0.0001),
+            force: Vector2::new(0.0, 0.0),
         }
     }
 }
