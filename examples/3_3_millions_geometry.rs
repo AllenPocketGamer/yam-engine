@@ -107,7 +107,7 @@ fn control_camera(transform: &mut Transform2D, #[resource] input: &Input) {
     const SSPEED: f32 = 0.40;
 
     if input.mouse.pressed(MouseButton::Middle) {
-        let (dx, dy) = input.mouse.mouse_motion();
+        let (dx, dy) = input.mouse.mouse_motion_in_ss();
 
         transform.position += Vector2::<f32>::new(dx, -dy) * TSPEED;
     }
@@ -164,7 +164,6 @@ fn control_behaviour(
 fn wander(
     transform2ds: &mut Instance<Transform2D>,
     steerings: &mut Instance<Steering>,
-    #[resource] input: &Input,
     #[resource] time: &Time,
 ) {
     use rayon::prelude::*;
@@ -191,7 +190,7 @@ impl Steering {
     #[allow(dead_code)]
     pub const MAX_SPEED: f32 = 256.0;
     #[allow(dead_code)]
-    pub const MAX_FORCE: f32 = 512.0;
+    pub const MAX_FORCE: f32 = 256.0;
     #[allow(dead_code)]
     pub const THREHOLD: f32 = 0.0001;
 
@@ -221,12 +220,14 @@ impl Steering {
             2.0 * (rand::random::<f32>() - 0.5)
         }
 
-        let jitter: Vector2<f32> = Vector2::new(gen_random_f32(), gen_random_f32()) * r_radius;
+        let jitter: Vector2<f32> = Vector2::new(gen_random_f32(), gen_random_f32()).normalize() * r_radius;
 
         let to_target: Vector2<f32> = jitter + transform2d.heading_y() * r_distance;
-        let desired_velocity: Vector2<f32> = to_target.normalize() * Self::MAX_FORCE;
+        
+        // let desired_velocity: Vector2<f32> = to_target.normalize() * Self::MAX_FORCE;
+        // desired_velocity - self.velocity
 
-        desired_velocity - self.velocity
+        to_target
     }
 
     pub fn apply_force(&mut self, force: Vector2<f32>) {

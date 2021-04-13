@@ -221,8 +221,34 @@ impl Mouse {
     }
 
     /// Return the difference in the position of the mouse between two frames(in screen space).
-    pub fn mouse_motion(&self) -> (f32, f32) {
+    pub fn mouse_motion_in_ss(&self) -> (f32, f32) {
         self.mouse_motion
+    }
+
+    /// Return the difference in the position of the mouse between two frames(in view space).
+    pub fn mouse_motion_in_vs(&self) -> (f32, f32) {
+        let mm_vs = self.trf.mx_s2v()
+            * Vector4::new(
+                self.mouse_motion.0,
+                self.mouse_motion.1,
+                0.0,
+                0.0,
+            );
+        
+        (mm_vs.x, mm_vs.y)
+    }
+
+    /// Return the difference in the position of the mouse between two frames(in world space).
+    pub fn mouse_motion_in_ws(&self) -> (f32, f32) {
+        let mm_ws = self.trf.mx_s2w()
+            * Vector4::new(
+                self.mouse_motion.0,
+                self.mouse_motion.1,
+                0.0,
+                0.0,
+            );
+        
+        (mm_ws.x, mm_ws.y)
     }
 
     /// Return the difference in the wheel position of the mouse between two frames.

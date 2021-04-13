@@ -46,7 +46,7 @@ fn control_camera(
     const MOVE_SPEED: f32 = 16.0;
 
     if input.mouse.pressed(MouseButton::Middle) {
-        let (mx, my) = input.mouse.mouse_motion();
+        let (mx, my) = input.mouse.mouse_motion_in_ss();
         transform2d.position += Vector2::new(mx, my) * time.delta().as_secs_f32() * MOVE_SPEED;
     }
 }

@@ -23,7 +23,7 @@ fn parallel_process(#[resource] input: &Input) {
     let mbtn = MouseButton::Left;
 
     // The difference in the position of the mouse between two frames.
-    let _mouse_motion = input.mouse.mouse_motion();
+    let _mouse_motion = input.mouse.mouse_motion_in_ss();
 
     if input.mouse.just_pressed(mbtn) {
         // The left button of mouse has just been pressed.

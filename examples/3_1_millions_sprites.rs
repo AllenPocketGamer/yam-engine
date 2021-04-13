@@ -64,7 +64,7 @@ fn control_camera(transform: &mut Transform2D, #[resource] input: &Input) {
     const SSPEED: f32 = 0.40;
 
     if input.mouse.pressed(MouseButton::Middle) {
-        let (dx, dy) = input.mouse.mouse_motion();
+        let (dx, dy) = input.mouse.mouse_motion_in_ss();
 
         transform.position += Vector2::<f32>::new(dx, -dy) * TSPEED;
     }
