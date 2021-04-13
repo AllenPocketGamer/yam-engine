@@ -2,7 +2,7 @@ use yam::legion::{systems::CommandBuffer, *};
 use yam::nalgebra::Vector2;
 use yam::*;
 
-const SQRT_COUNT: usize = 512;
+const SQRT_COUNT: usize = 1024;
 const GEOM_COUNT: usize = SQRT_COUNT * SQRT_COUNT;
 const QUAD_SIZE: f32 = 128.0;
 
@@ -10,7 +10,7 @@ fn main() -> Result<(), AppBuildError> {
     AppBuilder::new()
         .create_stage_builder(String::from("default"))?
         .add_thread_local_system_startup(introduction_system())
-        .add_thread_local_system_startup(init_entities_system(64.0, 16.0))
+        .add_thread_local_system_startup(init_entities_system())
         .add_thread_local_system_process(control_camera_system())
         .add_thread_local_system_process(wander_system(0.0, 64.0, 16.0))
         .into_app_builder()
@@ -29,11 +29,7 @@ fn introduction() {
 }
 
 #[system]
-fn init_entities(
-    commands: &mut CommandBuffer,
-    #[state] init_radius: &f32,
-    #[state] init_distance: &f32,
-) {
+fn init_entities(commands: &mut CommandBuffer) {
     // Push camera entity to `World`.
     commands.push((Transform2D::default(), Camera2D::default()));
 
@@ -67,19 +63,19 @@ fn init_entities(
                 0.0,
                 QUAD_SIZE,
             ),
-            // radius geometry
-            Geometry::new_2d(
-                Geometry2DType::Circle,
-                BorderDecoration::DynDash,
-                Rgba::SOFT_BLACK,
-                BorderThickness::LocalSpace(4.0),
-                InnerDecoration::None,
-                Rgba::WHITE,
-                1,
-                Vector2::new(0.0, *init_distance),
-                0.0,
-                2.0 * (*init_radius),
-            ),
+            // // radius geometry
+            // Geometry::new_2d(
+            //     Geometry2DType::Circle,
+            //     BorderDecoration::DynDash,
+            //     Rgba::SOFT_BLACK,
+            //     BorderThickness::LocalSpace(4.0),
+            //     InnerDecoration::None,
+            //     Rgba::WHITE,
+            //     1,
+            //     Vector2::new(0.0, *init_distance),
+            //     0.0,
+            //     2.0 * (*init_radius),
+            // ),
         ],
         steerings,
     ));
@@ -107,7 +103,7 @@ fn control_camera(transform: &mut Transform2D, #[resource] input: &Input) {
 #[filter(component::<Assembly>())]
 fn wander(
     trf2ds: &mut Instance<Transform2D>,
-    asmbly: &mut Assembly,
+    _asmbly: &mut Assembly,
     strngs: &mut Instance<Steering>,
     #[resource] input: &Input,
     #[resource] time: &Time,
@@ -155,12 +151,12 @@ fn wander(
         *p_distance += TSPEED * delta;
     }
 
-    {
-        let r_geo = &mut asmbly[1];
+    // {
+    //     let r_geo = &mut asmbly[1];
 
-        r_geo.set_position_uncheck(&Vector2::new(0.0, *p_distance));
-        r_geo.set_size_uncheck(2.0 * (*p_radius));
-    }
+    //     r_geo.set_position_uncheck(&Vector2::new(0.0, *p_distance));
+    //     r_geo.set_size_uncheck(2.0 * (*p_radius));
+    // }
 }
 
 #[allow(dead_code)]
