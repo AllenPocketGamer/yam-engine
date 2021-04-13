@@ -20,7 +20,7 @@ winit = "0.24.*"
 legion = "0.4.*"
 
 # about math calculation
-nalgebra = "0.26.*"
+nalgebra = "0.24.*"
 # simba = { version = "0.4.0", features = ["wide"] }
 # num-traits = "0.2.14"
 
