@@ -63,19 +63,16 @@ fn init_entities(commands: &mut CommandBuffer) {
                 0.0,
                 QUAD_SIZE,
             ),
-            // // radius geometry
-            // Geometry::new_2d(
-            //     Geometry2DType::Circle,
-            //     BorderDecoration::DynDash,
-            //     Rgba::SOFT_BLACK,
-            //     BorderThickness::LocalSpace(4.0),
-            //     InnerDecoration::None,
-            //     Rgba::WHITE,
-            //     1,
-            //     Vector2::new(0.0, *init_distance),
-            //     0.0,
-            //     2.0 * (*init_radius),
-            // ),
+            // direction line
+            Geometry::new_1d(
+                Geometry1DType::Segment,
+                BorderDecoration::DynDash,
+                Rgba::SOFT_BLACK,
+                BorderThickness::LocalSpace(4.0),
+                1,
+                Vector2::new(0.0, 0.0),
+                Vector2::new(0.0, QUAD_SIZE),
+            ),
         ],
         steerings,
     ));
