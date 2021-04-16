@@ -190,7 +190,7 @@ fn init_entities(cmd: &mut CommandBuffer, #[resource] window: &Window) {
 #[filter(component::<Camera2D>())]
 fn control_camera(transform: &mut Transform2D, #[resource] input: &Input) {
     const TSPEED: f32 = 4.0;
-    const SSPEED: f32 = 0.40;
+    const SSPEED: f32 = 1.0;
 
     if input.mouse.pressed(MouseButton::Middle) {
         let (dx, dy) = input.mouse.mouse_motion_in_ss();
