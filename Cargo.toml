@@ -17,7 +17,7 @@ wgpu = "0.7.*"
 winit = "0.24.*"
 
 # ecs framework
-legion = "0.4.*"
+legion = "0.4.0"
 
 # about math calculation
 nalgebra = "0.24.*"

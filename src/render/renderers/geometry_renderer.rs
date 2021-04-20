@@ -120,12 +120,11 @@ impl GeometryRenderer {
             ],
         });
 
-        let pipeline_layout =
-            device.create_pipeline_layout(&wgpu::PipelineLayoutDescriptor {
-                label: Some("geometry pipeline layout"),
-                bind_group_layouts: &[&bind_group_layout],
-                push_constant_ranges: &[],
-            });
+        let pipeline_layout = device.create_pipeline_layout(&wgpu::PipelineLayoutDescriptor {
+            label: Some("geometry pipeline layout"),
+            bind_group_layouts: &[&bind_group_layout],
+            push_constant_ranges: &[],
+        });
 
         let vert_shader = device.create_shader_module(&wgpu::ShaderModuleDescriptor {
             label: Some("geometry vertex shader"),
@@ -222,9 +221,7 @@ impl GeometryRenderer {
             max_depth,
         } = r2d.viewport;
 
-        let frame = frame
-            .as_ref()
-            .expect("ERR: Not call begin_draw.");
+        let frame = frame.as_ref().expect("ERR: Not call begin_draw.");
 
         let mut encoder = device.create_command_encoder(&wgpu::CommandEncoderDescriptor {
             label: Some("general encoder"),

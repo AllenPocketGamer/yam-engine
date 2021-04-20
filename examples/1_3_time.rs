@@ -45,7 +45,7 @@ fn diagnostic_time_cost(#[state] d_timer: &mut DiagnosticTimer)
 
     // Sleep 10ms.
     std::thread::sleep(std::time::Duration::from_millis(10));
-    
+
     d_timer.stop_record();
 
     println!("{}", d_timer);

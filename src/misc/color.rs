@@ -26,14 +26,14 @@ impl Rgba {
     #[rustfmt::skip]    pub const BLACK:        Self = Self::new(0, 0, 0, 255);
     #[rustfmt::skip]    pub const CAMEL:        Self = Self::new(193, 154, 107, 255);
     #[rustfmt::skip]    pub const SOFT_BLACK:   Self = Self::new(14, 17, 17, 255);
-    
+
     pub const fn new(r: u8, g: u8, b: u8, a: u8) -> Self {
         Self { r, g, b, a }
     }
 
     pub const fn from_hex(hex: Hex) -> Self {
         let rgba = hex.to_be_bytes();
-        
+
         Self {
             r: rgba[0],
             g: rgba[1],
@@ -45,7 +45,7 @@ impl Rgba {
     pub const fn to_hex(&self) -> Hex {
         u32::from_be_bytes([self.r, self.g, self.b, self.a])
     }
-    
+
     pub(crate) fn to_wgpu_color(&self) -> wgpu::Color {
         wgpu::Color {
             r: self.r as f64 / 255.0,
@@ -68,7 +68,7 @@ unsafe impl bytemuck::Pod for Rgba {}
 #[cfg(test)]
 mod test {
     use super::Rgba;
-    use std::mem::{size_of, align_of};
+    use std::mem::{align_of, size_of};
 
     #[test]
     fn check_repr() {

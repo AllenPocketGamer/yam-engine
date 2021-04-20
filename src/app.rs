@@ -141,7 +141,10 @@ impl App {
                 }
                 Event::MainEventsCleared => {
                     let trf = *resources.get_or_default::<Transformation>();
-                    resources.get_mut::<Input>().unwrap().apply(&mut input_evts, &trf)
+                    resources
+                        .get_mut::<Input>()
+                        .unwrap()
+                        .apply(&mut input_evts, &trf)
                 }
                 Event::RedrawRequested(_) => {}
                 Event::RedrawEventsCleared => {}

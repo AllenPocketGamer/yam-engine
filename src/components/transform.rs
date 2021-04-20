@@ -1,6 +1,4 @@
-use crate::nalgebra::{
-    Matrix3, Matrix4, Point2, UnitComplex, UnitQuaternion, Vector2, Vector3,
-};
+use crate::nalgebra::{Matrix3, Matrix4, Point2, UnitComplex, UnitQuaternion, Vector2, Vector3};
 
 /// Transformation from local space to world space.
 ///

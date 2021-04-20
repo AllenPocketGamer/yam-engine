@@ -1,10 +1,10 @@
 //! `yam` is a game engine using ECS(Entity-Component-System) architecture.
-//! 
+//!
 //! [What is ECS?](https://en.wikipedia.org/wiki/Entity_component_system)
 //!
 //! `yam` uses the `legion` which is easy to use, feature-rich high-performance
 //! ECS library as the framework of engine.
-//! 
+//!
 //! Don't worry, ECS is a simple concept and `legion` is easy to learn, you will
 //! get more useful information from [there](https://github.com/amethyst/legion).
 

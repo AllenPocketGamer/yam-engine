@@ -66,7 +66,7 @@ fn main() -> Result<()> {
     for shader in shaders {
         // This tells cargo to rerun this script if something in /src/ changes.
         println!("cargo:rerun-if-changed={:?}", shader.src_path);
-        
+
         let compiled = compiler.compile_into_spirv(
             &shader.src,
             shader.kind,

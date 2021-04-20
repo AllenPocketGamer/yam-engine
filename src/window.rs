@@ -60,7 +60,7 @@ impl Window {
 
         Ok((position.x, position.y))
     }
-    
+
     /// Set whether the window is resizable or not.
     pub fn set_resizable(&mut self, resizable: bool) {
         self.window.set_resizable(resizable);

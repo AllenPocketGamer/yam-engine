@@ -1,5 +1,5 @@
 //! Run the example with command `cargo run --example render2d_millions` --release`.
-//! 
+//!
 //! My device(CPU: AMD R5 2600X, Meomory: 16GB DDR4, GPU: NVIDIA GTX1070Ti) can be
 //! able to render 1_000_000 sprites in 60 fps.
 
@@ -54,7 +54,13 @@ fn init_entities(commands: &mut CommandBuffer, #[resource] window: &Window) {
     }
 
     // Push sprite(with instance) entity to `World`.
-    commands.push((transform2ds, steerings, Sprite { color: Rgba::ORANGE }));
+    commands.push((
+        transform2ds,
+        steerings,
+        Sprite {
+            color: Rgba::ORANGE,
+        },
+    ));
 }
 
 #[system(for_each)]

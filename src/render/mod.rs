@@ -236,11 +236,7 @@ impl Render2D {
         }
     }
 
-    fn process(
-        &mut self,
-        world: &mut World,
-        resources: &mut Resources,
-    ) -> Transformation {
+    fn process(&mut self, world: &mut World, resources: &mut Resources) -> Transformation {
         // Get window size.
         let (width, height) = {
             let window = resources
